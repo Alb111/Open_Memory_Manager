@@ -7,6 +7,9 @@ mc.write_full(0x01, 0xC0FFEEFF)
 mc.write_full(0x03, 0xCAFECAFE)
 mc.write_full(0x06, 0xABCDEFEF)
 mc.write_full(0x08, 0xACDCABBA)
+mc.write_half(0x0C, 0xABCD)
+mc.write_half(0x0D, 0xABBA)
+mc.write_half(0x0E, 0xACDC)
 
 print(hex(mc.read_full(0x00)))
 print(hex(mc.read_full(0x01)))
@@ -20,6 +23,8 @@ print(hex(mc.read_full(0x08)))
 print(hex(mc.read_full(0x09)))
 print(hex(mc.read_full(0x0A)))
 print(hex(mc.read_full(0x0B)))
+print(hex(mc.read_half(0x0C)))
+print(hex(mc.read_half(0x0D)))
 
 
 
@@ -35,3 +40,7 @@ print(hex(mc.read_full(0x0B)))
 # 09 AB
 # 0A DC
 # 0B AC
+# 0C CD
+# 0D BA
+# 0E DC
+# 0F AC
