@@ -1,0 +1,1568 @@
+[boundary addresses] iter 1 of 12  line_size=8 addr=0x1000 value=0 boundary read write  RESULT OK
+[boundary addresses] iter 2 of 12  line_size=8 addr=0x1000 value=1 boundary read write  RESULT OK
+[boundary addresses] iter 3 of 12  line_size=8 addr=0x1000 value=127 boundary read write  RESULT OK
+[boundary addresses] iter 4 of 12  line_size=8 addr=0x1000 value=128 boundary read write  RESULT OK
+[boundary addresses] iter 5 of 12  line_size=8 addr=0x1000 value=254 boundary read write  RESULT OK
+[boundary addresses] iter 6 of 12  line_size=8 addr=0x1000 value=255 boundary read write  RESULT OK
+[boundary addresses] iter 7 of 12  line_size=8 addr=0x103f value=0 boundary read write  RESULT OK
+[boundary addresses] iter 8 of 12  line_size=8 addr=0x103f value=1 boundary read write  RESULT OK
+[boundary addresses] iter 9 of 12  line_size=8 addr=0x103f value=127 boundary read write  RESULT OK
+[boundary addresses] iter 10 of 12  line_size=8 addr=0x103f value=128 boundary read write  RESULT OK
+[boundary addresses] iter 11 of 12  line_size=8 addr=0x103f value=254 boundary read write  RESULT OK
+[boundary addresses] iter 12 of 12  line_size=8 addr=0x103f value=255 boundary read write  RESULT OK
+[boundary addresses] iter 1 of 12  line_size=16 addr=0x1000 value=0 boundary read write  RESULT OK
+[boundary addresses] iter 2 of 12  line_size=16 addr=0x1000 value=1 boundary read write  RESULT OK
+[boundary addresses] iter 3 of 12  line_size=16 addr=0x1000 value=127 boundary read write  RESULT OK
+[boundary addresses] iter 4 of 12  line_size=16 addr=0x1000 value=128 boundary read write  RESULT OK
+[boundary addresses] iter 5 of 12  line_size=16 addr=0x1000 value=254 boundary read write  RESULT OK
+[boundary addresses] iter 6 of 12  line_size=16 addr=0x1000 value=255 boundary read write  RESULT OK
+[boundary addresses] iter 7 of 12  line_size=16 addr=0x103f value=0 boundary read write  RESULT OK
+[boundary addresses] iter 8 of 12  line_size=16 addr=0x103f value=1 boundary read write  RESULT OK
+[boundary addresses] iter 9 of 12  line_size=16 addr=0x103f value=127 boundary read write  RESULT OK
+[boundary addresses] iter 10 of 12  line_size=16 addr=0x103f value=128 boundary read write  RESULT OK
+[boundary addresses] iter 11 of 12  line_size=16 addr=0x103f value=254 boundary read write  RESULT OK
+[boundary addresses] iter 12 of 12  line_size=16 addr=0x103f value=255 boundary read write  RESULT OK
+[eviction writeback corner cases] iter 1 of 36  line_size=8 v1=0 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 2 of 36  line_size=8 v1=0 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 3 of 36  line_size=8 v1=0 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 4 of 36  line_size=8 v1=0 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 5 of 36  line_size=8 v1=0 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 6 of 36  line_size=8 v1=0 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 7 of 36  line_size=8 v1=1 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 8 of 36  line_size=8 v1=1 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 9 of 36  line_size=8 v1=1 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 10 of 36  line_size=8 v1=1 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 11 of 36  line_size=8 v1=1 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 12 of 36  line_size=8 v1=1 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 13 of 36  line_size=8 v1=127 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 14 of 36  line_size=8 v1=127 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 15 of 36  line_size=8 v1=127 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 16 of 36  line_size=8 v1=127 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 17 of 36  line_size=8 v1=127 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 18 of 36  line_size=8 v1=127 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 19 of 36  line_size=8 v1=128 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 20 of 36  line_size=8 v1=128 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 21 of 36  line_size=8 v1=128 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 22 of 36  line_size=8 v1=128 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 23 of 36  line_size=8 v1=128 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 24 of 36  line_size=8 v1=128 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 25 of 36  line_size=8 v1=254 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 26 of 36  line_size=8 v1=254 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 27 of 36  line_size=8 v1=254 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 28 of 36  line_size=8 v1=254 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 29 of 36  line_size=8 v1=254 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 30 of 36  line_size=8 v1=254 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 31 of 36  line_size=8 v1=255 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 32 of 36  line_size=8 v1=255 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 33 of 36  line_size=8 v1=255 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 34 of 36  line_size=8 v1=255 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 35 of 36  line_size=8 v1=255 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 36 of 36  line_size=8 v1=255 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 1 of 36  line_size=16 v1=0 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 2 of 36  line_size=16 v1=0 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 3 of 36  line_size=16 v1=0 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 4 of 36  line_size=16 v1=0 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 5 of 36  line_size=16 v1=0 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 6 of 36  line_size=16 v1=0 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 7 of 36  line_size=16 v1=1 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 8 of 36  line_size=16 v1=1 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 9 of 36  line_size=16 v1=1 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 10 of 36  line_size=16 v1=1 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 11 of 36  line_size=16 v1=1 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 12 of 36  line_size=16 v1=1 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 13 of 36  line_size=16 v1=127 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 14 of 36  line_size=16 v1=127 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 15 of 36  line_size=16 v1=127 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 16 of 36  line_size=16 v1=127 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 17 of 36  line_size=16 v1=127 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 18 of 36  line_size=16 v1=127 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 19 of 36  line_size=16 v1=128 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 20 of 36  line_size=16 v1=128 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 21 of 36  line_size=16 v1=128 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 22 of 36  line_size=16 v1=128 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 23 of 36  line_size=16 v1=128 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 24 of 36  line_size=16 v1=128 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 25 of 36  line_size=16 v1=254 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 26 of 36  line_size=16 v1=254 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 27 of 36  line_size=16 v1=254 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 28 of 36  line_size=16 v1=254 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 29 of 36  line_size=16 v1=254 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 30 of 36  line_size=16 v1=254 v2=255 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 31 of 36  line_size=16 v1=255 v2=0 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 32 of 36  line_size=16 v1=255 v2=1 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 33 of 36  line_size=16 v1=255 v2=127 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 34 of 36  line_size=16 v1=255 v2=128 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 35 of 36  line_size=16 v1=255 v2=254 evict M must write back  RESULT OK
+[eviction writeback corner cases] iter 36 of 36  line_size=16 v1=255 v2=255 evict M must write back  RESULT OK
+[random deterministic stress] progress step 25 of 800  RESULT OK
+[random deterministic stress] progress step 50 of 800  RESULT OK
+[random deterministic stress] progress step 75 of 800  RESULT OK
+[random deterministic stress] progress step 100 of 800  RESULT OK
+[random deterministic stress] progress step 125 of 800  RESULT OK
+[random deterministic stress] progress step 150 of 800  RESULT OK
+[random deterministic stress] progress step 175 of 800  RESULT OK
+[random deterministic stress] progress step 200 of 800  RESULT OK
+[random deterministic stress] progress step 225 of 800  RESULT OK
+[random deterministic stress] progress step 250 of 800  RESULT OK
+[random deterministic stress] progress step 275 of 800  RESULT OK
+[random deterministic stress] progress step 300 of 800  RESULT OK
+[random deterministic stress] progress step 325 of 800  RESULT OK
+[random deterministic stress] progress step 350 of 800  RESULT OK
+[random deterministic stress] progress step 375 of 800  RESULT OK
+[random deterministic stress] progress step 400 of 800  RESULT OK
+[random deterministic stress] progress step 425 of 800  RESULT OK
+[random deterministic stress] progress step 450 of 800  RESULT OK
+[random deterministic stress] progress step 475 of 800  RESULT OK
+[random deterministic stress] progress step 500 of 800  RESULT OK
+[random deterministic stress] progress step 525 of 800  RESULT OK
+[random deterministic stress] progress step 550 of 800  RESULT OK
+[random deterministic stress] progress step 575 of 800  RESULT OK
+[random deterministic stress] progress step 600 of 800  RESULT OK
+[random deterministic stress] progress step 625 of 800  RESULT OK
+[random deterministic stress] progress step 650 of 800  RESULT OK
+[random deterministic stress] progress step 675 of 800  RESULT OK
+[random deterministic stress] progress step 700 of 800  RESULT OK
+[random deterministic stress] progress step 725 of 800  RESULT OK
+[random deterministic stress] progress step 750 of 800  RESULT OK
+[random deterministic stress] progress step 775 of 800  RESULT OK
+[random deterministic stress] progress step 800 of 800  RESULT OK
+[read miss I to E] iter 1 of 16  line_size=4 addr=0x1000 expect E in reader  RESULT OK
+[read miss I to E] iter 2 of 16  line_size=4 addr=0x1001 expect E in reader  RESULT OK
+[read miss I to E] iter 3 of 16  line_size=4 addr=0x1002 expect E in reader  RESULT OK
+[read miss I to E] iter 4 of 16  line_size=4 addr=0x1003 expect E in reader  RESULT OK
+[read miss I to E] iter 5 of 16  line_size=4 addr=0x1004 expect E in reader  RESULT OK
+[read miss I to E] iter 6 of 16  line_size=4 addr=0x1005 expect E in reader  RESULT OK
+[read miss I to E] iter 7 of 16  line_size=4 addr=0x1006 expect E in reader  RESULT OK
+[read miss I to E] iter 8 of 16  line_size=4 addr=0x1007 expect E in reader  RESULT OK
+[read miss I to E] iter 9 of 16  line_size=4 addr=0x1008 expect E in reader  RESULT OK
+[read miss I to E] iter 10 of 16  line_size=4 addr=0x1009 expect E in reader  RESULT OK
+[read miss I to E] iter 11 of 16  line_size=4 addr=0x100a expect E in reader  RESULT OK
+[read miss I to E] iter 12 of 16  line_size=4 addr=0x100b expect E in reader  RESULT OK
+[read miss I to E] iter 13 of 16  line_size=4 addr=0x103c expect E in reader  RESULT OK
+[read miss I to E] iter 14 of 16  line_size=4 addr=0x103d expect E in reader  RESULT OK
+[read miss I to E] iter 15 of 16  line_size=4 addr=0x103e expect E in reader  RESULT OK
+[read miss I to E] iter 16 of 16  line_size=4 addr=0x103f expect E in reader  RESULT OK
+[read miss I to E] iter 1 of 16  line_size=8 addr=0x1000 expect E in reader  RESULT OK
+[read miss I to E] iter 2 of 16  line_size=8 addr=0x1001 expect E in reader  RESULT OK
+[read miss I to E] iter 3 of 16  line_size=8 addr=0x1004 expect E in reader  RESULT OK
+[read miss I to E] iter 4 of 16  line_size=8 addr=0x1007 expect E in reader  RESULT OK
+[read miss I to E] iter 5 of 16  line_size=8 addr=0x1008 expect E in reader  RESULT OK
+[read miss I to E] iter 6 of 16  line_size=8 addr=0x1009 expect E in reader  RESULT OK
+[read miss I to E] iter 7 of 16  line_size=8 addr=0x100c expect E in reader  RESULT OK
+[read miss I to E] iter 8 of 16  line_size=8 addr=0x100f expect E in reader  RESULT OK
+[read miss I to E] iter 9 of 16  line_size=8 addr=0x1010 expect E in reader  RESULT OK
+[read miss I to E] iter 10 of 16  line_size=8 addr=0x1011 expect E in reader  RESULT OK
+[read miss I to E] iter 11 of 16  line_size=8 addr=0x1014 expect E in reader  RESULT OK
+[read miss I to E] iter 12 of 16  line_size=8 addr=0x1017 expect E in reader  RESULT OK
+[read miss I to E] iter 13 of 16  line_size=8 addr=0x1038 expect E in reader  RESULT OK
+[read miss I to E] iter 14 of 16  line_size=8 addr=0x1039 expect E in reader  RESULT OK
+[read miss I to E] iter 15 of 16  line_size=8 addr=0x103c expect E in reader  RESULT OK
+[read miss I to E] iter 16 of 16  line_size=8 addr=0x103f expect E in reader  RESULT OK
+[read miss I to E] iter 1 of 16  line_size=16 addr=0x1000 expect E in reader  RESULT OK
+[read miss I to E] iter 2 of 16  line_size=16 addr=0x1001 expect E in reader  RESULT OK
+[read miss I to E] iter 3 of 16  line_size=16 addr=0x1008 expect E in reader  RESULT OK
+[read miss I to E] iter 4 of 16  line_size=16 addr=0x100f expect E in reader  RESULT OK
+[read miss I to E] iter 5 of 16  line_size=16 addr=0x1010 expect E in reader  RESULT OK
+[read miss I to E] iter 6 of 16  line_size=16 addr=0x1011 expect E in reader  RESULT OK
+[read miss I to E] iter 7 of 16  line_size=16 addr=0x1018 expect E in reader  RESULT OK
+[read miss I to E] iter 8 of 16  line_size=16 addr=0x101f expect E in reader  RESULT OK
+[read miss I to E] iter 9 of 16  line_size=16 addr=0x1020 expect E in reader  RESULT OK
+[read miss I to E] iter 10 of 16  line_size=16 addr=0x1021 expect E in reader  RESULT OK
+[read miss I to E] iter 11 of 16  line_size=16 addr=0x1028 expect E in reader  RESULT OK
+[read miss I to E] iter 12 of 16  line_size=16 addr=0x102f expect E in reader  RESULT OK
+[read miss I to E] iter 13 of 16  line_size=16 addr=0x1030 expect E in reader  RESULT OK
+[read miss I to E] iter 14 of 16  line_size=16 addr=0x1031 expect E in reader  RESULT OK
+[read miss I to E] iter 15 of 16  line_size=16 addr=0x1038 expect E in reader  RESULT OK
+[read miss I to E] iter 16 of 16  line_size=16 addr=0x103f expect E in reader  RESULT OK
+[second reader E to S] iter 1 of 16  line_size=4 addr=0x1000 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 2 of 16  line_size=4 addr=0x1001 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 3 of 16  line_size=4 addr=0x1002 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 4 of 16  line_size=4 addr=0x1003 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 5 of 16  line_size=4 addr=0x1004 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 6 of 16  line_size=4 addr=0x1005 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 7 of 16  line_size=4 addr=0x1006 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 8 of 16  line_size=4 addr=0x1007 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 9 of 16  line_size=4 addr=0x1008 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 10 of 16  line_size=4 addr=0x1009 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 11 of 16  line_size=4 addr=0x100a E then shared read gives S S  RESULT OK
+[second reader E to S] iter 12 of 16  line_size=4 addr=0x100b E then shared read gives S S  RESULT OK
+[second reader E to S] iter 13 of 16  line_size=4 addr=0x103c E then shared read gives S S  RESULT OK
+[second reader E to S] iter 14 of 16  line_size=4 addr=0x103d E then shared read gives S S  RESULT OK
+[second reader E to S] iter 15 of 16  line_size=4 addr=0x103e E then shared read gives S S  RESULT OK
+[second reader E to S] iter 16 of 16  line_size=4 addr=0x103f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 1 of 16  line_size=8 addr=0x1000 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 2 of 16  line_size=8 addr=0x1001 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 3 of 16  line_size=8 addr=0x1004 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 4 of 16  line_size=8 addr=0x1007 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 5 of 16  line_size=8 addr=0x1008 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 6 of 16  line_size=8 addr=0x1009 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 7 of 16  line_size=8 addr=0x100c E then shared read gives S S  RESULT OK
+[second reader E to S] iter 8 of 16  line_size=8 addr=0x100f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 9 of 16  line_size=8 addr=0x1010 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 10 of 16  line_size=8 addr=0x1011 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 11 of 16  line_size=8 addr=0x1014 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 12 of 16  line_size=8 addr=0x1017 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 13 of 16  line_size=8 addr=0x1038 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 14 of 16  line_size=8 addr=0x1039 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 15 of 16  line_size=8 addr=0x103c E then shared read gives S S  RESULT OK
+[second reader E to S] iter 16 of 16  line_size=8 addr=0x103f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 1 of 16  line_size=16 addr=0x1000 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 2 of 16  line_size=16 addr=0x1001 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 3 of 16  line_size=16 addr=0x1008 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 4 of 16  line_size=16 addr=0x100f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 5 of 16  line_size=16 addr=0x1010 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 6 of 16  line_size=16 addr=0x1011 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 7 of 16  line_size=16 addr=0x1018 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 8 of 16  line_size=16 addr=0x101f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 9 of 16  line_size=16 addr=0x1020 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 10 of 16  line_size=16 addr=0x1021 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 11 of 16  line_size=16 addr=0x1028 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 12 of 16  line_size=16 addr=0x102f E then shared read gives S S  RESULT OK
+[second reader E to S] iter 13 of 16  line_size=16 addr=0x1030 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 14 of 16  line_size=16 addr=0x1031 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 15 of 16  line_size=16 addr=0x1038 E then shared read gives S S  RESULT OK
+[second reader E to S] iter 16 of 16  line_size=16 addr=0x103f E then shared read gives S S  RESULT OK
+[write hit E to M] iter 1 of 96  line_size=4 addr=0x1000 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 2 of 96  line_size=4 addr=0x1000 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 3 of 96  line_size=4 addr=0x1000 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 4 of 96  line_size=4 addr=0x1000 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 5 of 96  line_size=4 addr=0x1000 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 6 of 96  line_size=4 addr=0x1000 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 7 of 96  line_size=4 addr=0x1001 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 8 of 96  line_size=4 addr=0x1001 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 9 of 96  line_size=4 addr=0x1001 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 10 of 96  line_size=4 addr=0x1001 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 11 of 96  line_size=4 addr=0x1001 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 12 of 96  line_size=4 addr=0x1001 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 13 of 96  line_size=4 addr=0x1002 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 14 of 96  line_size=4 addr=0x1002 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 15 of 96  line_size=4 addr=0x1002 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 16 of 96  line_size=4 addr=0x1002 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 17 of 96  line_size=4 addr=0x1002 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 18 of 96  line_size=4 addr=0x1002 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 19 of 96  line_size=4 addr=0x1003 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 20 of 96  line_size=4 addr=0x1003 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 21 of 96  line_size=4 addr=0x1003 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 22 of 96  line_size=4 addr=0x1003 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 23 of 96  line_size=4 addr=0x1003 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 24 of 96  line_size=4 addr=0x1003 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 25 of 96  line_size=4 addr=0x1004 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 26 of 96  line_size=4 addr=0x1004 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 27 of 96  line_size=4 addr=0x1004 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 28 of 96  line_size=4 addr=0x1004 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 29 of 96  line_size=4 addr=0x1004 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 30 of 96  line_size=4 addr=0x1004 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 31 of 96  line_size=4 addr=0x1005 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 32 of 96  line_size=4 addr=0x1005 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 33 of 96  line_size=4 addr=0x1005 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 34 of 96  line_size=4 addr=0x1005 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 35 of 96  line_size=4 addr=0x1005 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 36 of 96  line_size=4 addr=0x1005 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 37 of 96  line_size=4 addr=0x1006 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 38 of 96  line_size=4 addr=0x1006 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 39 of 96  line_size=4 addr=0x1006 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 40 of 96  line_size=4 addr=0x1006 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 41 of 96  line_size=4 addr=0x1006 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 42 of 96  line_size=4 addr=0x1006 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 43 of 96  line_size=4 addr=0x1007 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 44 of 96  line_size=4 addr=0x1007 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 45 of 96  line_size=4 addr=0x1007 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 46 of 96  line_size=4 addr=0x1007 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 47 of 96  line_size=4 addr=0x1007 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 48 of 96  line_size=4 addr=0x1007 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 49 of 96  line_size=4 addr=0x1008 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 50 of 96  line_size=4 addr=0x1008 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 51 of 96  line_size=4 addr=0x1008 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 52 of 96  line_size=4 addr=0x1008 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 53 of 96  line_size=4 addr=0x1008 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 54 of 96  line_size=4 addr=0x1008 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 55 of 96  line_size=4 addr=0x1009 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 56 of 96  line_size=4 addr=0x1009 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 57 of 96  line_size=4 addr=0x1009 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 58 of 96  line_size=4 addr=0x1009 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 59 of 96  line_size=4 addr=0x1009 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 60 of 96  line_size=4 addr=0x1009 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 61 of 96  line_size=4 addr=0x100a value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 62 of 96  line_size=4 addr=0x100a value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 63 of 96  line_size=4 addr=0x100a value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 64 of 96  line_size=4 addr=0x100a value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 65 of 96  line_size=4 addr=0x100a value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 66 of 96  line_size=4 addr=0x100a value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 67 of 96  line_size=4 addr=0x100b value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 68 of 96  line_size=4 addr=0x100b value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 69 of 96  line_size=4 addr=0x100b value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 70 of 96  line_size=4 addr=0x100b value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 71 of 96  line_size=4 addr=0x100b value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 72 of 96  line_size=4 addr=0x100b value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 73 of 96  line_size=4 addr=0x103c value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 74 of 96  line_size=4 addr=0x103c value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 75 of 96  line_size=4 addr=0x103c value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 76 of 96  line_size=4 addr=0x103c value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 77 of 96  line_size=4 addr=0x103c value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 78 of 96  line_size=4 addr=0x103c value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 79 of 96  line_size=4 addr=0x103d value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 80 of 96  line_size=4 addr=0x103d value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 81 of 96  line_size=4 addr=0x103d value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 82 of 96  line_size=4 addr=0x103d value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 83 of 96  line_size=4 addr=0x103d value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 84 of 96  line_size=4 addr=0x103d value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 85 of 96  line_size=4 addr=0x103e value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 86 of 96  line_size=4 addr=0x103e value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 87 of 96  line_size=4 addr=0x103e value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 88 of 96  line_size=4 addr=0x103e value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 89 of 96  line_size=4 addr=0x103e value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 90 of 96  line_size=4 addr=0x103e value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 91 of 96  line_size=4 addr=0x103f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 92 of 96  line_size=4 addr=0x103f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 93 of 96  line_size=4 addr=0x103f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 94 of 96  line_size=4 addr=0x103f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 95 of 96  line_size=4 addr=0x103f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 96 of 96  line_size=4 addr=0x103f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 1 of 96  line_size=8 addr=0x1000 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 2 of 96  line_size=8 addr=0x1000 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 3 of 96  line_size=8 addr=0x1000 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 4 of 96  line_size=8 addr=0x1000 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 5 of 96  line_size=8 addr=0x1000 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 6 of 96  line_size=8 addr=0x1000 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 7 of 96  line_size=8 addr=0x1001 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 8 of 96  line_size=8 addr=0x1001 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 9 of 96  line_size=8 addr=0x1001 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 10 of 96  line_size=8 addr=0x1001 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 11 of 96  line_size=8 addr=0x1001 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 12 of 96  line_size=8 addr=0x1001 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 13 of 96  line_size=8 addr=0x1004 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 14 of 96  line_size=8 addr=0x1004 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 15 of 96  line_size=8 addr=0x1004 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 16 of 96  line_size=8 addr=0x1004 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 17 of 96  line_size=8 addr=0x1004 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 18 of 96  line_size=8 addr=0x1004 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 19 of 96  line_size=8 addr=0x1007 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 20 of 96  line_size=8 addr=0x1007 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 21 of 96  line_size=8 addr=0x1007 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 22 of 96  line_size=8 addr=0x1007 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 23 of 96  line_size=8 addr=0x1007 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 24 of 96  line_size=8 addr=0x1007 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 25 of 96  line_size=8 addr=0x1008 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 26 of 96  line_size=8 addr=0x1008 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 27 of 96  line_size=8 addr=0x1008 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 28 of 96  line_size=8 addr=0x1008 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 29 of 96  line_size=8 addr=0x1008 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 30 of 96  line_size=8 addr=0x1008 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 31 of 96  line_size=8 addr=0x1009 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 32 of 96  line_size=8 addr=0x1009 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 33 of 96  line_size=8 addr=0x1009 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 34 of 96  line_size=8 addr=0x1009 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 35 of 96  line_size=8 addr=0x1009 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 36 of 96  line_size=8 addr=0x1009 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 37 of 96  line_size=8 addr=0x100c value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 38 of 96  line_size=8 addr=0x100c value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 39 of 96  line_size=8 addr=0x100c value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 40 of 96  line_size=8 addr=0x100c value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 41 of 96  line_size=8 addr=0x100c value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 42 of 96  line_size=8 addr=0x100c value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 43 of 96  line_size=8 addr=0x100f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 44 of 96  line_size=8 addr=0x100f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 45 of 96  line_size=8 addr=0x100f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 46 of 96  line_size=8 addr=0x100f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 47 of 96  line_size=8 addr=0x100f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 48 of 96  line_size=8 addr=0x100f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 49 of 96  line_size=8 addr=0x1010 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 50 of 96  line_size=8 addr=0x1010 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 51 of 96  line_size=8 addr=0x1010 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 52 of 96  line_size=8 addr=0x1010 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 53 of 96  line_size=8 addr=0x1010 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 54 of 96  line_size=8 addr=0x1010 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 55 of 96  line_size=8 addr=0x1011 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 56 of 96  line_size=8 addr=0x1011 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 57 of 96  line_size=8 addr=0x1011 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 58 of 96  line_size=8 addr=0x1011 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 59 of 96  line_size=8 addr=0x1011 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 60 of 96  line_size=8 addr=0x1011 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 61 of 96  line_size=8 addr=0x1014 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 62 of 96  line_size=8 addr=0x1014 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 63 of 96  line_size=8 addr=0x1014 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 64 of 96  line_size=8 addr=0x1014 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 65 of 96  line_size=8 addr=0x1014 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 66 of 96  line_size=8 addr=0x1014 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 67 of 96  line_size=8 addr=0x1017 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 68 of 96  line_size=8 addr=0x1017 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 69 of 96  line_size=8 addr=0x1017 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 70 of 96  line_size=8 addr=0x1017 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 71 of 96  line_size=8 addr=0x1017 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 72 of 96  line_size=8 addr=0x1017 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 73 of 96  line_size=8 addr=0x1038 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 74 of 96  line_size=8 addr=0x1038 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 75 of 96  line_size=8 addr=0x1038 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 76 of 96  line_size=8 addr=0x1038 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 77 of 96  line_size=8 addr=0x1038 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 78 of 96  line_size=8 addr=0x1038 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 79 of 96  line_size=8 addr=0x1039 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 80 of 96  line_size=8 addr=0x1039 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 81 of 96  line_size=8 addr=0x1039 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 82 of 96  line_size=8 addr=0x1039 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 83 of 96  line_size=8 addr=0x1039 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 84 of 96  line_size=8 addr=0x1039 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 85 of 96  line_size=8 addr=0x103c value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 86 of 96  line_size=8 addr=0x103c value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 87 of 96  line_size=8 addr=0x103c value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 88 of 96  line_size=8 addr=0x103c value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 89 of 96  line_size=8 addr=0x103c value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 90 of 96  line_size=8 addr=0x103c value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 91 of 96  line_size=8 addr=0x103f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 92 of 96  line_size=8 addr=0x103f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 93 of 96  line_size=8 addr=0x103f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 94 of 96  line_size=8 addr=0x103f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 95 of 96  line_size=8 addr=0x103f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 96 of 96  line_size=8 addr=0x103f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 1 of 96  line_size=16 addr=0x1000 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 2 of 96  line_size=16 addr=0x1000 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 3 of 96  line_size=16 addr=0x1000 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 4 of 96  line_size=16 addr=0x1000 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 5 of 96  line_size=16 addr=0x1000 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 6 of 96  line_size=16 addr=0x1000 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 7 of 96  line_size=16 addr=0x1001 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 8 of 96  line_size=16 addr=0x1001 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 9 of 96  line_size=16 addr=0x1001 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 10 of 96  line_size=16 addr=0x1001 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 11 of 96  line_size=16 addr=0x1001 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 12 of 96  line_size=16 addr=0x1001 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 13 of 96  line_size=16 addr=0x1008 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 14 of 96  line_size=16 addr=0x1008 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 15 of 96  line_size=16 addr=0x1008 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 16 of 96  line_size=16 addr=0x1008 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 17 of 96  line_size=16 addr=0x1008 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 18 of 96  line_size=16 addr=0x1008 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 19 of 96  line_size=16 addr=0x100f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 20 of 96  line_size=16 addr=0x100f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 21 of 96  line_size=16 addr=0x100f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 22 of 96  line_size=16 addr=0x100f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 23 of 96  line_size=16 addr=0x100f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 24 of 96  line_size=16 addr=0x100f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 25 of 96  line_size=16 addr=0x1010 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 26 of 96  line_size=16 addr=0x1010 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 27 of 96  line_size=16 addr=0x1010 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 28 of 96  line_size=16 addr=0x1010 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 29 of 96  line_size=16 addr=0x1010 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 30 of 96  line_size=16 addr=0x1010 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 31 of 96  line_size=16 addr=0x1011 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 32 of 96  line_size=16 addr=0x1011 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 33 of 96  line_size=16 addr=0x1011 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 34 of 96  line_size=16 addr=0x1011 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 35 of 96  line_size=16 addr=0x1011 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 36 of 96  line_size=16 addr=0x1011 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 37 of 96  line_size=16 addr=0x1018 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 38 of 96  line_size=16 addr=0x1018 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 39 of 96  line_size=16 addr=0x1018 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 40 of 96  line_size=16 addr=0x1018 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 41 of 96  line_size=16 addr=0x1018 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 42 of 96  line_size=16 addr=0x1018 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 43 of 96  line_size=16 addr=0x101f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 44 of 96  line_size=16 addr=0x101f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 45 of 96  line_size=16 addr=0x101f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 46 of 96  line_size=16 addr=0x101f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 47 of 96  line_size=16 addr=0x101f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 48 of 96  line_size=16 addr=0x101f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 49 of 96  line_size=16 addr=0x1020 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 50 of 96  line_size=16 addr=0x1020 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 51 of 96  line_size=16 addr=0x1020 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 52 of 96  line_size=16 addr=0x1020 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 53 of 96  line_size=16 addr=0x1020 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 54 of 96  line_size=16 addr=0x1020 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 55 of 96  line_size=16 addr=0x1021 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 56 of 96  line_size=16 addr=0x1021 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 57 of 96  line_size=16 addr=0x1021 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 58 of 96  line_size=16 addr=0x1021 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 59 of 96  line_size=16 addr=0x1021 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 60 of 96  line_size=16 addr=0x1021 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 61 of 96  line_size=16 addr=0x1028 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 62 of 96  line_size=16 addr=0x1028 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 63 of 96  line_size=16 addr=0x1028 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 64 of 96  line_size=16 addr=0x1028 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 65 of 96  line_size=16 addr=0x1028 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 66 of 96  line_size=16 addr=0x1028 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 67 of 96  line_size=16 addr=0x102f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 68 of 96  line_size=16 addr=0x102f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 69 of 96  line_size=16 addr=0x102f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 70 of 96  line_size=16 addr=0x102f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 71 of 96  line_size=16 addr=0x102f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 72 of 96  line_size=16 addr=0x102f value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 73 of 96  line_size=16 addr=0x1030 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 74 of 96  line_size=16 addr=0x1030 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 75 of 96  line_size=16 addr=0x1030 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 76 of 96  line_size=16 addr=0x1030 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 77 of 96  line_size=16 addr=0x1030 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 78 of 96  line_size=16 addr=0x1030 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 79 of 96  line_size=16 addr=0x1031 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 80 of 96  line_size=16 addr=0x1031 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 81 of 96  line_size=16 addr=0x1031 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 82 of 96  line_size=16 addr=0x1031 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 83 of 96  line_size=16 addr=0x1031 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 84 of 96  line_size=16 addr=0x1031 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 85 of 96  line_size=16 addr=0x1038 value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 86 of 96  line_size=16 addr=0x1038 value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 87 of 96  line_size=16 addr=0x1038 value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 88 of 96  line_size=16 addr=0x1038 value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 89 of 96  line_size=16 addr=0x1038 value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 90 of 96  line_size=16 addr=0x1038 value=255 E then write gives M  RESULT OK
+[write hit E to M] iter 91 of 96  line_size=16 addr=0x103f value=0 E then write gives M  RESULT OK
+[write hit E to M] iter 92 of 96  line_size=16 addr=0x103f value=1 E then write gives M  RESULT OK
+[write hit E to M] iter 93 of 96  line_size=16 addr=0x103f value=127 E then write gives M  RESULT OK
+[write hit E to M] iter 94 of 96  line_size=16 addr=0x103f value=128 E then write gives M  RESULT OK
+[write hit E to M] iter 95 of 96  line_size=16 addr=0x103f value=254 E then write gives M  RESULT OK
+[write hit E to M] iter 96 of 96  line_size=16 addr=0x103f value=255 E then write gives M  RESULT OK
+[write hit S to M via upgrade] iter 1 of 96  line_size=4 addr=0x1000 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 2 of 96  line_size=4 addr=0x1000 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 3 of 96  line_size=4 addr=0x1000 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 4 of 96  line_size=4 addr=0x1000 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 5 of 96  line_size=4 addr=0x1000 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 6 of 96  line_size=4 addr=0x1000 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 7 of 96  line_size=4 addr=0x1001 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 8 of 96  line_size=4 addr=0x1001 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 9 of 96  line_size=4 addr=0x1001 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 10 of 96  line_size=4 addr=0x1001 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 11 of 96  line_size=4 addr=0x1001 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 12 of 96  line_size=4 addr=0x1001 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 13 of 96  line_size=4 addr=0x1002 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 14 of 96  line_size=4 addr=0x1002 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 15 of 96  line_size=4 addr=0x1002 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 16 of 96  line_size=4 addr=0x1002 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 17 of 96  line_size=4 addr=0x1002 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 18 of 96  line_size=4 addr=0x1002 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 19 of 96  line_size=4 addr=0x1003 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 20 of 96  line_size=4 addr=0x1003 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 21 of 96  line_size=4 addr=0x1003 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 22 of 96  line_size=4 addr=0x1003 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 23 of 96  line_size=4 addr=0x1003 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 24 of 96  line_size=4 addr=0x1003 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 25 of 96  line_size=4 addr=0x1004 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 26 of 96  line_size=4 addr=0x1004 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 27 of 96  line_size=4 addr=0x1004 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 28 of 96  line_size=4 addr=0x1004 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 29 of 96  line_size=4 addr=0x1004 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 30 of 96  line_size=4 addr=0x1004 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 31 of 96  line_size=4 addr=0x1005 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 32 of 96  line_size=4 addr=0x1005 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 33 of 96  line_size=4 addr=0x1005 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 34 of 96  line_size=4 addr=0x1005 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 35 of 96  line_size=4 addr=0x1005 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 36 of 96  line_size=4 addr=0x1005 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 37 of 96  line_size=4 addr=0x1006 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 38 of 96  line_size=4 addr=0x1006 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 39 of 96  line_size=4 addr=0x1006 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 40 of 96  line_size=4 addr=0x1006 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 41 of 96  line_size=4 addr=0x1006 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 42 of 96  line_size=4 addr=0x1006 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 43 of 96  line_size=4 addr=0x1007 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 44 of 96  line_size=4 addr=0x1007 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 45 of 96  line_size=4 addr=0x1007 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 46 of 96  line_size=4 addr=0x1007 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 47 of 96  line_size=4 addr=0x1007 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 48 of 96  line_size=4 addr=0x1007 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 49 of 96  line_size=4 addr=0x1008 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 50 of 96  line_size=4 addr=0x1008 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 51 of 96  line_size=4 addr=0x1008 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 52 of 96  line_size=4 addr=0x1008 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 53 of 96  line_size=4 addr=0x1008 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 54 of 96  line_size=4 addr=0x1008 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 55 of 96  line_size=4 addr=0x1009 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 56 of 96  line_size=4 addr=0x1009 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 57 of 96  line_size=4 addr=0x1009 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 58 of 96  line_size=4 addr=0x1009 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 59 of 96  line_size=4 addr=0x1009 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 60 of 96  line_size=4 addr=0x1009 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 61 of 96  line_size=4 addr=0x100a value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 62 of 96  line_size=4 addr=0x100a value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 63 of 96  line_size=4 addr=0x100a value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 64 of 96  line_size=4 addr=0x100a value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 65 of 96  line_size=4 addr=0x100a value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 66 of 96  line_size=4 addr=0x100a value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 67 of 96  line_size=4 addr=0x100b value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 68 of 96  line_size=4 addr=0x100b value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 69 of 96  line_size=4 addr=0x100b value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 70 of 96  line_size=4 addr=0x100b value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 71 of 96  line_size=4 addr=0x100b value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 72 of 96  line_size=4 addr=0x100b value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 73 of 96  line_size=4 addr=0x103c value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 74 of 96  line_size=4 addr=0x103c value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 75 of 96  line_size=4 addr=0x103c value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 76 of 96  line_size=4 addr=0x103c value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 77 of 96  line_size=4 addr=0x103c value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 78 of 96  line_size=4 addr=0x103c value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 79 of 96  line_size=4 addr=0x103d value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 80 of 96  line_size=4 addr=0x103d value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 81 of 96  line_size=4 addr=0x103d value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 82 of 96  line_size=4 addr=0x103d value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 83 of 96  line_size=4 addr=0x103d value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 84 of 96  line_size=4 addr=0x103d value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 85 of 96  line_size=4 addr=0x103e value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 86 of 96  line_size=4 addr=0x103e value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 87 of 96  line_size=4 addr=0x103e value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 88 of 96  line_size=4 addr=0x103e value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 89 of 96  line_size=4 addr=0x103e value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 90 of 96  line_size=4 addr=0x103e value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 91 of 96  line_size=4 addr=0x103f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 92 of 96  line_size=4 addr=0x103f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 93 of 96  line_size=4 addr=0x103f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 94 of 96  line_size=4 addr=0x103f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 95 of 96  line_size=4 addr=0x103f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 96 of 96  line_size=4 addr=0x103f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 1 of 96  line_size=8 addr=0x1000 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 2 of 96  line_size=8 addr=0x1000 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 3 of 96  line_size=8 addr=0x1000 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 4 of 96  line_size=8 addr=0x1000 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 5 of 96  line_size=8 addr=0x1000 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 6 of 96  line_size=8 addr=0x1000 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 7 of 96  line_size=8 addr=0x1001 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 8 of 96  line_size=8 addr=0x1001 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 9 of 96  line_size=8 addr=0x1001 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 10 of 96  line_size=8 addr=0x1001 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 11 of 96  line_size=8 addr=0x1001 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 12 of 96  line_size=8 addr=0x1001 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 13 of 96  line_size=8 addr=0x1004 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 14 of 96  line_size=8 addr=0x1004 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 15 of 96  line_size=8 addr=0x1004 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 16 of 96  line_size=8 addr=0x1004 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 17 of 96  line_size=8 addr=0x1004 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 18 of 96  line_size=8 addr=0x1004 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 19 of 96  line_size=8 addr=0x1007 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 20 of 96  line_size=8 addr=0x1007 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 21 of 96  line_size=8 addr=0x1007 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 22 of 96  line_size=8 addr=0x1007 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 23 of 96  line_size=8 addr=0x1007 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 24 of 96  line_size=8 addr=0x1007 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 25 of 96  line_size=8 addr=0x1008 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 26 of 96  line_size=8 addr=0x1008 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 27 of 96  line_size=8 addr=0x1008 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 28 of 96  line_size=8 addr=0x1008 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 29 of 96  line_size=8 addr=0x1008 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 30 of 96  line_size=8 addr=0x1008 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 31 of 96  line_size=8 addr=0x1009 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 32 of 96  line_size=8 addr=0x1009 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 33 of 96  line_size=8 addr=0x1009 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 34 of 96  line_size=8 addr=0x1009 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 35 of 96  line_size=8 addr=0x1009 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 36 of 96  line_size=8 addr=0x1009 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 37 of 96  line_size=8 addr=0x100c value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 38 of 96  line_size=8 addr=0x100c value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 39 of 96  line_size=8 addr=0x100c value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 40 of 96  line_size=8 addr=0x100c value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 41 of 96  line_size=8 addr=0x100c value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 42 of 96  line_size=8 addr=0x100c value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 43 of 96  line_size=8 addr=0x100f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 44 of 96  line_size=8 addr=0x100f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 45 of 96  line_size=8 addr=0x100f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 46 of 96  line_size=8 addr=0x100f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 47 of 96  line_size=8 addr=0x100f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 48 of 96  line_size=8 addr=0x100f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 49 of 96  line_size=8 addr=0x1010 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 50 of 96  line_size=8 addr=0x1010 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 51 of 96  line_size=8 addr=0x1010 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 52 of 96  line_size=8 addr=0x1010 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 53 of 96  line_size=8 addr=0x1010 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 54 of 96  line_size=8 addr=0x1010 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 55 of 96  line_size=8 addr=0x1011 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 56 of 96  line_size=8 addr=0x1011 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 57 of 96  line_size=8 addr=0x1011 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 58 of 96  line_size=8 addr=0x1011 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 59 of 96  line_size=8 addr=0x1011 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 60 of 96  line_size=8 addr=0x1011 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 61 of 96  line_size=8 addr=0x1014 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 62 of 96  line_size=8 addr=0x1014 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 63 of 96  line_size=8 addr=0x1014 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 64 of 96  line_size=8 addr=0x1014 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 65 of 96  line_size=8 addr=0x1014 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 66 of 96  line_size=8 addr=0x1014 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 67 of 96  line_size=8 addr=0x1017 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 68 of 96  line_size=8 addr=0x1017 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 69 of 96  line_size=8 addr=0x1017 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 70 of 96  line_size=8 addr=0x1017 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 71 of 96  line_size=8 addr=0x1017 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 72 of 96  line_size=8 addr=0x1017 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 73 of 96  line_size=8 addr=0x1038 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 74 of 96  line_size=8 addr=0x1038 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 75 of 96  line_size=8 addr=0x1038 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 76 of 96  line_size=8 addr=0x1038 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 77 of 96  line_size=8 addr=0x1038 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 78 of 96  line_size=8 addr=0x1038 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 79 of 96  line_size=8 addr=0x1039 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 80 of 96  line_size=8 addr=0x1039 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 81 of 96  line_size=8 addr=0x1039 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 82 of 96  line_size=8 addr=0x1039 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 83 of 96  line_size=8 addr=0x1039 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 84 of 96  line_size=8 addr=0x1039 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 85 of 96  line_size=8 addr=0x103c value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 86 of 96  line_size=8 addr=0x103c value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 87 of 96  line_size=8 addr=0x103c value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 88 of 96  line_size=8 addr=0x103c value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 89 of 96  line_size=8 addr=0x103c value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 90 of 96  line_size=8 addr=0x103c value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 91 of 96  line_size=8 addr=0x103f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 92 of 96  line_size=8 addr=0x103f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 93 of 96  line_size=8 addr=0x103f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 94 of 96  line_size=8 addr=0x103f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 95 of 96  line_size=8 addr=0x103f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 96 of 96  line_size=8 addr=0x103f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 1 of 96  line_size=16 addr=0x1000 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 2 of 96  line_size=16 addr=0x1000 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 3 of 96  line_size=16 addr=0x1000 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 4 of 96  line_size=16 addr=0x1000 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 5 of 96  line_size=16 addr=0x1000 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 6 of 96  line_size=16 addr=0x1000 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 7 of 96  line_size=16 addr=0x1001 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 8 of 96  line_size=16 addr=0x1001 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 9 of 96  line_size=16 addr=0x1001 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 10 of 96  line_size=16 addr=0x1001 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 11 of 96  line_size=16 addr=0x1001 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 12 of 96  line_size=16 addr=0x1001 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 13 of 96  line_size=16 addr=0x1008 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 14 of 96  line_size=16 addr=0x1008 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 15 of 96  line_size=16 addr=0x1008 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 16 of 96  line_size=16 addr=0x1008 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 17 of 96  line_size=16 addr=0x1008 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 18 of 96  line_size=16 addr=0x1008 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 19 of 96  line_size=16 addr=0x100f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 20 of 96  line_size=16 addr=0x100f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 21 of 96  line_size=16 addr=0x100f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 22 of 96  line_size=16 addr=0x100f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 23 of 96  line_size=16 addr=0x100f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 24 of 96  line_size=16 addr=0x100f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 25 of 96  line_size=16 addr=0x1010 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 26 of 96  line_size=16 addr=0x1010 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 27 of 96  line_size=16 addr=0x1010 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 28 of 96  line_size=16 addr=0x1010 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 29 of 96  line_size=16 addr=0x1010 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 30 of 96  line_size=16 addr=0x1010 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 31 of 96  line_size=16 addr=0x1011 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 32 of 96  line_size=16 addr=0x1011 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 33 of 96  line_size=16 addr=0x1011 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 34 of 96  line_size=16 addr=0x1011 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 35 of 96  line_size=16 addr=0x1011 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 36 of 96  line_size=16 addr=0x1011 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 37 of 96  line_size=16 addr=0x1018 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 38 of 96  line_size=16 addr=0x1018 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 39 of 96  line_size=16 addr=0x1018 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 40 of 96  line_size=16 addr=0x1018 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 41 of 96  line_size=16 addr=0x1018 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 42 of 96  line_size=16 addr=0x1018 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 43 of 96  line_size=16 addr=0x101f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 44 of 96  line_size=16 addr=0x101f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 45 of 96  line_size=16 addr=0x101f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 46 of 96  line_size=16 addr=0x101f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 47 of 96  line_size=16 addr=0x101f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 48 of 96  line_size=16 addr=0x101f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 49 of 96  line_size=16 addr=0x1020 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 50 of 96  line_size=16 addr=0x1020 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 51 of 96  line_size=16 addr=0x1020 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 52 of 96  line_size=16 addr=0x1020 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 53 of 96  line_size=16 addr=0x1020 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 54 of 96  line_size=16 addr=0x1020 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 55 of 96  line_size=16 addr=0x1021 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 56 of 96  line_size=16 addr=0x1021 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 57 of 96  line_size=16 addr=0x1021 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 58 of 96  line_size=16 addr=0x1021 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 59 of 96  line_size=16 addr=0x1021 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 60 of 96  line_size=16 addr=0x1021 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 61 of 96  line_size=16 addr=0x1028 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 62 of 96  line_size=16 addr=0x1028 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 63 of 96  line_size=16 addr=0x1028 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 64 of 96  line_size=16 addr=0x1028 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 65 of 96  line_size=16 addr=0x1028 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 66 of 96  line_size=16 addr=0x1028 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 67 of 96  line_size=16 addr=0x102f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 68 of 96  line_size=16 addr=0x102f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 69 of 96  line_size=16 addr=0x102f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 70 of 96  line_size=16 addr=0x102f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 71 of 96  line_size=16 addr=0x102f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 72 of 96  line_size=16 addr=0x102f value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 73 of 96  line_size=16 addr=0x1030 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 74 of 96  line_size=16 addr=0x1030 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 75 of 96  line_size=16 addr=0x1030 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 76 of 96  line_size=16 addr=0x1030 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 77 of 96  line_size=16 addr=0x1030 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 78 of 96  line_size=16 addr=0x1030 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 79 of 96  line_size=16 addr=0x1031 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 80 of 96  line_size=16 addr=0x1031 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 81 of 96  line_size=16 addr=0x1031 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 82 of 96  line_size=16 addr=0x1031 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 83 of 96  line_size=16 addr=0x1031 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 84 of 96  line_size=16 addr=0x1031 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 85 of 96  line_size=16 addr=0x1038 value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 86 of 96  line_size=16 addr=0x1038 value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 87 of 96  line_size=16 addr=0x1038 value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 88 of 96  line_size=16 addr=0x1038 value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 89 of 96  line_size=16 addr=0x1038 value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 90 of 96  line_size=16 addr=0x1038 value=255 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 91 of 96  line_size=16 addr=0x103f value=0 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 92 of 96  line_size=16 addr=0x103f value=1 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 93 of 96  line_size=16 addr=0x103f value=127 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 94 of 96  line_size=16 addr=0x103f value=128 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 95 of 96  line_size=16 addr=0x103f value=254 S S then writer upgrades to M  RESULT OK
+[write hit S to M via upgrade] iter 96 of 96  line_size=16 addr=0x103f value=255 S S then writer upgrades to M  RESULT OK
+[write miss I to M with other states] iter 1 of 384  case other I line_size=8 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 2 of 384  case other E line_size=8 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 3 of 384  case other S writer missing line_size=8 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 4 of 384  case other M line_size=8 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 5 of 384  case other I line_size=8 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 6 of 384  case other E line_size=8 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 7 of 384  case other S writer missing line_size=8 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 8 of 384  case other M line_size=8 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 9 of 384  case other I line_size=8 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 10 of 384  case other E line_size=8 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 11 of 384  case other S writer missing line_size=8 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 12 of 384  case other M line_size=8 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 13 of 384  case other I line_size=8 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 14 of 384  case other E line_size=8 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 15 of 384  case other S writer missing line_size=8 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 16 of 384  case other M line_size=8 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 17 of 384  case other I line_size=8 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 18 of 384  case other E line_size=8 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 19 of 384  case other S writer missing line_size=8 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 20 of 384  case other M line_size=8 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 21 of 384  case other I line_size=8 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 22 of 384  case other E line_size=8 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 23 of 384  case other S writer missing line_size=8 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 24 of 384  case other M line_size=8 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 25 of 384  case other I line_size=8 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 26 of 384  case other E line_size=8 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 27 of 384  case other S writer missing line_size=8 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 28 of 384  case other M line_size=8 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 29 of 384  case other I line_size=8 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 30 of 384  case other E line_size=8 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 31 of 384  case other S writer missing line_size=8 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 32 of 384  case other M line_size=8 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 33 of 384  case other I line_size=8 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 34 of 384  case other E line_size=8 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 35 of 384  case other S writer missing line_size=8 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 36 of 384  case other M line_size=8 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 37 of 384  case other I line_size=8 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 38 of 384  case other E line_size=8 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 39 of 384  case other S writer missing line_size=8 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 40 of 384  case other M line_size=8 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 41 of 384  case other I line_size=8 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 42 of 384  case other E line_size=8 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 43 of 384  case other S writer missing line_size=8 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 44 of 384  case other M line_size=8 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 45 of 384  case other I line_size=8 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 46 of 384  case other E line_size=8 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 47 of 384  case other S writer missing line_size=8 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 48 of 384  case other M line_size=8 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 49 of 384  case other I line_size=8 addr=0x1004 value=0  RESULT OK
+[write miss I to M with other states] iter 50 of 384  case other E line_size=8 addr=0x1004 value=0  RESULT OK
+[write miss I to M with other states] iter 51 of 384  case other S writer missing line_size=8 addr=0x1004 value=0  RESULT OK
+[write miss I to M with other states] iter 52 of 384  case other M line_size=8 addr=0x1004 value=0  RESULT OK
+[write miss I to M with other states] iter 53 of 384  case other I line_size=8 addr=0x1004 value=1  RESULT OK
+[write miss I to M with other states] iter 54 of 384  case other E line_size=8 addr=0x1004 value=1  RESULT OK
+[write miss I to M with other states] iter 55 of 384  case other S writer missing line_size=8 addr=0x1004 value=1  RESULT OK
+[write miss I to M with other states] iter 56 of 384  case other M line_size=8 addr=0x1004 value=1  RESULT OK
+[write miss I to M with other states] iter 57 of 384  case other I line_size=8 addr=0x1004 value=127  RESULT OK
+[write miss I to M with other states] iter 58 of 384  case other E line_size=8 addr=0x1004 value=127  RESULT OK
+[write miss I to M with other states] iter 59 of 384  case other S writer missing line_size=8 addr=0x1004 value=127  RESULT OK
+[write miss I to M with other states] iter 60 of 384  case other M line_size=8 addr=0x1004 value=127  RESULT OK
+[write miss I to M with other states] iter 61 of 384  case other I line_size=8 addr=0x1004 value=128  RESULT OK
+[write miss I to M with other states] iter 62 of 384  case other E line_size=8 addr=0x1004 value=128  RESULT OK
+[write miss I to M with other states] iter 63 of 384  case other S writer missing line_size=8 addr=0x1004 value=128  RESULT OK
+[write miss I to M with other states] iter 64 of 384  case other M line_size=8 addr=0x1004 value=128  RESULT OK
+[write miss I to M with other states] iter 65 of 384  case other I line_size=8 addr=0x1004 value=254  RESULT OK
+[write miss I to M with other states] iter 66 of 384  case other E line_size=8 addr=0x1004 value=254  RESULT OK
+[write miss I to M with other states] iter 67 of 384  case other S writer missing line_size=8 addr=0x1004 value=254  RESULT OK
+[write miss I to M with other states] iter 68 of 384  case other M line_size=8 addr=0x1004 value=254  RESULT OK
+[write miss I to M with other states] iter 69 of 384  case other I line_size=8 addr=0x1004 value=255  RESULT OK
+[write miss I to M with other states] iter 70 of 384  case other E line_size=8 addr=0x1004 value=255  RESULT OK
+[write miss I to M with other states] iter 71 of 384  case other S writer missing line_size=8 addr=0x1004 value=255  RESULT OK
+[write miss I to M with other states] iter 72 of 384  case other M line_size=8 addr=0x1004 value=255  RESULT OK
+[write miss I to M with other states] iter 73 of 384  case other I line_size=8 addr=0x1007 value=0  RESULT OK
+[write miss I to M with other states] iter 74 of 384  case other E line_size=8 addr=0x1007 value=0  RESULT OK
+[write miss I to M with other states] iter 75 of 384  case other S writer missing line_size=8 addr=0x1007 value=0  RESULT OK
+[write miss I to M with other states] iter 76 of 384  case other M line_size=8 addr=0x1007 value=0  RESULT OK
+[write miss I to M with other states] iter 77 of 384  case other I line_size=8 addr=0x1007 value=1  RESULT OK
+[write miss I to M with other states] iter 78 of 384  case other E line_size=8 addr=0x1007 value=1  RESULT OK
+[write miss I to M with other states] iter 79 of 384  case other S writer missing line_size=8 addr=0x1007 value=1  RESULT OK
+[write miss I to M with other states] iter 80 of 384  case other M line_size=8 addr=0x1007 value=1  RESULT OK
+[write miss I to M with other states] iter 81 of 384  case other I line_size=8 addr=0x1007 value=127  RESULT OK
+[write miss I to M with other states] iter 82 of 384  case other E line_size=8 addr=0x1007 value=127  RESULT OK
+[write miss I to M with other states] iter 83 of 384  case other S writer missing line_size=8 addr=0x1007 value=127  RESULT OK
+[write miss I to M with other states] iter 84 of 384  case other M line_size=8 addr=0x1007 value=127  RESULT OK
+[write miss I to M with other states] iter 85 of 384  case other I line_size=8 addr=0x1007 value=128  RESULT OK
+[write miss I to M with other states] iter 86 of 384  case other E line_size=8 addr=0x1007 value=128  RESULT OK
+[write miss I to M with other states] iter 87 of 384  case other S writer missing line_size=8 addr=0x1007 value=128  RESULT OK
+[write miss I to M with other states] iter 88 of 384  case other M line_size=8 addr=0x1007 value=128  RESULT OK
+[write miss I to M with other states] iter 89 of 384  case other I line_size=8 addr=0x1007 value=254  RESULT OK
+[write miss I to M with other states] iter 90 of 384  case other E line_size=8 addr=0x1007 value=254  RESULT OK
+[write miss I to M with other states] iter 91 of 384  case other S writer missing line_size=8 addr=0x1007 value=254  RESULT OK
+[write miss I to M with other states] iter 92 of 384  case other M line_size=8 addr=0x1007 value=254  RESULT OK
+[write miss I to M with other states] iter 93 of 384  case other I line_size=8 addr=0x1007 value=255  RESULT OK
+[write miss I to M with other states] iter 94 of 384  case other E line_size=8 addr=0x1007 value=255  RESULT OK
+[write miss I to M with other states] iter 95 of 384  case other S writer missing line_size=8 addr=0x1007 value=255  RESULT OK
+[write miss I to M with other states] iter 96 of 384  case other M line_size=8 addr=0x1007 value=255  RESULT OK
+[write miss I to M with other states] iter 97 of 384  case other I line_size=8 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 98 of 384  case other E line_size=8 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 99 of 384  case other S writer missing line_size=8 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 100 of 384  case other M line_size=8 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 101 of 384  case other I line_size=8 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 102 of 384  case other E line_size=8 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 103 of 384  case other S writer missing line_size=8 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 104 of 384  case other M line_size=8 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 105 of 384  case other I line_size=8 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 106 of 384  case other E line_size=8 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 107 of 384  case other S writer missing line_size=8 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 108 of 384  case other M line_size=8 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 109 of 384  case other I line_size=8 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 110 of 384  case other E line_size=8 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 111 of 384  case other S writer missing line_size=8 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 112 of 384  case other M line_size=8 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 113 of 384  case other I line_size=8 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 114 of 384  case other E line_size=8 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 115 of 384  case other S writer missing line_size=8 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 116 of 384  case other M line_size=8 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 117 of 384  case other I line_size=8 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 118 of 384  case other E line_size=8 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 119 of 384  case other S writer missing line_size=8 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 120 of 384  case other M line_size=8 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 121 of 384  case other I line_size=8 addr=0x1009 value=0  RESULT OK
+[write miss I to M with other states] iter 122 of 384  case other E line_size=8 addr=0x1009 value=0  RESULT OK
+[write miss I to M with other states] iter 123 of 384  case other S writer missing line_size=8 addr=0x1009 value=0  RESULT OK
+[write miss I to M with other states] iter 124 of 384  case other M line_size=8 addr=0x1009 value=0  RESULT OK
+[write miss I to M with other states] iter 125 of 384  case other I line_size=8 addr=0x1009 value=1  RESULT OK
+[write miss I to M with other states] iter 126 of 384  case other E line_size=8 addr=0x1009 value=1  RESULT OK
+[write miss I to M with other states] iter 127 of 384  case other S writer missing line_size=8 addr=0x1009 value=1  RESULT OK
+[write miss I to M with other states] iter 128 of 384  case other M line_size=8 addr=0x1009 value=1  RESULT OK
+[write miss I to M with other states] iter 129 of 384  case other I line_size=8 addr=0x1009 value=127  RESULT OK
+[write miss I to M with other states] iter 130 of 384  case other E line_size=8 addr=0x1009 value=127  RESULT OK
+[write miss I to M with other states] iter 131 of 384  case other S writer missing line_size=8 addr=0x1009 value=127  RESULT OK
+[write miss I to M with other states] iter 132 of 384  case other M line_size=8 addr=0x1009 value=127  RESULT OK
+[write miss I to M with other states] iter 133 of 384  case other I line_size=8 addr=0x1009 value=128  RESULT OK
+[write miss I to M with other states] iter 134 of 384  case other E line_size=8 addr=0x1009 value=128  RESULT OK
+[write miss I to M with other states] iter 135 of 384  case other S writer missing line_size=8 addr=0x1009 value=128  RESULT OK
+[write miss I to M with other states] iter 136 of 384  case other M line_size=8 addr=0x1009 value=128  RESULT OK
+[write miss I to M with other states] iter 137 of 384  case other I line_size=8 addr=0x1009 value=254  RESULT OK
+[write miss I to M with other states] iter 138 of 384  case other E line_size=8 addr=0x1009 value=254  RESULT OK
+[write miss I to M with other states] iter 139 of 384  case other S writer missing line_size=8 addr=0x1009 value=254  RESULT OK
+[write miss I to M with other states] iter 140 of 384  case other M line_size=8 addr=0x1009 value=254  RESULT OK
+[write miss I to M with other states] iter 141 of 384  case other I line_size=8 addr=0x1009 value=255  RESULT OK
+[write miss I to M with other states] iter 142 of 384  case other E line_size=8 addr=0x1009 value=255  RESULT OK
+[write miss I to M with other states] iter 143 of 384  case other S writer missing line_size=8 addr=0x1009 value=255  RESULT OK
+[write miss I to M with other states] iter 144 of 384  case other M line_size=8 addr=0x1009 value=255  RESULT OK
+[write miss I to M with other states] iter 145 of 384  case other I line_size=8 addr=0x100c value=0  RESULT OK
+[write miss I to M with other states] iter 146 of 384  case other E line_size=8 addr=0x100c value=0  RESULT OK
+[write miss I to M with other states] iter 147 of 384  case other S writer missing line_size=8 addr=0x100c value=0  RESULT OK
+[write miss I to M with other states] iter 148 of 384  case other M line_size=8 addr=0x100c value=0  RESULT OK
+[write miss I to M with other states] iter 149 of 384  case other I line_size=8 addr=0x100c value=1  RESULT OK
+[write miss I to M with other states] iter 150 of 384  case other E line_size=8 addr=0x100c value=1  RESULT OK
+[write miss I to M with other states] iter 151 of 384  case other S writer missing line_size=8 addr=0x100c value=1  RESULT OK
+[write miss I to M with other states] iter 152 of 384  case other M line_size=8 addr=0x100c value=1  RESULT OK
+[write miss I to M with other states] iter 153 of 384  case other I line_size=8 addr=0x100c value=127  RESULT OK
+[write miss I to M with other states] iter 154 of 384  case other E line_size=8 addr=0x100c value=127  RESULT OK
+[write miss I to M with other states] iter 155 of 384  case other S writer missing line_size=8 addr=0x100c value=127  RESULT OK
+[write miss I to M with other states] iter 156 of 384  case other M line_size=8 addr=0x100c value=127  RESULT OK
+[write miss I to M with other states] iter 157 of 384  case other I line_size=8 addr=0x100c value=128  RESULT OK
+[write miss I to M with other states] iter 158 of 384  case other E line_size=8 addr=0x100c value=128  RESULT OK
+[write miss I to M with other states] iter 159 of 384  case other S writer missing line_size=8 addr=0x100c value=128  RESULT OK
+[write miss I to M with other states] iter 160 of 384  case other M line_size=8 addr=0x100c value=128  RESULT OK
+[write miss I to M with other states] iter 161 of 384  case other I line_size=8 addr=0x100c value=254  RESULT OK
+[write miss I to M with other states] iter 162 of 384  case other E line_size=8 addr=0x100c value=254  RESULT OK
+[write miss I to M with other states] iter 163 of 384  case other S writer missing line_size=8 addr=0x100c value=254  RESULT OK
+[write miss I to M with other states] iter 164 of 384  case other M line_size=8 addr=0x100c value=254  RESULT OK
+[write miss I to M with other states] iter 165 of 384  case other I line_size=8 addr=0x100c value=255  RESULT OK
+[write miss I to M with other states] iter 166 of 384  case other E line_size=8 addr=0x100c value=255  RESULT OK
+[write miss I to M with other states] iter 167 of 384  case other S writer missing line_size=8 addr=0x100c value=255  RESULT OK
+[write miss I to M with other states] iter 168 of 384  case other M line_size=8 addr=0x100c value=255  RESULT OK
+[write miss I to M with other states] iter 169 of 384  case other I line_size=8 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 170 of 384  case other E line_size=8 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 171 of 384  case other S writer missing line_size=8 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 172 of 384  case other M line_size=8 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 173 of 384  case other I line_size=8 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 174 of 384  case other E line_size=8 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 175 of 384  case other S writer missing line_size=8 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 176 of 384  case other M line_size=8 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 177 of 384  case other I line_size=8 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 178 of 384  case other E line_size=8 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 179 of 384  case other S writer missing line_size=8 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 180 of 384  case other M line_size=8 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 181 of 384  case other I line_size=8 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 182 of 384  case other E line_size=8 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 183 of 384  case other S writer missing line_size=8 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 184 of 384  case other M line_size=8 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 185 of 384  case other I line_size=8 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 186 of 384  case other E line_size=8 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 187 of 384  case other S writer missing line_size=8 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 188 of 384  case other M line_size=8 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 189 of 384  case other I line_size=8 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 190 of 384  case other E line_size=8 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 191 of 384  case other S writer missing line_size=8 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 192 of 384  case other M line_size=8 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 193 of 384  case other I line_size=8 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 194 of 384  case other E line_size=8 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 195 of 384  case other S writer missing line_size=8 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 196 of 384  case other M line_size=8 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 197 of 384  case other I line_size=8 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 198 of 384  case other E line_size=8 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 199 of 384  case other S writer missing line_size=8 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 200 of 384  case other M line_size=8 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 201 of 384  case other I line_size=8 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 202 of 384  case other E line_size=8 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 203 of 384  case other S writer missing line_size=8 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 204 of 384  case other M line_size=8 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 205 of 384  case other I line_size=8 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 206 of 384  case other E line_size=8 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 207 of 384  case other S writer missing line_size=8 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 208 of 384  case other M line_size=8 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 209 of 384  case other I line_size=8 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 210 of 384  case other E line_size=8 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 211 of 384  case other S writer missing line_size=8 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 212 of 384  case other M line_size=8 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 213 of 384  case other I line_size=8 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 214 of 384  case other E line_size=8 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 215 of 384  case other S writer missing line_size=8 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 216 of 384  case other M line_size=8 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 217 of 384  case other I line_size=8 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 218 of 384  case other E line_size=8 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 219 of 384  case other S writer missing line_size=8 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 220 of 384  case other M line_size=8 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 221 of 384  case other I line_size=8 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 222 of 384  case other E line_size=8 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 223 of 384  case other S writer missing line_size=8 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 224 of 384  case other M line_size=8 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 225 of 384  case other I line_size=8 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 226 of 384  case other E line_size=8 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 227 of 384  case other S writer missing line_size=8 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 228 of 384  case other M line_size=8 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 229 of 384  case other I line_size=8 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 230 of 384  case other E line_size=8 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 231 of 384  case other S writer missing line_size=8 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 232 of 384  case other M line_size=8 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 233 of 384  case other I line_size=8 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 234 of 384  case other E line_size=8 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 235 of 384  case other S writer missing line_size=8 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 236 of 384  case other M line_size=8 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 237 of 384  case other I line_size=8 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 238 of 384  case other E line_size=8 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 239 of 384  case other S writer missing line_size=8 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 240 of 384  case other M line_size=8 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 241 of 384  case other I line_size=8 addr=0x1014 value=0  RESULT OK
+[write miss I to M with other states] iter 242 of 384  case other E line_size=8 addr=0x1014 value=0  RESULT OK
+[write miss I to M with other states] iter 243 of 384  case other S writer missing line_size=8 addr=0x1014 value=0  RESULT OK
+[write miss I to M with other states] iter 244 of 384  case other M line_size=8 addr=0x1014 value=0  RESULT OK
+[write miss I to M with other states] iter 245 of 384  case other I line_size=8 addr=0x1014 value=1  RESULT OK
+[write miss I to M with other states] iter 246 of 384  case other E line_size=8 addr=0x1014 value=1  RESULT OK
+[write miss I to M with other states] iter 247 of 384  case other S writer missing line_size=8 addr=0x1014 value=1  RESULT OK
+[write miss I to M with other states] iter 248 of 384  case other M line_size=8 addr=0x1014 value=1  RESULT OK
+[write miss I to M with other states] iter 249 of 384  case other I line_size=8 addr=0x1014 value=127  RESULT OK
+[write miss I to M with other states] iter 250 of 384  case other E line_size=8 addr=0x1014 value=127  RESULT OK
+[write miss I to M with other states] iter 251 of 384  case other S writer missing line_size=8 addr=0x1014 value=127  RESULT OK
+[write miss I to M with other states] iter 252 of 384  case other M line_size=8 addr=0x1014 value=127  RESULT OK
+[write miss I to M with other states] iter 253 of 384  case other I line_size=8 addr=0x1014 value=128  RESULT OK
+[write miss I to M with other states] iter 254 of 384  case other E line_size=8 addr=0x1014 value=128  RESULT OK
+[write miss I to M with other states] iter 255 of 384  case other S writer missing line_size=8 addr=0x1014 value=128  RESULT OK
+[write miss I to M with other states] iter 256 of 384  case other M line_size=8 addr=0x1014 value=128  RESULT OK
+[write miss I to M with other states] iter 257 of 384  case other I line_size=8 addr=0x1014 value=254  RESULT OK
+[write miss I to M with other states] iter 258 of 384  case other E line_size=8 addr=0x1014 value=254  RESULT OK
+[write miss I to M with other states] iter 259 of 384  case other S writer missing line_size=8 addr=0x1014 value=254  RESULT OK
+[write miss I to M with other states] iter 260 of 384  case other M line_size=8 addr=0x1014 value=254  RESULT OK
+[write miss I to M with other states] iter 261 of 384  case other I line_size=8 addr=0x1014 value=255  RESULT OK
+[write miss I to M with other states] iter 262 of 384  case other E line_size=8 addr=0x1014 value=255  RESULT OK
+[write miss I to M with other states] iter 263 of 384  case other S writer missing line_size=8 addr=0x1014 value=255  RESULT OK
+[write miss I to M with other states] iter 264 of 384  case other M line_size=8 addr=0x1014 value=255  RESULT OK
+[write miss I to M with other states] iter 265 of 384  case other I line_size=8 addr=0x1017 value=0  RESULT OK
+[write miss I to M with other states] iter 266 of 384  case other E line_size=8 addr=0x1017 value=0  RESULT OK
+[write miss I to M with other states] iter 267 of 384  case other S writer missing line_size=8 addr=0x1017 value=0  RESULT OK
+[write miss I to M with other states] iter 268 of 384  case other M line_size=8 addr=0x1017 value=0  RESULT OK
+[write miss I to M with other states] iter 269 of 384  case other I line_size=8 addr=0x1017 value=1  RESULT OK
+[write miss I to M with other states] iter 270 of 384  case other E line_size=8 addr=0x1017 value=1  RESULT OK
+[write miss I to M with other states] iter 271 of 384  case other S writer missing line_size=8 addr=0x1017 value=1  RESULT OK
+[write miss I to M with other states] iter 272 of 384  case other M line_size=8 addr=0x1017 value=1  RESULT OK
+[write miss I to M with other states] iter 273 of 384  case other I line_size=8 addr=0x1017 value=127  RESULT OK
+[write miss I to M with other states] iter 274 of 384  case other E line_size=8 addr=0x1017 value=127  RESULT OK
+[write miss I to M with other states] iter 275 of 384  case other S writer missing line_size=8 addr=0x1017 value=127  RESULT OK
+[write miss I to M with other states] iter 276 of 384  case other M line_size=8 addr=0x1017 value=127  RESULT OK
+[write miss I to M with other states] iter 277 of 384  case other I line_size=8 addr=0x1017 value=128  RESULT OK
+[write miss I to M with other states] iter 278 of 384  case other E line_size=8 addr=0x1017 value=128  RESULT OK
+[write miss I to M with other states] iter 279 of 384  case other S writer missing line_size=8 addr=0x1017 value=128  RESULT OK
+[write miss I to M with other states] iter 280 of 384  case other M line_size=8 addr=0x1017 value=128  RESULT OK
+[write miss I to M with other states] iter 281 of 384  case other I line_size=8 addr=0x1017 value=254  RESULT OK
+[write miss I to M with other states] iter 282 of 384  case other E line_size=8 addr=0x1017 value=254  RESULT OK
+[write miss I to M with other states] iter 283 of 384  case other S writer missing line_size=8 addr=0x1017 value=254  RESULT OK
+[write miss I to M with other states] iter 284 of 384  case other M line_size=8 addr=0x1017 value=254  RESULT OK
+[write miss I to M with other states] iter 285 of 384  case other I line_size=8 addr=0x1017 value=255  RESULT OK
+[write miss I to M with other states] iter 286 of 384  case other E line_size=8 addr=0x1017 value=255  RESULT OK
+[write miss I to M with other states] iter 287 of 384  case other S writer missing line_size=8 addr=0x1017 value=255  RESULT OK
+[write miss I to M with other states] iter 288 of 384  case other M line_size=8 addr=0x1017 value=255  RESULT OK
+[write miss I to M with other states] iter 289 of 384  case other I line_size=8 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 290 of 384  case other E line_size=8 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 291 of 384  case other S writer missing line_size=8 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 292 of 384  case other M line_size=8 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 293 of 384  case other I line_size=8 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 294 of 384  case other E line_size=8 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 295 of 384  case other S writer missing line_size=8 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 296 of 384  case other M line_size=8 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 297 of 384  case other I line_size=8 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 298 of 384  case other E line_size=8 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 299 of 384  case other S writer missing line_size=8 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 300 of 384  case other M line_size=8 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 301 of 384  case other I line_size=8 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 302 of 384  case other E line_size=8 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 303 of 384  case other S writer missing line_size=8 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 304 of 384  case other M line_size=8 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 305 of 384  case other I line_size=8 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 306 of 384  case other E line_size=8 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 307 of 384  case other S writer missing line_size=8 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 308 of 384  case other M line_size=8 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 309 of 384  case other I line_size=8 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 310 of 384  case other E line_size=8 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 311 of 384  case other S writer missing line_size=8 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 312 of 384  case other M line_size=8 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 313 of 384  case other I line_size=8 addr=0x1039 value=0  RESULT OK
+[write miss I to M with other states] iter 314 of 384  case other E line_size=8 addr=0x1039 value=0  RESULT OK
+[write miss I to M with other states] iter 315 of 384  case other S writer missing line_size=8 addr=0x1039 value=0  RESULT OK
+[write miss I to M with other states] iter 316 of 384  case other M line_size=8 addr=0x1039 value=0  RESULT OK
+[write miss I to M with other states] iter 317 of 384  case other I line_size=8 addr=0x1039 value=1  RESULT OK
+[write miss I to M with other states] iter 318 of 384  case other E line_size=8 addr=0x1039 value=1  RESULT OK
+[write miss I to M with other states] iter 319 of 384  case other S writer missing line_size=8 addr=0x1039 value=1  RESULT OK
+[write miss I to M with other states] iter 320 of 384  case other M line_size=8 addr=0x1039 value=1  RESULT OK
+[write miss I to M with other states] iter 321 of 384  case other I line_size=8 addr=0x1039 value=127  RESULT OK
+[write miss I to M with other states] iter 322 of 384  case other E line_size=8 addr=0x1039 value=127  RESULT OK
+[write miss I to M with other states] iter 323 of 384  case other S writer missing line_size=8 addr=0x1039 value=127  RESULT OK
+[write miss I to M with other states] iter 324 of 384  case other M line_size=8 addr=0x1039 value=127  RESULT OK
+[write miss I to M with other states] iter 325 of 384  case other I line_size=8 addr=0x1039 value=128  RESULT OK
+[write miss I to M with other states] iter 326 of 384  case other E line_size=8 addr=0x1039 value=128  RESULT OK
+[write miss I to M with other states] iter 327 of 384  case other S writer missing line_size=8 addr=0x1039 value=128  RESULT OK
+[write miss I to M with other states] iter 328 of 384  case other M line_size=8 addr=0x1039 value=128  RESULT OK
+[write miss I to M with other states] iter 329 of 384  case other I line_size=8 addr=0x1039 value=254  RESULT OK
+[write miss I to M with other states] iter 330 of 384  case other E line_size=8 addr=0x1039 value=254  RESULT OK
+[write miss I to M with other states] iter 331 of 384  case other S writer missing line_size=8 addr=0x1039 value=254  RESULT OK
+[write miss I to M with other states] iter 332 of 384  case other M line_size=8 addr=0x1039 value=254  RESULT OK
+[write miss I to M with other states] iter 333 of 384  case other I line_size=8 addr=0x1039 value=255  RESULT OK
+[write miss I to M with other states] iter 334 of 384  case other E line_size=8 addr=0x1039 value=255  RESULT OK
+[write miss I to M with other states] iter 335 of 384  case other S writer missing line_size=8 addr=0x1039 value=255  RESULT OK
+[write miss I to M with other states] iter 336 of 384  case other M line_size=8 addr=0x1039 value=255  RESULT OK
+[write miss I to M with other states] iter 337 of 384  case other I line_size=8 addr=0x103c value=0  RESULT OK
+[write miss I to M with other states] iter 338 of 384  case other E line_size=8 addr=0x103c value=0  RESULT OK
+[write miss I to M with other states] iter 339 of 384  case other S writer missing line_size=8 addr=0x103c value=0  RESULT OK
+[write miss I to M with other states] iter 340 of 384  case other M line_size=8 addr=0x103c value=0  RESULT OK
+[write miss I to M with other states] iter 341 of 384  case other I line_size=8 addr=0x103c value=1  RESULT OK
+[write miss I to M with other states] iter 342 of 384  case other E line_size=8 addr=0x103c value=1  RESULT OK
+[write miss I to M with other states] iter 343 of 384  case other S writer missing line_size=8 addr=0x103c value=1  RESULT OK
+[write miss I to M with other states] iter 344 of 384  case other M line_size=8 addr=0x103c value=1  RESULT OK
+[write miss I to M with other states] iter 345 of 384  case other I line_size=8 addr=0x103c value=127  RESULT OK
+[write miss I to M with other states] iter 346 of 384  case other E line_size=8 addr=0x103c value=127  RESULT OK
+[write miss I to M with other states] iter 347 of 384  case other S writer missing line_size=8 addr=0x103c value=127  RESULT OK
+[write miss I to M with other states] iter 348 of 384  case other M line_size=8 addr=0x103c value=127  RESULT OK
+[write miss I to M with other states] iter 349 of 384  case other I line_size=8 addr=0x103c value=128  RESULT OK
+[write miss I to M with other states] iter 350 of 384  case other E line_size=8 addr=0x103c value=128  RESULT OK
+[write miss I to M with other states] iter 351 of 384  case other S writer missing line_size=8 addr=0x103c value=128  RESULT OK
+[write miss I to M with other states] iter 352 of 384  case other M line_size=8 addr=0x103c value=128  RESULT OK
+[write miss I to M with other states] iter 353 of 384  case other I line_size=8 addr=0x103c value=254  RESULT OK
+[write miss I to M with other states] iter 354 of 384  case other E line_size=8 addr=0x103c value=254  RESULT OK
+[write miss I to M with other states] iter 355 of 384  case other S writer missing line_size=8 addr=0x103c value=254  RESULT OK
+[write miss I to M with other states] iter 356 of 384  case other M line_size=8 addr=0x103c value=254  RESULT OK
+[write miss I to M with other states] iter 357 of 384  case other I line_size=8 addr=0x103c value=255  RESULT OK
+[write miss I to M with other states] iter 358 of 384  case other E line_size=8 addr=0x103c value=255  RESULT OK
+[write miss I to M with other states] iter 359 of 384  case other S writer missing line_size=8 addr=0x103c value=255  RESULT OK
+[write miss I to M with other states] iter 360 of 384  case other M line_size=8 addr=0x103c value=255  RESULT OK
+[write miss I to M with other states] iter 361 of 384  case other I line_size=8 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 362 of 384  case other E line_size=8 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 363 of 384  case other S writer missing line_size=8 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 364 of 384  case other M line_size=8 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 365 of 384  case other I line_size=8 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 366 of 384  case other E line_size=8 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 367 of 384  case other S writer missing line_size=8 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 368 of 384  case other M line_size=8 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 369 of 384  case other I line_size=8 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 370 of 384  case other E line_size=8 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 371 of 384  case other S writer missing line_size=8 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 372 of 384  case other M line_size=8 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 373 of 384  case other I line_size=8 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 374 of 384  case other E line_size=8 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 375 of 384  case other S writer missing line_size=8 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 376 of 384  case other M line_size=8 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 377 of 384  case other I line_size=8 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 378 of 384  case other E line_size=8 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 379 of 384  case other S writer missing line_size=8 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 380 of 384  case other M line_size=8 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 381 of 384  case other I line_size=8 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 382 of 384  case other E line_size=8 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 383 of 384  case other S writer missing line_size=8 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 384 of 384  case other M line_size=8 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 1 of 384  case other I line_size=16 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 2 of 384  case other E line_size=16 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 3 of 384  case other S writer missing line_size=16 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 4 of 384  case other M line_size=16 addr=0x1000 value=0  RESULT OK
+[write miss I to M with other states] iter 5 of 384  case other I line_size=16 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 6 of 384  case other E line_size=16 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 7 of 384  case other S writer missing line_size=16 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 8 of 384  case other M line_size=16 addr=0x1000 value=1  RESULT OK
+[write miss I to M with other states] iter 9 of 384  case other I line_size=16 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 10 of 384  case other E line_size=16 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 11 of 384  case other S writer missing line_size=16 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 12 of 384  case other M line_size=16 addr=0x1000 value=127  RESULT OK
+[write miss I to M with other states] iter 13 of 384  case other I line_size=16 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 14 of 384  case other E line_size=16 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 15 of 384  case other S writer missing line_size=16 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 16 of 384  case other M line_size=16 addr=0x1000 value=128  RESULT OK
+[write miss I to M with other states] iter 17 of 384  case other I line_size=16 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 18 of 384  case other E line_size=16 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 19 of 384  case other S writer missing line_size=16 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 20 of 384  case other M line_size=16 addr=0x1000 value=254  RESULT OK
+[write miss I to M with other states] iter 21 of 384  case other I line_size=16 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 22 of 384  case other E line_size=16 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 23 of 384  case other S writer missing line_size=16 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 24 of 384  case other M line_size=16 addr=0x1000 value=255  RESULT OK
+[write miss I to M with other states] iter 25 of 384  case other I line_size=16 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 26 of 384  case other E line_size=16 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 27 of 384  case other S writer missing line_size=16 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 28 of 384  case other M line_size=16 addr=0x1001 value=0  RESULT OK
+[write miss I to M with other states] iter 29 of 384  case other I line_size=16 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 30 of 384  case other E line_size=16 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 31 of 384  case other S writer missing line_size=16 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 32 of 384  case other M line_size=16 addr=0x1001 value=1  RESULT OK
+[write miss I to M with other states] iter 33 of 384  case other I line_size=16 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 34 of 384  case other E line_size=16 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 35 of 384  case other S writer missing line_size=16 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 36 of 384  case other M line_size=16 addr=0x1001 value=127  RESULT OK
+[write miss I to M with other states] iter 37 of 384  case other I line_size=16 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 38 of 384  case other E line_size=16 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 39 of 384  case other S writer missing line_size=16 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 40 of 384  case other M line_size=16 addr=0x1001 value=128  RESULT OK
+[write miss I to M with other states] iter 41 of 384  case other I line_size=16 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 42 of 384  case other E line_size=16 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 43 of 384  case other S writer missing line_size=16 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 44 of 384  case other M line_size=16 addr=0x1001 value=254  RESULT OK
+[write miss I to M with other states] iter 45 of 384  case other I line_size=16 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 46 of 384  case other E line_size=16 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 47 of 384  case other S writer missing line_size=16 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 48 of 384  case other M line_size=16 addr=0x1001 value=255  RESULT OK
+[write miss I to M with other states] iter 49 of 384  case other I line_size=16 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 50 of 384  case other E line_size=16 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 51 of 384  case other S writer missing line_size=16 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 52 of 384  case other M line_size=16 addr=0x1008 value=0  RESULT OK
+[write miss I to M with other states] iter 53 of 384  case other I line_size=16 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 54 of 384  case other E line_size=16 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 55 of 384  case other S writer missing line_size=16 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 56 of 384  case other M line_size=16 addr=0x1008 value=1  RESULT OK
+[write miss I to M with other states] iter 57 of 384  case other I line_size=16 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 58 of 384  case other E line_size=16 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 59 of 384  case other S writer missing line_size=16 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 60 of 384  case other M line_size=16 addr=0x1008 value=127  RESULT OK
+[write miss I to M with other states] iter 61 of 384  case other I line_size=16 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 62 of 384  case other E line_size=16 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 63 of 384  case other S writer missing line_size=16 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 64 of 384  case other M line_size=16 addr=0x1008 value=128  RESULT OK
+[write miss I to M with other states] iter 65 of 384  case other I line_size=16 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 66 of 384  case other E line_size=16 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 67 of 384  case other S writer missing line_size=16 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 68 of 384  case other M line_size=16 addr=0x1008 value=254  RESULT OK
+[write miss I to M with other states] iter 69 of 384  case other I line_size=16 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 70 of 384  case other E line_size=16 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 71 of 384  case other S writer missing line_size=16 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 72 of 384  case other M line_size=16 addr=0x1008 value=255  RESULT OK
+[write miss I to M with other states] iter 73 of 384  case other I line_size=16 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 74 of 384  case other E line_size=16 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 75 of 384  case other S writer missing line_size=16 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 76 of 384  case other M line_size=16 addr=0x100f value=0  RESULT OK
+[write miss I to M with other states] iter 77 of 384  case other I line_size=16 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 78 of 384  case other E line_size=16 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 79 of 384  case other S writer missing line_size=16 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 80 of 384  case other M line_size=16 addr=0x100f value=1  RESULT OK
+[write miss I to M with other states] iter 81 of 384  case other I line_size=16 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 82 of 384  case other E line_size=16 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 83 of 384  case other S writer missing line_size=16 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 84 of 384  case other M line_size=16 addr=0x100f value=127  RESULT OK
+[write miss I to M with other states] iter 85 of 384  case other I line_size=16 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 86 of 384  case other E line_size=16 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 87 of 384  case other S writer missing line_size=16 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 88 of 384  case other M line_size=16 addr=0x100f value=128  RESULT OK
+[write miss I to M with other states] iter 89 of 384  case other I line_size=16 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 90 of 384  case other E line_size=16 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 91 of 384  case other S writer missing line_size=16 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 92 of 384  case other M line_size=16 addr=0x100f value=254  RESULT OK
+[write miss I to M with other states] iter 93 of 384  case other I line_size=16 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 94 of 384  case other E line_size=16 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 95 of 384  case other S writer missing line_size=16 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 96 of 384  case other M line_size=16 addr=0x100f value=255  RESULT OK
+[write miss I to M with other states] iter 97 of 384  case other I line_size=16 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 98 of 384  case other E line_size=16 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 99 of 384  case other S writer missing line_size=16 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 100 of 384  case other M line_size=16 addr=0x1010 value=0  RESULT OK
+[write miss I to M with other states] iter 101 of 384  case other I line_size=16 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 102 of 384  case other E line_size=16 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 103 of 384  case other S writer missing line_size=16 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 104 of 384  case other M line_size=16 addr=0x1010 value=1  RESULT OK
+[write miss I to M with other states] iter 105 of 384  case other I line_size=16 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 106 of 384  case other E line_size=16 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 107 of 384  case other S writer missing line_size=16 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 108 of 384  case other M line_size=16 addr=0x1010 value=127  RESULT OK
+[write miss I to M with other states] iter 109 of 384  case other I line_size=16 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 110 of 384  case other E line_size=16 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 111 of 384  case other S writer missing line_size=16 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 112 of 384  case other M line_size=16 addr=0x1010 value=128  RESULT OK
+[write miss I to M with other states] iter 113 of 384  case other I line_size=16 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 114 of 384  case other E line_size=16 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 115 of 384  case other S writer missing line_size=16 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 116 of 384  case other M line_size=16 addr=0x1010 value=254  RESULT OK
+[write miss I to M with other states] iter 117 of 384  case other I line_size=16 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 118 of 384  case other E line_size=16 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 119 of 384  case other S writer missing line_size=16 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 120 of 384  case other M line_size=16 addr=0x1010 value=255  RESULT OK
+[write miss I to M with other states] iter 121 of 384  case other I line_size=16 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 122 of 384  case other E line_size=16 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 123 of 384  case other S writer missing line_size=16 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 124 of 384  case other M line_size=16 addr=0x1011 value=0  RESULT OK
+[write miss I to M with other states] iter 125 of 384  case other I line_size=16 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 126 of 384  case other E line_size=16 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 127 of 384  case other S writer missing line_size=16 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 128 of 384  case other M line_size=16 addr=0x1011 value=1  RESULT OK
+[write miss I to M with other states] iter 129 of 384  case other I line_size=16 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 130 of 384  case other E line_size=16 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 131 of 384  case other S writer missing line_size=16 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 132 of 384  case other M line_size=16 addr=0x1011 value=127  RESULT OK
+[write miss I to M with other states] iter 133 of 384  case other I line_size=16 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 134 of 384  case other E line_size=16 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 135 of 384  case other S writer missing line_size=16 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 136 of 384  case other M line_size=16 addr=0x1011 value=128  RESULT OK
+[write miss I to M with other states] iter 137 of 384  case other I line_size=16 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 138 of 384  case other E line_size=16 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 139 of 384  case other S writer missing line_size=16 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 140 of 384  case other M line_size=16 addr=0x1011 value=254  RESULT OK
+[write miss I to M with other states] iter 141 of 384  case other I line_size=16 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 142 of 384  case other E line_size=16 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 143 of 384  case other S writer missing line_size=16 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 144 of 384  case other M line_size=16 addr=0x1011 value=255  RESULT OK
+[write miss I to M with other states] iter 145 of 384  case other I line_size=16 addr=0x1018 value=0  RESULT OK
+[write miss I to M with other states] iter 146 of 384  case other E line_size=16 addr=0x1018 value=0  RESULT OK
+[write miss I to M with other states] iter 147 of 384  case other S writer missing line_size=16 addr=0x1018 value=0  RESULT OK
+[write miss I to M with other states] iter 148 of 384  case other M line_size=16 addr=0x1018 value=0  RESULT OK
+[write miss I to M with other states] iter 149 of 384  case other I line_size=16 addr=0x1018 value=1  RESULT OK
+[write miss I to M with other states] iter 150 of 384  case other E line_size=16 addr=0x1018 value=1  RESULT OK
+[write miss I to M with other states] iter 151 of 384  case other S writer missing line_size=16 addr=0x1018 value=1  RESULT OK
+[write miss I to M with other states] iter 152 of 384  case other M line_size=16 addr=0x1018 value=1  RESULT OK
+[write miss I to M with other states] iter 153 of 384  case other I line_size=16 addr=0x1018 value=127  RESULT OK
+[write miss I to M with other states] iter 154 of 384  case other E line_size=16 addr=0x1018 value=127  RESULT OK
+[write miss I to M with other states] iter 155 of 384  case other S writer missing line_size=16 addr=0x1018 value=127  RESULT OK
+[write miss I to M with other states] iter 156 of 384  case other M line_size=16 addr=0x1018 value=127  RESULT OK
+[write miss I to M with other states] iter 157 of 384  case other I line_size=16 addr=0x1018 value=128  RESULT OK
+[write miss I to M with other states] iter 158 of 384  case other E line_size=16 addr=0x1018 value=128  RESULT OK
+[write miss I to M with other states] iter 159 of 384  case other S writer missing line_size=16 addr=0x1018 value=128  RESULT OK
+[write miss I to M with other states] iter 160 of 384  case other M line_size=16 addr=0x1018 value=128  RESULT OK
+[write miss I to M with other states] iter 161 of 384  case other I line_size=16 addr=0x1018 value=254  RESULT OK
+[write miss I to M with other states] iter 162 of 384  case other E line_size=16 addr=0x1018 value=254  RESULT OK
+[write miss I to M with other states] iter 163 of 384  case other S writer missing line_size=16 addr=0x1018 value=254  RESULT OK
+[write miss I to M with other states] iter 164 of 384  case other M line_size=16 addr=0x1018 value=254  RESULT OK
+[write miss I to M with other states] iter 165 of 384  case other I line_size=16 addr=0x1018 value=255  RESULT OK
+[write miss I to M with other states] iter 166 of 384  case other E line_size=16 addr=0x1018 value=255  RESULT OK
+[write miss I to M with other states] iter 167 of 384  case other S writer missing line_size=16 addr=0x1018 value=255  RESULT OK
+[write miss I to M with other states] iter 168 of 384  case other M line_size=16 addr=0x1018 value=255  RESULT OK
+[write miss I to M with other states] iter 169 of 384  case other I line_size=16 addr=0x101f value=0  RESULT OK
+[write miss I to M with other states] iter 170 of 384  case other E line_size=16 addr=0x101f value=0  RESULT OK
+[write miss I to M with other states] iter 171 of 384  case other S writer missing line_size=16 addr=0x101f value=0  RESULT OK
+[write miss I to M with other states] iter 172 of 384  case other M line_size=16 addr=0x101f value=0  RESULT OK
+[write miss I to M with other states] iter 173 of 384  case other I line_size=16 addr=0x101f value=1  RESULT OK
+[write miss I to M with other states] iter 174 of 384  case other E line_size=16 addr=0x101f value=1  RESULT OK
+[write miss I to M with other states] iter 175 of 384  case other S writer missing line_size=16 addr=0x101f value=1  RESULT OK
+[write miss I to M with other states] iter 176 of 384  case other M line_size=16 addr=0x101f value=1  RESULT OK
+[write miss I to M with other states] iter 177 of 384  case other I line_size=16 addr=0x101f value=127  RESULT OK
+[write miss I to M with other states] iter 178 of 384  case other E line_size=16 addr=0x101f value=127  RESULT OK
+[write miss I to M with other states] iter 179 of 384  case other S writer missing line_size=16 addr=0x101f value=127  RESULT OK
+[write miss I to M with other states] iter 180 of 384  case other M line_size=16 addr=0x101f value=127  RESULT OK
+[write miss I to M with other states] iter 181 of 384  case other I line_size=16 addr=0x101f value=128  RESULT OK
+[write miss I to M with other states] iter 182 of 384  case other E line_size=16 addr=0x101f value=128  RESULT OK
+[write miss I to M with other states] iter 183 of 384  case other S writer missing line_size=16 addr=0x101f value=128  RESULT OK
+[write miss I to M with other states] iter 184 of 384  case other M line_size=16 addr=0x101f value=128  RESULT OK
+[write miss I to M with other states] iter 185 of 384  case other I line_size=16 addr=0x101f value=254  RESULT OK
+[write miss I to M with other states] iter 186 of 384  case other E line_size=16 addr=0x101f value=254  RESULT OK
+[write miss I to M with other states] iter 187 of 384  case other S writer missing line_size=16 addr=0x101f value=254  RESULT OK
+[write miss I to M with other states] iter 188 of 384  case other M line_size=16 addr=0x101f value=254  RESULT OK
+[write miss I to M with other states] iter 189 of 384  case other I line_size=16 addr=0x101f value=255  RESULT OK
+[write miss I to M with other states] iter 190 of 384  case other E line_size=16 addr=0x101f value=255  RESULT OK
+[write miss I to M with other states] iter 191 of 384  case other S writer missing line_size=16 addr=0x101f value=255  RESULT OK
+[write miss I to M with other states] iter 192 of 384  case other M line_size=16 addr=0x101f value=255  RESULT OK
+[write miss I to M with other states] iter 193 of 384  case other I line_size=16 addr=0x1020 value=0  RESULT OK
+[write miss I to M with other states] iter 194 of 384  case other E line_size=16 addr=0x1020 value=0  RESULT OK
+[write miss I to M with other states] iter 195 of 384  case other S writer missing line_size=16 addr=0x1020 value=0  RESULT OK
+[write miss I to M with other states] iter 196 of 384  case other M line_size=16 addr=0x1020 value=0  RESULT OK
+[write miss I to M with other states] iter 197 of 384  case other I line_size=16 addr=0x1020 value=1  RESULT OK
+[write miss I to M with other states] iter 198 of 384  case other E line_size=16 addr=0x1020 value=1  RESULT OK
+[write miss I to M with other states] iter 199 of 384  case other S writer missing line_size=16 addr=0x1020 value=1  RESULT OK
+[write miss I to M with other states] iter 200 of 384  case other M line_size=16 addr=0x1020 value=1  RESULT OK
+[write miss I to M with other states] iter 201 of 384  case other I line_size=16 addr=0x1020 value=127  RESULT OK
+[write miss I to M with other states] iter 202 of 384  case other E line_size=16 addr=0x1020 value=127  RESULT OK
+[write miss I to M with other states] iter 203 of 384  case other S writer missing line_size=16 addr=0x1020 value=127  RESULT OK
+[write miss I to M with other states] iter 204 of 384  case other M line_size=16 addr=0x1020 value=127  RESULT OK
+[write miss I to M with other states] iter 205 of 384  case other I line_size=16 addr=0x1020 value=128  RESULT OK
+[write miss I to M with other states] iter 206 of 384  case other E line_size=16 addr=0x1020 value=128  RESULT OK
+[write miss I to M with other states] iter 207 of 384  case other S writer missing line_size=16 addr=0x1020 value=128  RESULT OK
+[write miss I to M with other states] iter 208 of 384  case other M line_size=16 addr=0x1020 value=128  RESULT OK
+[write miss I to M with other states] iter 209 of 384  case other I line_size=16 addr=0x1020 value=254  RESULT OK
+[write miss I to M with other states] iter 210 of 384  case other E line_size=16 addr=0x1020 value=254  RESULT OK
+[write miss I to M with other states] iter 211 of 384  case other S writer missing line_size=16 addr=0x1020 value=254  RESULT OK
+[write miss I to M with other states] iter 212 of 384  case other M line_size=16 addr=0x1020 value=254  RESULT OK
+[write miss I to M with other states] iter 213 of 384  case other I line_size=16 addr=0x1020 value=255  RESULT OK
+[write miss I to M with other states] iter 214 of 384  case other E line_size=16 addr=0x1020 value=255  RESULT OK
+[write miss I to M with other states] iter 215 of 384  case other S writer missing line_size=16 addr=0x1020 value=255  RESULT OK
+[write miss I to M with other states] iter 216 of 384  case other M line_size=16 addr=0x1020 value=255  RESULT OK
+[write miss I to M with other states] iter 217 of 384  case other I line_size=16 addr=0x1021 value=0  RESULT OK
+[write miss I to M with other states] iter 218 of 384  case other E line_size=16 addr=0x1021 value=0  RESULT OK
+[write miss I to M with other states] iter 219 of 384  case other S writer missing line_size=16 addr=0x1021 value=0  RESULT OK
+[write miss I to M with other states] iter 220 of 384  case other M line_size=16 addr=0x1021 value=0  RESULT OK
+[write miss I to M with other states] iter 221 of 384  case other I line_size=16 addr=0x1021 value=1  RESULT OK
+[write miss I to M with other states] iter 222 of 384  case other E line_size=16 addr=0x1021 value=1  RESULT OK
+[write miss I to M with other states] iter 223 of 384  case other S writer missing line_size=16 addr=0x1021 value=1  RESULT OK
+[write miss I to M with other states] iter 224 of 384  case other M line_size=16 addr=0x1021 value=1  RESULT OK
+[write miss I to M with other states] iter 225 of 384  case other I line_size=16 addr=0x1021 value=127  RESULT OK
+[write miss I to M with other states] iter 226 of 384  case other E line_size=16 addr=0x1021 value=127  RESULT OK
+[write miss I to M with other states] iter 227 of 384  case other S writer missing line_size=16 addr=0x1021 value=127  RESULT OK
+[write miss I to M with other states] iter 228 of 384  case other M line_size=16 addr=0x1021 value=127  RESULT OK
+[write miss I to M with other states] iter 229 of 384  case other I line_size=16 addr=0x1021 value=128  RESULT OK
+[write miss I to M with other states] iter 230 of 384  case other E line_size=16 addr=0x1021 value=128  RESULT OK
+[write miss I to M with other states] iter 231 of 384  case other S writer missing line_size=16 addr=0x1021 value=128  RESULT OK
+[write miss I to M with other states] iter 232 of 384  case other M line_size=16 addr=0x1021 value=128  RESULT OK
+[write miss I to M with other states] iter 233 of 384  case other I line_size=16 addr=0x1021 value=254  RESULT OK
+[write miss I to M with other states] iter 234 of 384  case other E line_size=16 addr=0x1021 value=254  RESULT OK
+[write miss I to M with other states] iter 235 of 384  case other S writer missing line_size=16 addr=0x1021 value=254  RESULT OK
+[write miss I to M with other states] iter 236 of 384  case other M line_size=16 addr=0x1021 value=254  RESULT OK
+[write miss I to M with other states] iter 237 of 384  case other I line_size=16 addr=0x1021 value=255  RESULT OK
+[write miss I to M with other states] iter 238 of 384  case other E line_size=16 addr=0x1021 value=255  RESULT OK
+[write miss I to M with other states] iter 239 of 384  case other S writer missing line_size=16 addr=0x1021 value=255  RESULT OK
+[write miss I to M with other states] iter 240 of 384  case other M line_size=16 addr=0x1021 value=255  RESULT OK
+[write miss I to M with other states] iter 241 of 384  case other I line_size=16 addr=0x1028 value=0  RESULT OK
+[write miss I to M with other states] iter 242 of 384  case other E line_size=16 addr=0x1028 value=0  RESULT OK
+[write miss I to M with other states] iter 243 of 384  case other S writer missing line_size=16 addr=0x1028 value=0  RESULT OK
+[write miss I to M with other states] iter 244 of 384  case other M line_size=16 addr=0x1028 value=0  RESULT OK
+[write miss I to M with other states] iter 245 of 384  case other I line_size=16 addr=0x1028 value=1  RESULT OK
+[write miss I to M with other states] iter 246 of 384  case other E line_size=16 addr=0x1028 value=1  RESULT OK
+[write miss I to M with other states] iter 247 of 384  case other S writer missing line_size=16 addr=0x1028 value=1  RESULT OK
+[write miss I to M with other states] iter 248 of 384  case other M line_size=16 addr=0x1028 value=1  RESULT OK
+[write miss I to M with other states] iter 249 of 384  case other I line_size=16 addr=0x1028 value=127  RESULT OK
+[write miss I to M with other states] iter 250 of 384  case other E line_size=16 addr=0x1028 value=127  RESULT OK
+[write miss I to M with other states] iter 251 of 384  case other S writer missing line_size=16 addr=0x1028 value=127  RESULT OK
+[write miss I to M with other states] iter 252 of 384  case other M line_size=16 addr=0x1028 value=127  RESULT OK
+[write miss I to M with other states] iter 253 of 384  case other I line_size=16 addr=0x1028 value=128  RESULT OK
+[write miss I to M with other states] iter 254 of 384  case other E line_size=16 addr=0x1028 value=128  RESULT OK
+[write miss I to M with other states] iter 255 of 384  case other S writer missing line_size=16 addr=0x1028 value=128  RESULT OK
+[write miss I to M with other states] iter 256 of 384  case other M line_size=16 addr=0x1028 value=128  RESULT OK
+[write miss I to M with other states] iter 257 of 384  case other I line_size=16 addr=0x1028 value=254  RESULT OK
+[write miss I to M with other states] iter 258 of 384  case other E line_size=16 addr=0x1028 value=254  RESULT OK
+[write miss I to M with other states] iter 259 of 384  case other S writer missing line_size=16 addr=0x1028 value=254  RESULT OK
+[write miss I to M with other states] iter 260 of 384  case other M line_size=16 addr=0x1028 value=254  RESULT OK
+[write miss I to M with other states] iter 261 of 384  case other I line_size=16 addr=0x1028 value=255  RESULT OK
+[write miss I to M with other states] iter 262 of 384  case other E line_size=16 addr=0x1028 value=255  RESULT OK
+[write miss I to M with other states] iter 263 of 384  case other S writer missing line_size=16 addr=0x1028 value=255  RESULT OK
+[write miss I to M with other states] iter 264 of 384  case other M line_size=16 addr=0x1028 value=255  RESULT OK
+[write miss I to M with other states] iter 265 of 384  case other I line_size=16 addr=0x102f value=0  RESULT OK
+[write miss I to M with other states] iter 266 of 384  case other E line_size=16 addr=0x102f value=0  RESULT OK
+[write miss I to M with other states] iter 267 of 384  case other S writer missing line_size=16 addr=0x102f value=0  RESULT OK
+[write miss I to M with other states] iter 268 of 384  case other M line_size=16 addr=0x102f value=0  RESULT OK
+[write miss I to M with other states] iter 269 of 384  case other I line_size=16 addr=0x102f value=1  RESULT OK
+[write miss I to M with other states] iter 270 of 384  case other E line_size=16 addr=0x102f value=1  RESULT OK
+[write miss I to M with other states] iter 271 of 384  case other S writer missing line_size=16 addr=0x102f value=1  RESULT OK
+[write miss I to M with other states] iter 272 of 384  case other M line_size=16 addr=0x102f value=1  RESULT OK
+[write miss I to M with other states] iter 273 of 384  case other I line_size=16 addr=0x102f value=127  RESULT OK
+[write miss I to M with other states] iter 274 of 384  case other E line_size=16 addr=0x102f value=127  RESULT OK
+[write miss I to M with other states] iter 275 of 384  case other S writer missing line_size=16 addr=0x102f value=127  RESULT OK
+[write miss I to M with other states] iter 276 of 384  case other M line_size=16 addr=0x102f value=127  RESULT OK
+[write miss I to M with other states] iter 277 of 384  case other I line_size=16 addr=0x102f value=128  RESULT OK
+[write miss I to M with other states] iter 278 of 384  case other E line_size=16 addr=0x102f value=128  RESULT OK
+[write miss I to M with other states] iter 279 of 384  case other S writer missing line_size=16 addr=0x102f value=128  RESULT OK
+[write miss I to M with other states] iter 280 of 384  case other M line_size=16 addr=0x102f value=128  RESULT OK
+[write miss I to M with other states] iter 281 of 384  case other I line_size=16 addr=0x102f value=254  RESULT OK
+[write miss I to M with other states] iter 282 of 384  case other E line_size=16 addr=0x102f value=254  RESULT OK
+[write miss I to M with other states] iter 283 of 384  case other S writer missing line_size=16 addr=0x102f value=254  RESULT OK
+[write miss I to M with other states] iter 284 of 384  case other M line_size=16 addr=0x102f value=254  RESULT OK
+[write miss I to M with other states] iter 285 of 384  case other I line_size=16 addr=0x102f value=255  RESULT OK
+[write miss I to M with other states] iter 286 of 384  case other E line_size=16 addr=0x102f value=255  RESULT OK
+[write miss I to M with other states] iter 287 of 384  case other S writer missing line_size=16 addr=0x102f value=255  RESULT OK
+[write miss I to M with other states] iter 288 of 384  case other M line_size=16 addr=0x102f value=255  RESULT OK
+[write miss I to M with other states] iter 289 of 384  case other I line_size=16 addr=0x1030 value=0  RESULT OK
+[write miss I to M with other states] iter 290 of 384  case other E line_size=16 addr=0x1030 value=0  RESULT OK
+[write miss I to M with other states] iter 291 of 384  case other S writer missing line_size=16 addr=0x1030 value=0  RESULT OK
+[write miss I to M with other states] iter 292 of 384  case other M line_size=16 addr=0x1030 value=0  RESULT OK
+[write miss I to M with other states] iter 293 of 384  case other I line_size=16 addr=0x1030 value=1  RESULT OK
+[write miss I to M with other states] iter 294 of 384  case other E line_size=16 addr=0x1030 value=1  RESULT OK
+[write miss I to M with other states] iter 295 of 384  case other S writer missing line_size=16 addr=0x1030 value=1  RESULT OK
+[write miss I to M with other states] iter 296 of 384  case other M line_size=16 addr=0x1030 value=1  RESULT OK
+[write miss I to M with other states] iter 297 of 384  case other I line_size=16 addr=0x1030 value=127  RESULT OK
+[write miss I to M with other states] iter 298 of 384  case other E line_size=16 addr=0x1030 value=127  RESULT OK
+[write miss I to M with other states] iter 299 of 384  case other S writer missing line_size=16 addr=0x1030 value=127  RESULT OK
+[write miss I to M with other states] iter 300 of 384  case other M line_size=16 addr=0x1030 value=127  RESULT OK
+[write miss I to M with other states] iter 301 of 384  case other I line_size=16 addr=0x1030 value=128  RESULT OK
+[write miss I to M with other states] iter 302 of 384  case other E line_size=16 addr=0x1030 value=128  RESULT OK
+[write miss I to M with other states] iter 303 of 384  case other S writer missing line_size=16 addr=0x1030 value=128  RESULT OK
+[write miss I to M with other states] iter 304 of 384  case other M line_size=16 addr=0x1030 value=128  RESULT OK
+[write miss I to M with other states] iter 305 of 384  case other I line_size=16 addr=0x1030 value=254  RESULT OK
+[write miss I to M with other states] iter 306 of 384  case other E line_size=16 addr=0x1030 value=254  RESULT OK
+[write miss I to M with other states] iter 307 of 384  case other S writer missing line_size=16 addr=0x1030 value=254  RESULT OK
+[write miss I to M with other states] iter 308 of 384  case other M line_size=16 addr=0x1030 value=254  RESULT OK
+[write miss I to M with other states] iter 309 of 384  case other I line_size=16 addr=0x1030 value=255  RESULT OK
+[write miss I to M with other states] iter 310 of 384  case other E line_size=16 addr=0x1030 value=255  RESULT OK
+[write miss I to M with other states] iter 311 of 384  case other S writer missing line_size=16 addr=0x1030 value=255  RESULT OK
+[write miss I to M with other states] iter 312 of 384  case other M line_size=16 addr=0x1030 value=255  RESULT OK
+[write miss I to M with other states] iter 313 of 384  case other I line_size=16 addr=0x1031 value=0  RESULT OK
+[write miss I to M with other states] iter 314 of 384  case other E line_size=16 addr=0x1031 value=0  RESULT OK
+[write miss I to M with other states] iter 315 of 384  case other S writer missing line_size=16 addr=0x1031 value=0  RESULT OK
+[write miss I to M with other states] iter 316 of 384  case other M line_size=16 addr=0x1031 value=0  RESULT OK
+[write miss I to M with other states] iter 317 of 384  case other I line_size=16 addr=0x1031 value=1  RESULT OK
+[write miss I to M with other states] iter 318 of 384  case other E line_size=16 addr=0x1031 value=1  RESULT OK
+[write miss I to M with other states] iter 319 of 384  case other S writer missing line_size=16 addr=0x1031 value=1  RESULT OK
+[write miss I to M with other states] iter 320 of 384  case other M line_size=16 addr=0x1031 value=1  RESULT OK
+[write miss I to M with other states] iter 321 of 384  case other I line_size=16 addr=0x1031 value=127  RESULT OK
+[write miss I to M with other states] iter 322 of 384  case other E line_size=16 addr=0x1031 value=127  RESULT OK
+[write miss I to M with other states] iter 323 of 384  case other S writer missing line_size=16 addr=0x1031 value=127  RESULT OK
+[write miss I to M with other states] iter 324 of 384  case other M line_size=16 addr=0x1031 value=127  RESULT OK
+[write miss I to M with other states] iter 325 of 384  case other I line_size=16 addr=0x1031 value=128  RESULT OK
+[write miss I to M with other states] iter 326 of 384  case other E line_size=16 addr=0x1031 value=128  RESULT OK
+[write miss I to M with other states] iter 327 of 384  case other S writer missing line_size=16 addr=0x1031 value=128  RESULT OK
+[write miss I to M with other states] iter 328 of 384  case other M line_size=16 addr=0x1031 value=128  RESULT OK
+[write miss I to M with other states] iter 329 of 384  case other I line_size=16 addr=0x1031 value=254  RESULT OK
+[write miss I to M with other states] iter 330 of 384  case other E line_size=16 addr=0x1031 value=254  RESULT OK
+[write miss I to M with other states] iter 331 of 384  case other S writer missing line_size=16 addr=0x1031 value=254  RESULT OK
+[write miss I to M with other states] iter 332 of 384  case other M line_size=16 addr=0x1031 value=254  RESULT OK
+[write miss I to M with other states] iter 333 of 384  case other I line_size=16 addr=0x1031 value=255  RESULT OK
+[write miss I to M with other states] iter 334 of 384  case other E line_size=16 addr=0x1031 value=255  RESULT OK
+[write miss I to M with other states] iter 335 of 384  case other S writer missing line_size=16 addr=0x1031 value=255  RESULT OK
+[write miss I to M with other states] iter 336 of 384  case other M line_size=16 addr=0x1031 value=255  RESULT OK
+[write miss I to M with other states] iter 337 of 384  case other I line_size=16 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 338 of 384  case other E line_size=16 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 339 of 384  case other S writer missing line_size=16 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 340 of 384  case other M line_size=16 addr=0x1038 value=0  RESULT OK
+[write miss I to M with other states] iter 341 of 384  case other I line_size=16 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 342 of 384  case other E line_size=16 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 343 of 384  case other S writer missing line_size=16 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 344 of 384  case other M line_size=16 addr=0x1038 value=1  RESULT OK
+[write miss I to M with other states] iter 345 of 384  case other I line_size=16 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 346 of 384  case other E line_size=16 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 347 of 384  case other S writer missing line_size=16 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 348 of 384  case other M line_size=16 addr=0x1038 value=127  RESULT OK
+[write miss I to M with other states] iter 349 of 384  case other I line_size=16 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 350 of 384  case other E line_size=16 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 351 of 384  case other S writer missing line_size=16 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 352 of 384  case other M line_size=16 addr=0x1038 value=128  RESULT OK
+[write miss I to M with other states] iter 353 of 384  case other I line_size=16 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 354 of 384  case other E line_size=16 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 355 of 384  case other S writer missing line_size=16 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 356 of 384  case other M line_size=16 addr=0x1038 value=254  RESULT OK
+[write miss I to M with other states] iter 357 of 384  case other I line_size=16 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 358 of 384  case other E line_size=16 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 359 of 384  case other S writer missing line_size=16 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 360 of 384  case other M line_size=16 addr=0x1038 value=255  RESULT OK
+[write miss I to M with other states] iter 361 of 384  case other I line_size=16 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 362 of 384  case other E line_size=16 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 363 of 384  case other S writer missing line_size=16 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 364 of 384  case other M line_size=16 addr=0x103f value=0  RESULT OK
+[write miss I to M with other states] iter 365 of 384  case other I line_size=16 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 366 of 384  case other E line_size=16 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 367 of 384  case other S writer missing line_size=16 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 368 of 384  case other M line_size=16 addr=0x103f value=1  RESULT OK
+[write miss I to M with other states] iter 369 of 384  case other I line_size=16 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 370 of 384  case other E line_size=16 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 371 of 384  case other S writer missing line_size=16 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 372 of 384  case other M line_size=16 addr=0x103f value=127  RESULT OK
+[write miss I to M with other states] iter 373 of 384  case other I line_size=16 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 374 of 384  case other E line_size=16 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 375 of 384  case other S writer missing line_size=16 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 376 of 384  case other M line_size=16 addr=0x103f value=128  RESULT OK
+[write miss I to M with other states] iter 377 of 384  case other I line_size=16 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 378 of 384  case other E line_size=16 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 379 of 384  case other S writer missing line_size=16 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 380 of 384  case other M line_size=16 addr=0x103f value=254  RESULT OK
+[write miss I to M with other states] iter 381 of 384  case other I line_size=16 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 382 of 384  case other E line_size=16 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 383 of 384  case other S writer missing line_size=16 addr=0x103f value=255  RESULT OK
+[write miss I to M with other states] iter 384 of 384  case other M line_size=16 addr=0x103f value=255  RESULT OK
