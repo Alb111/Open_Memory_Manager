@@ -3,6 +3,7 @@ from axi_request import axi_request
 class MemoryController:
     def __init__(self):
         self.sram: dict[int, int] = {}
+        self.send
     
     def read(self, address: int) -> int:
         if address in self.sram:
@@ -44,6 +45,7 @@ class MemoryController:
         temp = temp // 2
 
         self.sram[address] = data_to_write
+
         return
     
     def axi_handler(self, request: axi_request) -> axi_request:

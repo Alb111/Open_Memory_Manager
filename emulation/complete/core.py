@@ -1,15 +1,23 @@
-import random
-from typing import Callable
+from typing import Callable, List
 from axi_request import axi_request
+from testcase import test_case
 
 class Core:
-    def __init__(self, cpu_id: int, send_fucnt: Callable[[axi_request], axi_request]):
+    def __init__(self, cpu_id: int, send_fucnt: Callable[[axi_request], axi_request], test_cases: List[test_case]):
+
+        # cpe inentifier
         self.cpu_id: int = cpu_id
+
+        # functions pointers to send and recive axi packets
         self.axi_send: Callable[[axi_request], axi_request] = send_fucnt
         self.axi_recive: Callable[[axi_request], None] = self.axi_recieve
 
+        # list of test cases
+        self.test_cases: List[test_case] = test_cases
+        self.recived_axi_packts: int = 0
+
     ## SEND functions
-    def read(self, addr: int) -> axi_request:
+    def read_request(self, addr: int) -> None:
         read_request:axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -18,10 +26,11 @@ class Core:
             mem_wdata=0,
             mem_wstrb=0b0000,
             mem_rdata=0)
-        return self.axi_send(read_request)
+
+        self.axi_send(read_request)
     
     
-    def write(self, addr_in: int, data_in: int, wstb_in: int) -> axi_request:
+    def write(self, addr_in: int, data_in: int, wstb_in: int) -> None:
         write_request: axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -32,18 +41,43 @@ class Core:
             mem_rdata=0
         ) 
         
-        return self.axi_send(write_request)
+        self.axi_send(write_request)
 
-    ## Recieve functions ----------------------------------------------------------------------------
+    ## Recieve functions
     def axi_recieve(self, axi_request: axi_request) -> None:
-        print("CPU Recieved Packet Start ------------------------------------------------------------------------------------")
-        print(axi_request)
-        print("CPU Recieved Packet End --------------------------------------------------------------------------------------")
 
+        # ready valid handshake valid
+        if axi_request.mem_ready == 1:
+            if axi_request.mem_wstrb == 0:
+                # read
+                print(f"sucessfull read, address = {axi_request.mem_addr}, value = {axi_request.mem_rdata}")
+            else:
+                # write 
+                if self.test_recieve(axi_request.mem_rdata):
+                    print("successfull write")
 
+        # ready valid handshake not valid
+        else:
+            print("ready valid handshake failed")
 
-    test  
- 
+           
+    
+    ## Testing
+    def test_send(self) -> None:
+        # write all that data
+        for test_case in self.test_cases:
+            self.write(test_case.data_addr, test_case.data, test_case.wstb)
+
+    def test_recieve(self, recived: int) -> bool:
+        if recived == self.test_cases[self.recived_axi_packts]:
+            return True
+        return False
+            
+
+        
+
+    
+         
     # def read_rand(self) -> axi_request:
     #     # todo: fill in axi request randomly
     #     addr: int = random.randint(0, 0xFF)
