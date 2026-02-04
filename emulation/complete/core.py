@@ -9,7 +9,7 @@ class Core:
         self.cpu_id: int = cpu_id
 
         # functions pointers to send and recive axi packets
-        self.axi_send: Callable[[axi_request], axi_request] = send_fucnt
+        self.axi_send: Callable[[axi_request], ] = send_fucnt
         self.axi_recive: Callable[[axi_request], None] = self.axi_recieve
 
         # list of test cases
@@ -54,7 +54,9 @@ class Core:
             else:
                 # write 
                 if self.test_recieve(axi_request.mem_rdata):
-                    print("successfull write")
+                    print("successfull write, matched test case")
+                else:
+                    print("successfull write, failed test case")
 
         # ready valid handshake not valid
         else:
@@ -65,6 +67,10 @@ class Core:
     ## Testing
     def test_send(self) -> None:
         # write all that data
+        for test_case in self.test_cases:
+            self.write(test_case.data_addr, test_case.data, test_case.wstb)
+
+        # read all that data
         for test_case in self.test_cases:
             self.write(test_case.data_addr, test_case.data, test_case.wstb)
 
