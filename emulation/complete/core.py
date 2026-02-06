@@ -1,3 +1,4 @@
+from _typeshed import OptExcInfo
 from typing import Callable, Optional
 from axi_request import axi_request
 
@@ -11,7 +12,7 @@ class Core:
         self.axi_send_and_recieve: Callable[[axi_request, int], Optional[axi_request]] = axi_handler
 
     ## SEND functions
-    def read_request(self, addr: int) -> None:
+    def read_request(self, addr: int) -> Optional[axi_request]:
         read_request:axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -24,7 +25,7 @@ class Core:
         self.axi_send_and_recieve(read_request, self.cpu_id)
     
     
-    def write(self, addr_in: int, data_in: int, wstb_in: int) -> None:
+    def write(self, addr_in: int, data_in: int, wstb_in: int) -> Optional[axi_request]:
         write_request: axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -35,7 +36,7 @@ class Core:
             mem_rdata=0
         ) 
         
-        self.axi_send_and_recieve(write_request, self.cpu_id)
+        return self.axi_send_and_recieve(write_request, self.cpu_id)
 
            
     
