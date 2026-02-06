@@ -3,7 +3,7 @@ from typing import List, Callable, Optional
 
 class WeightedRoundRobinArbiter:
 
-    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request, int], axi_request]):
+    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request], axi_request]):
  
         # error checking
         if len(weights) != num_requesters:
@@ -27,7 +27,7 @@ class WeightedRoundRobinArbiter:
         self.remaining_credits = self.weights[0]
 
         # area to send chossen axi call to
-        self.axi_send_and_recieve: Callable[[axi_request, int], axi_request] = axi_handler
+        self.axi_send_and_recieve: Callable[[axi_request], axi_request] = axi_handler
 
         # find max possible iterations needed for round bin
         self.max_possible_iterations: int = sum(weights)
@@ -68,7 +68,7 @@ class WeightedRoundRobinArbiter:
                 
                 # abitrate said yes 2 this core
                 if request_valid == 1:
-                    return self.axi_send_and_recieve(curr_cores_axi_request, core_id)
+                    return self.axi_send_and_recieve(curr_cores_axi_request)
 
                 # abitrate said no 2 this core
                 else:
