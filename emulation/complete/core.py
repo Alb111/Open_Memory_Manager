@@ -1,17 +1,14 @@
-from typing import Callable, List
+from typing import Callable, Optional
 from axi_request import axi_request
 
 class Core:
-    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], axi_request]):
+    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], Optional[axi_request]]):
 
         # cpe inentifier
         self.cpu_id: int = cpu_id
 
         # functions pointers to send and recive axi packets
-        self.axi_send_and_recieve: Callable[[axi_request, int], axi_request] = axi_handler
-
-        # list of test cases
-        self.recived_axi_packts: List[axi_request] = []
+        self.axi_send_and_recieve: Callable[[axi_request, int], Optional[axi_request]] = axi_handler
 
     ## SEND functions
     def read_request(self, addr: int) -> None:

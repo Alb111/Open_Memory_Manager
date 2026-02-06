@@ -1,6 +1,5 @@
 # multi core 
 from core import Core
-from axi_request import axi_request
 from emulation.complete.memory import MemoryController
 from emulation.complete.weighted_round_robin import WeightedRoundRobinArbiter
 from testcase import test_case
@@ -13,7 +12,7 @@ class CPU:
         self.memory: MemoryController = MemoryController()
 
         # setup arbiter
-        self.arbiter: WeightedRoundRobinArbiter(size, [1]*size, self.memory.axi_handler)
+        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1]*size, self.memory.axi_handler)
 
         # num cores
         self.num_cores: int = size
@@ -21,7 +20,7 @@ class CPU:
         # arr of those cores
         self.cores: List[Core] = []
         for i in range(size):
-            self.cores.append(Core(i,))
+            self.cores.append(Core(i,self.arbiter.axi_handler_arbiter))
 
         # build work load for each of those cores
         self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
@@ -30,24 +29,17 @@ class CPU:
                 self.core_workloads[k].append(test_cases[i+k])
      
 
-    def start(self):
+    def start_sim(self):
+        # loop until all worloads stack are empty
+        while any(self.core_workloads):
+            for coreworkload in self.core_workloads:
+                # if more tasks exist
+                if coreworkload: 
+                    item = coreworkload[-1] # top of list
+
+                    
 
 
-
-    
-
-
-
-
-    
-            
-
-        
-
-
-    
-
-    
 
 
 
