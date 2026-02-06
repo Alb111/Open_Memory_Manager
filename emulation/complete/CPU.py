@@ -1,64 +1,36 @@
 # multi core 
 from core import Core
 from axi_request import axi_request
+from emulation.complete.memory import MemoryController
+from emulation.complete.weighted_round_robin import WeightedRoundRobinArbiter
 from testcase import test_case
-from typing import Callable, List
+from typing import List
 
 class CPU: 
-    def send_core_requests(self, request: axi_request, cpu_id: int, abritate: Callable[[list[int]], list[int]]) -> None:
+    def __init__(self, size: int, test_cases: List[test_case]) -> None:
 
-        self.data_from_cores_valid[cpu_id] = True
+        # setup memory 
+        self.memory: MemoryController = MemoryController()
 
-        all_request_arrived: bool = False
-        for valid in self.data_from_cores_valid:
-            all_request_arrived = all_request_arrived & (valid == 1)
+        # setup arbiter
+        self.arbiter: WeightedRoundRobinArbiter(size, [1]*size, self.memory.axi_handler)
 
-        
+        # num cores
+        self.num_cores: int = size
 
-        
-
-        
-
-        
-
-        
-
-
-
-        
-
-        # for data in self.d
-
-
-        
-
-
-        
-
-
-            
-
-         
-        return
-
-    def __init__(self, size_in: int, test_cases: List[test_case]) -> None:
-        self.size: int = size_in 
+        # arr of those cores
         self.cores: List[Core] = []
-        self.data_from_cores: List[axi_request | None] = [None] * size_in
-        self.data_from_cores_valid: List[int] = [0] * size_in
+        for i in range(size):
+            self.cores.append(Core(i,))
 
+        # build work load for each of those cores
+        self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
+        for i in range(0, len(test_cases), size):
+            for k in range(size):
+                self.core_workloads[k].append(test_cases[i+k])
+     
 
-        for i in range(size_in):
-            self.cores.append(Core(i, self.send_core_requests, test_cases)
-
-
-
-
-        
-        
-        
-
-    # def recieve_core_requests(self):
+    def start(self):
 
 
 
