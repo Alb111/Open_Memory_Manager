@@ -2,14 +2,13 @@ from typing import Callable, List
 from axi_request import axi_request
 
 class Core:
-    def __init__(self, cpu_id: int, axi_send_handler: Callable[[axi_request, int], axi_request]):
+    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], axi_request]):
 
         # cpe inentifier
         self.cpu_id: int = cpu_id
 
         # functions pointers to send and recive axi packets
-        self.axi_send: Callable[[axi_request, int], axi_request] = axi_send_handler
-        self.axi_recive: Callable[[axi_request], axi_request] = self.axi_recieve_handler
+        self.axi_send_and_recieve: Callable[[axi_request, int], axi_request] = axi_handler
 
         # list of test cases
         self.recived_axi_packts: List[axi_request] = []
@@ -25,7 +24,7 @@ class Core:
             mem_wstrb=0b0000,
             mem_rdata=0)
 
-        self.axi_send(read_request, self.cpu_id)
+        self.axi_send_and_recieve(read_request, self.cpu_id)
     
     
     def write(self, addr_in: int, data_in: int, wstb_in: int) -> None:
@@ -39,25 +38,8 @@ class Core:
             mem_rdata=0
         ) 
         
-        self.axi_send(write_request, self.cpu_id)
+        self.axi_send_and_recieve(write_request, self.cpu_id)
 
-    ## Recieve functions
-    def axi_recieve_handler(self, axi_request: axi_request) -> axi_request:
-
-        # ready valid handshake valid
-        if axi_request.mem_ready == 1:
-            if axi_request.mem_wstrb == 0:
-                # read
-                print(f"sucessfull read, address = {axi_request.mem_addr}, value = {axi_request.mem_rdata}")
-            else:
-                # write 
-                print(f"sucessfull write, address = {axi_request.mem_addr}, value = {axi_request.mem_wdata}, strobe ")
-
-            return axi_request
-
-        # ready valid handshake not valid, try again
-        else:
-            return self.axi_send(axi_request, self.cpu_id)
            
     
     ## Testing
@@ -128,3 +110,21 @@ class Core:
     #     ) 
         
     #     return self.axi_send(write_request)
+     
+    # ## Recieve functions
+    # def axi_recieve_handler(self, axi_request: axi_request) -> axi_request:
+
+    #     # ready valid handshake valid
+    #     if axi_request.mem_ready == 1:
+    #         if axi_request.mem_wstrb == 0:
+    #             # read
+    #             print(f"sucessfull read, address = {axi_request.mem_addr}, value = {axi_request.mem_rdata}")
+    #         else:
+    #             # write 
+    #             print(f"sucessfull write, address = {axi_request.mem_addr}, value = {axi_request.mem_wdata}, strobe ")
+
+    #         return axi_request
+
+    #     # ready valid handshake not valid, try again
+    #     else:
+    #         return self.axi_send(axi_request, self.cpu_id)

@@ -3,7 +3,7 @@ from typing import List, Callable, Optional
 
 class WeightedRoundRobinArbiter:
 
-    def __init__(self, num_requesters: int, weights: List[int], axi_recieve_handler: Callable[[axi_request], axi_request]):
+    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request, int], axi_request]):
  
         # error checking
         if len(weights) != num_requesters:
@@ -27,9 +27,7 @@ class WeightedRoundRobinArbiter:
         self.remaining_credits = self.weights[0]
 
         # area to send chossen axi call to
-        self.axi_send: Callable[[axi_request, int], axi_request] = self.axi_recieve_handler
-
-        self.axi_recieve: Callable[[axi_request], axi_request] = self.axi_recieve
+        self.axi_send_and_recieve: Callable[[axi_request, int], axi_request] = axi_handler
 
         # find max possible iterations needed for round bin
         self.max_possible_iterations: int = sum(weights)
@@ -39,7 +37,7 @@ class WeightedRoundRobinArbiter:
         self.cores_axi_requsts: List[Optional[axi_request]] = [None] * self.num_requesters
         
 
-    def axi_recieve_handler(self, request_axi: axi_request, core_id: int ) -> axi_request:
+    def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) -> Optional[axi_request]:
 
         # mark core as arrived and store its data
         self.cores_arrived[core_id] = 1
@@ -70,14 +68,13 @@ class WeightedRoundRobinArbiter:
                 
                 # abitrate said yes 2 this core
                 if request_valid == 1:
-                    return self.axi_send(curr_cores_axi_request, core_id)
+                    return self.axi_send_and_recieve(curr_cores_axi_request, core_id)
 
                 # abitrate said no 2 this core
                 else:
                     return curr_cores_axi_request
 
-                            
-    
+                                
     def arbitrate(self, requests: List[int]) -> List[int]:
 
         # error checker

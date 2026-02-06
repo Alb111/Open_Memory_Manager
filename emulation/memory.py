@@ -1,5 +1,4 @@
 from axi_request import axi_request
-from axi
 
 class MemoryController:
     def __init__(self):
