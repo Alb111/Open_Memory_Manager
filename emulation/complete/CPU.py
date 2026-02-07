@@ -43,13 +43,16 @@ class CPU:
 
         # loop until all worloads stack are empty
         while any(core_workloads_copy):
+            print("while loop start")
             for index, coreworkload in enumerate(core_workloads_copy):
+                print(f"curr corr is {index}")
                 # if more tasks exist
                 if coreworkload: 
                     test_case: test_case = coreworkload[-1] # top of list
 
                     # try to write data
                     result_axi: Optional[axi_request] = self.cores[index].write(test_case.data_addr, test_case.data, test_case.wstb)
+
                     if result_axi is None:
                         raise TypeError("results_axi is none")
 

@@ -68,11 +68,16 @@ class WeightedRoundRobinArbiter:
                 
                 # abitrate said yes 2 this core
                 if request_valid == 1:
+                    print("sent data to memory")
                     return self.axi_send_and_recieve(curr_cores_axi_request)
 
                 # abitrate said no 2 this core
                 else:
                     return curr_cores_axi_request
+
+        # not all core have arrived
+        else:
+            return request_axi
 
                                 
     def arbitrate(self, requests: List[int]) -> List[int]:

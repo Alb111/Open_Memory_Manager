@@ -1,4 +1,3 @@
-from _typeshed import OptExcInfo
 from typing import Callable, Optional
 from axi_request import axi_request
 
@@ -35,6 +34,8 @@ class Core:
             mem_wstrb=wstb_in,
             mem_rdata=0
         ) 
+
+        print("got to write request in core.py")
         
         return self.axi_send_and_recieve(write_request, self.cpu_id)
 
