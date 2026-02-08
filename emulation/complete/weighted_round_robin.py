@@ -1,5 +1,10 @@
+# external modules
+import asyncio
+
+# types
 from axi_request import axi_request
 from typing import List, Callable, Optional
+
 
 class WeightedRoundRobinArbiter:
 
@@ -33,19 +38,38 @@ class WeightedRoundRobinArbiter:
         self.max_possible_iterations: int = sum(weights)
 
         # bit mapping to track that all cores requested
-        self.cores_arrived: List[int] = [0] * self.num_requesters
+        self.cores_arrived: int = 0
         self.cores_axi_requsts: List[Optional[axi_request]] = [None] * self.num_requesters
-        
 
-    def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) -> Optional[axi_request]:
+        # Syncronazation stuff need for coroutines 
+        self.lock_to_wait_for_all_cores = asyncio.Lock()
+        self.all_arrived = asyncio.Event()
+        self.arbitation_done = asyncio.Event()
 
-        # mark core as arrived and store its data
-        self.cores_arrived[core_id] = 1
-        self.cores_axi_requsts[core_id] = request_axi
+        # request flags
+        self.request_id: int = -1         
 
-        # all cores arrived
-        if sum(self.cores_arrived) == self.num_requesters:
 
+    async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) -> Optional[axi_request]:
+
+        # Wait all cores to sumbit something
+        async with self.lock_to_wait_for_all_cores:          
+
+            # mark core as arrived and store its data
+            self.cores_arrived += 1
+            self.cores_axi_requsts[core_id] = request_axi
+
+            # all cores arrived
+            if self.cores_arrived == self.num_requesters:
+                self.all_arrived.set()
+
+
+        await self.all_arrived.wait() # this will stall till all cores here
+
+
+        # use core 0 to run abitration, in the verilog this
+        # will be done by a verilog module
+        if core_id == 0:
             # build requests arr from axi_arr
             requests_in: List[int] = [] 
             for axi_request in self.cores_axi_requsts:
@@ -58,28 +82,36 @@ class WeightedRoundRobinArbiter:
             # send this into nick arbitrate function
             requests_out: List[int] = self.arbitrate(requests_in)
 
-            # go through results
-            for core_i, request_valid in enumerate(requests_out):
+            # find core to let through
+            self.request_id = requests_out.index(1)
+            self.arbitation_done.set()
 
-                curr_cores_axi_request: Optional[axi_request] = self.cores_axi_requsts[core_i]
-                # make sure axi_packet isnt None
-                if curr_cores_axi_request is None:
-                    raise ValueError("axi_requests None")
-                
-                # abitrate said yes 2 this core
-                if request_valid == 1:
-                    print("sent data to memory")
-                    return self.axi_send_and_recieve(curr_cores_axi_request)
+        await self.arbitation_done.wait() 
 
-                # abitrate said no 2 this core
-                else:
-                    return curr_cores_axi_request
 
-        # not all core have arrived
+        # let each core through one by one to check if it got its turn
+        curr_core_axi_packet_temp: Optional[axi_request] = self.cores_axi_requsts[core_id]
+        if curr_core_axi_packet_temp is not None:
+            curr_core_axi_packet: axi_request = curr_core_axi_packet_temp;
         else:
-            return request_axi
+            raise TypeError("curr_core_axi_packet is None")
 
-                                
+
+        async with self.lock_to_wait_for_all_cores:        
+
+            # see if core was chosen by arbiter
+            if core_id == self.request_id:
+                to_return = self.axi_send_and_recieve(curr_core_axi_packet)
+            else:
+                to_return = curr_core_axi_packet
+
+            if self.cores_arrived == 0:
+                self.all_arrived.clear()
+                self.arbitation_done.clear()
+
+        return to_return
+
+        
     def arbitrate(self, requests: List[int]) -> List[int]:
 
         # error checker
