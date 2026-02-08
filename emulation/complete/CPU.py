@@ -1,5 +1,6 @@
 # external 
 import copy
+import asyncio
 
 # hardware emulators
 from core import Core
@@ -35,39 +36,85 @@ class CPU:
             for k in range(size):
                 self.core_workloads[k].append(test_cases[i+k])
 
+
+    async def core_worker(self, core_id: int, workload: List[test_case]) -> None:
+
+        atempt_num: int = 0
+        
+        while workload and atempt_num < 20:
+            test_case: test_case = workload[-1] # top of list
+
+            # try to write data
+            result_axi: axi_request = await self.cores[core_id].write(test_case.data_addr, test_case.data, test_case.wstb)
+
+            if result_axi is None:
+                raise TypeError("results_axi is none")
+
+            # arbitrate gave core turn
+            if result_axi.mem_ready:
+                print(f"  Core {core_id}: ✓ Task completed")
+                workload.pop()                        
+            else:
+                print(f"  Core {core_id}: ✗ Denied, will retry, currently on Attempt {atempt_num} ")
+                atempt_num += 1
+
+
+        print(f"Core {core_id}: Finished all tasks")
+
+                 
      
-    def start_sim(self):
+    async def start_sim(self):
+
+        print("=" * 70)
+        print("Starting CPU Simulation")
+        print("=" * 70)
+        
 
         # to keep workloads intact for later use
         core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        # start tasks
+        tasks: List[asyncio.Task[None]] = [
+            asyncio.create_task(
+                self.core_worker(core_id, core_workloads_copy[core_id]),
+                name=f"Core-{core_id}"
+            )
+            for core_id in range(self.num_cores)
+        ]
+
+        # wait for all them
+        await asyncio.gather(*tasks)
+
+        print("=" * 70)
+        print("We Did it")
+        print("=" * 70)
+        
 
         # loop until all worloads stack are empty
-        while any(core_workloads_copy):
-            print("while loop start")
-            for index, coreworkload in enumerate(core_workloads_copy):
-                print(f"curr corr is {index}")
-                # if more tasks exist
-                if coreworkload: 
-                    test_case: test_case = coreworkload[-1] # top of list
+        # while any(core_workloads_copy):
+        #     print("while loop start")
+        #     for index, coreworkload in enumerate(core_workloads_copy):
+        #         print(f"curr corr is {index}")
+        #         # if more tasks exist
+        #         if coreworkload: 
+        #             test_case: test_case = coreworkload[-1] # top of list
 
-                    # try to write data
-                    result_axi: Optional[axi_request] = self.cores[index].write(test_case.data_addr, test_case.data, test_case.wstb)
+        #             # try to write data
+        #             result_axi: axi_request = await self.cores[index].write(test_case.data_addr, test_case.data, test_case.wstb)
 
-                    if result_axi is None:
-                        raise TypeError("results_axi is none")
 
-                    # arbitrate gave core turn
-                    if result_axi.mem_ready:
-                        core_workloads_copy.pop()                        
+        #             if result_axi is None:
+        #                 raise TypeError("results_axi is none")
 
-                    # arbitrate didnt give core turn yet, so keep task in stack
+        #             # arbitrate gave core turn
+        #             if result_axi.mem_ready:
+        #                 core_workloads_copy.pop()                        
 
-        print("all wrtie tasks done")
+        #             # arbitrate didnt give core turn yet, so keep task in stack
+
+        # print("all wrtie tasks done")
                     
-
-
-
-                    
+                   
 
 
 

@@ -3,12 +3,12 @@ import asyncio
 
 # types
 from axi_request import axi_request
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, Awaitable
 
 
 class WeightedRoundRobinArbiter:
 
-    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request], axi_request]):
+    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request], Awaitable[axi_request]]):
  
         # error checking
         if len(weights) != num_requesters:
@@ -32,7 +32,7 @@ class WeightedRoundRobinArbiter:
         self.remaining_credits = self.weights[0]
 
         # area to send chossen axi call to
-        self.axi_send_and_recieve: Callable[[axi_request], axi_request] = axi_handler
+        self.axi_send_and_recieve: Callable[[axi_request], Awaitable[axi_request]] = axi_handler
 
         # find max possible iterations needed for round bin
         self.max_possible_iterations: int = sum(weights)
@@ -50,7 +50,7 @@ class WeightedRoundRobinArbiter:
         self.request_id: int = -1         
 
 
-    async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) -> Optional[axi_request]:
+    async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) ->  axi_request:
 
         # Wait all cores to sumbit something
         async with self.lock_to_wait_for_all_cores:          
@@ -61,6 +61,7 @@ class WeightedRoundRobinArbiter:
 
             # all cores arrived
             if self.cores_arrived == self.num_requesters:
+                self.cores_arrived = 0
                 self.all_arrived.set()
 
 
@@ -70,21 +71,22 @@ class WeightedRoundRobinArbiter:
         # use core 0 to run abitration, in the verilog this
         # will be done by a verilog module
         if core_id == 0:
-            # build requests arr from axi_arr
-            requests_in: List[int] = [] 
-            for axi_request in self.cores_axi_requsts:
-                # need this cause axi_arr doesnt force type
-                if axi_request is None:
-                    raise ValueError("axi_requests None")
+            async with self.lock_to_wait_for_all_cores:
+                # build requests arr from axi_arr
+                requests_in: List[int] = [] 
+                for axi_request in self.cores_axi_requsts:
+                    # need this cause axi_arr doesnt force type
+                    if axi_request is None:
+                        raise ValueError("axi_requests None")
 
-                requests_in.append(axi_request.mem_valid)
+                    requests_in.append(axi_request.mem_valid)
 
-            # send this into nick arbitrate function
-            requests_out: List[int] = self.arbitrate(requests_in)
+                # send this into nick arbitrate function
+                requests_out: List[int] = self.arbitrate(requests_in)
 
-            # find core to let through
-            self.request_id = requests_out.index(1)
-            self.arbitation_done.set()
+                # find core to let through
+                self.request_id = requests_out.index(1)
+                self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
 
@@ -97,14 +99,15 @@ class WeightedRoundRobinArbiter:
             raise TypeError("curr_core_axi_packet is None")
 
 
+        # see if core was chosen by arbiter
+        if core_id == self.request_id:
+            to_return: axi_request = await self.axi_send_and_recieve(curr_core_axi_packet)
+        else:
+            to_return: axi_request = curr_core_axi_packet
+
+        # clean up
         async with self.lock_to_wait_for_all_cores:        
-
-            # see if core was chosen by arbiter
-            if core_id == self.request_id:
-                to_return = self.axi_send_and_recieve(curr_core_axi_packet)
-            else:
-                to_return = curr_core_axi_packet
-
+            self.cores_arrived -= 1
             if self.cores_arrived == 0:
                 self.all_arrived.clear()
                 self.arbitation_done.clear()

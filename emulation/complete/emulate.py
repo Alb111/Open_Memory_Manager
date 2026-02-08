@@ -6,14 +6,35 @@ from typing import List
 from CPU import CPU
 
 
-# testing
-testcases: List[test_case] = []
-for i in range(10):
-    testcases.append(test_case(i,i, 0b1111))
+# # testing
+# testcases: List[test_case] = []
+# for i in range(10):
+#     testcases.append(test_case(i,i, 0b1111))
 
-to_the_moon: CPU = CPU(2, testcases)
+# to_the_moon: CPU = CPU(2, testcases)
 
-to_the_moon.start_sim()
+# x = await to_the_moon.start_sim()
+
+# print(x)
+
+import asyncio
+
+async def main():
+    # prepare test cases
+    testcases: List[test_case] = []
+    for i in range(10):
+        testcases.append(test_case(i, i, 0b1111))
+
+    # create CPU
+    to_the_moon: CPU = CPU(2, testcases)
+
+    # await the async method
+    x = await to_the_moon.start_sim()
+    print(x)
+
+# run the async main
+asyncio.run(main())
+
 
 
             

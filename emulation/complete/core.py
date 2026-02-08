@@ -1,17 +1,17 @@
-from typing import Callable, Optional
+from typing import Callable, Optional, Awaitable
 from axi_request import axi_request
 
 class Core:
-    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], Optional[axi_request]]):
+    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], Awaitable[axi_request]]):
 
         # cpe inentifier
         self.cpu_id: int = cpu_id
 
         # functions pointers to send and recive axi packets
-        self.axi_send_and_recieve: Callable[[axi_request, int], Optional[axi_request]] = axi_handler
+        self.axi_send_and_recieve: Callable[[axi_request, int], Awaitable[axi_request]] = axi_handler
 
     ## SEND functions
-    def read_request(self, addr: int) -> Optional[axi_request]:
+    async def read_request(self, addr: int) -> axi_request:
         read_request:axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -21,10 +21,10 @@ class Core:
             mem_wstrb=0b0000,
             mem_rdata=0)
 
-        self.axi_send_and_recieve(read_request, self.cpu_id)
+        return await self.axi_send_and_recieve(read_request, self.cpu_id)
     
     
-    def write(self, addr_in: int, data_in: int, wstb_in: int) -> Optional[axi_request]:
+    async def write(self, addr_in: int, data_in: int, wstb_in: int) -> axi_request:
         write_request: axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -35,9 +35,9 @@ class Core:
             mem_rdata=0
         ) 
 
-        print("got to write request in core.py")
+        # print("got to write request in core.py")
         
-        return self.axi_send_and_recieve(write_request, self.cpu_id)
+        return await self.axi_send_and_recieve(write_request, self.cpu_id)
 
            
     
