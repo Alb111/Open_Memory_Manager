@@ -72,7 +72,7 @@ class serializer:
         if self.state == "idle":
             self.tdata_r = self.tdata_i
             self.en_o = 0
-            self.tmsg_cnt = 0
+            self.tmsg_cnt = tmsg_len
             self.serial_io = 0
             self.rdata_r = 0
             self.tready_o = 1
@@ -89,12 +89,12 @@ class serializer:
                 self.tready_o = 0
 
         elif self.state == "send":
-            if self.tmsg_cnt == self.tmsg_len:
+            if self.tmsg_cnt == 0:
                 self.state = "idle"
                 self.en_o = 0
             else:
-                self.serial_io = self.tdata_r[self.tmsg_cnt]
-                self.tmsg_cnt += 1
+                self.serial_io = self.tdata_r[self.tmsg_cnt-1]
+                self.tmsg_cnt -= 1
 
         elif self.state == "receive":
             if en_i == 0:
@@ -110,34 +110,3 @@ class serializer:
             self.rdata_r = (self.rdata_r << 1) | self.serial_io
             
 
-dut = serializer(32, 32)
-dut2 = serializer(32, 32)
-en_i = 0
-tvalid_i = 0
-rready_i = 1
-tdata_i = [1,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,1,0,1]
-tmsg_len = 32
-
-dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 1, [0]*32, 32)
-dut.print_state()
-dut2.print_state()
-input("Press to start transmission")
-tvalid_i = 1
-while dut.tmsg_cnt != tmsg_len:
-    dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-    dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 0, [0]*32, 32)
-    print("Dut 1:")
-    dut.print_state() 
-    print("Dut 2:")
-    dut2.print_state() 
-    tvalid_i = 0
-    tdata_i = [0] * 32
-    input()
-
-dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 1, [0]*32, 32)
-print("Dut 1:")
-dut.print_state() 
-print("Dut 2:")
-dut2.print_state() 
