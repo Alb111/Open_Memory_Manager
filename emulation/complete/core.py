@@ -11,12 +11,25 @@ class Core:
         self.axi_send_and_recieve: Callable[[axi_request, int], Awaitable[axi_request]] = axi_handler
 
     ## SEND functions
-    async def read_request(self, addr: int) -> axi_request:
+    async def read(self, addr: int) -> axi_request:
         read_request:axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
             mem_ready=False,
             mem_addr=addr,
+            mem_wdata=0,
+            mem_wstrb=0b0000,
+            mem_rdata=0)
+
+        return await self.axi_send_and_recieve(read_request, self.cpu_id)
+
+
+    async def read_nothing(self) -> axi_request:
+        read_request:axi_request = axi_request(
+            mem_valid= False,
+            mem_instr=False,
+            mem_ready=False,
+            mem_addr=0,
             mem_wdata=0,
             mem_wstrb=0b0000,
             mem_rdata=0)
@@ -39,6 +52,22 @@ class Core:
         
         return await self.axi_send_and_recieve(write_request, self.cpu_id)
 
+
+    
+    async def write_nothing(self) -> axi_request:
+        write_request: axi_request = axi_request(
+            mem_valid= False,
+            mem_instr=False,
+            mem_ready=False,
+            mem_addr=0,
+            mem_wdata=0,
+            mem_wstrb=0,
+            mem_rdata=0
+        ) 
+
+        # print("got to write request in core.py")
+        
+        return await self.axi_send_and_recieve(write_request, self.cpu_id)
            
     
     ## Testing

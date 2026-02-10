@@ -20,10 +20,13 @@ class CPU:
         self.memory: MemoryController = MemoryController()
 
         # setup arbiter
-        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1]*size, self.memory.axi_handler)
+        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1,1], self.memory.axi_handler)
 
         # num cores
         self.num_cores: int = size
+
+        # state of those cores
+        self.finsihed_cores: int = 0
 
         # arr of those cores
         self.cores: List[Core] = []
@@ -37,32 +40,21 @@ class CPU:
                 self.core_workloads[k].append(test_cases[i+k])
 
 
-    async def core_worker(self, core_id: int, workload: List[test_case]) -> None:
+    async def core_worker_write(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
+        if valid_testcase:
+            return await self.cores[core_id].write(test_case_in.data_addr, test_case_in.data, test_case_in.wstb)
+        else:
+            return await self.cores[core_id].write_nothing()
+              
 
-        atempt_num: int = 0
-        
-        while workload and atempt_num < 20:
-            test_case: test_case = workload[-1] # top of list
-
-            # try to write data
-            result_axi: axi_request = await self.cores[core_id].write(test_case.data_addr, test_case.data, test_case.wstb)
-
-            if result_axi is None:
-                raise TypeError("results_axi is none")
-
-            # arbitrate gave core turn
-            if result_axi.mem_ready:
-                print(f"  Core {core_id}: ✓ Task completed")
-                workload.pop()                        
-            else:
-                print(f"  Core {core_id}: ✗ Denied, will retry, currently on Attempt {atempt_num} ")
-                atempt_num += 1
-
-
-        print(f"Core {core_id}: Finished all tasks")
-
-                 
-     
+    async def core_worker_read(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
+        if valid_testcase:
+            return await self.cores[core_id].read(test_case_in.data_addr)
+        else:
+            return await self.cores[core_id].read_nothing()
+              
+    
+    
     async def start_sim(self):
 
         print("=" * 70)
@@ -70,20 +62,75 @@ class CPU:
         print("=" * 70)
         
 
+        print("=" * 70)
+        print("Writing Stuff")
+        print("=" * 70)
+        
+
         # to keep workloads intact for later use
         core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
         
-        # start tasks
-        tasks: List[asyncio.Task[None]] = [
-            asyncio.create_task(
-                self.core_worker(core_id, core_workloads_copy[core_id]),
-                name=f"Core-{core_id}"
-            )
-            for core_id in range(self.num_cores)
-        ]
+        while any(core_workloads_copy):
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                valid_testcase: bool = False
+                core_testcase: test_case = test_case(-1, -1, -1)           
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+             
+            
+                tasks.append(
+                    asyncio.create_task(
+                        self.core_worker_write(core_id, core_testcase, valid_testcase),
+                        name=f"Core-{core_id}"
+                    )
+                
+                )
 
-        # wait for all them
-        await asyncio.gather(*tasks)
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready:
+                    core_workloads_copy[index].pop()                        
+
+        
+        print("=" * 70)
+        print("Reading Stuff Out")
+        print("=" * 70)
+        
+
+        # to keep workloads intact for later use
+        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        while any(core_workloads_copy):
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                valid_testcase: bool = False
+                core_testcase: test_case = test_case(-1, -1, -1)           
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+             
+            
+                tasks.append(
+                    asyncio.create_task(
+                        self.core_worker_read(core_id, core_testcase, valid_testcase),
+                        name=f"Core-{core_id}"
+                    )
+                
+                )
+
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready:
+                    print(f" data at {result.mem_addr} is {result.mem_rdata}")
+                    core_workloads_copy[index].pop()                        
+
+            
 
         print("=" * 70)
         print("We Did it")
@@ -120,5 +167,34 @@ class CPU:
 
 
 
-
         
+
+
+        # # atempt_num: int = 0
+
+        # # idle_request: axi_request = axi_request(False, False, False, 0, 0, 0, 0)
+        
+        # while True:
+        #     if workload:
+        #         test_case: test_case = workload[-1] # top of list
+
+        #         if result_axi is None:
+        #             raise TypeError("results_axi is none")
+
+        #         if result_axi.mem_ready:
+        #             workload.pop()                        
+        #         else:
+        #             # print(f"  Core {core_id}: ✗ Denied, will retry, currently on Attempt {atempt_num} ")
+        #             atempt_num += 1
+
+                    
+        #     else:
+        #         # print(f"Core {core_id}: Finished all tasks")
+        #         self.finsihed_cores += 1 
+
+        #         # while self.finsihed_cores != self.num_cores:
+        #             # result_axi = await self.arbiter.axi_handler_arbiter(idle_request, core_id)
+
+        #         # print(f"  Core {core_id}: All cores done, exiting")
+        #         break
+                               

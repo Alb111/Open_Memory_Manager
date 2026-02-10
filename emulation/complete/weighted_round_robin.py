@@ -53,6 +53,7 @@ class WeightedRoundRobinArbiter:
     async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) ->  axi_request:
 
         # Wait all cores to sumbit something
+        # print(f"core {core_id} got to first lock")
         async with self.lock_to_wait_for_all_cores:          
 
             # mark core as arrived and store its data
@@ -61,17 +62,19 @@ class WeightedRoundRobinArbiter:
 
             # all cores arrived
             if self.cores_arrived == self.num_requesters:
-                self.cores_arrived = 0
+                # self.cores_arrived = 0
                 self.all_arrived.set()
 
 
         await self.all_arrived.wait() # this will stall till all cores here
 
+        # print(f"core {core_id} got past first lock")
 
         # use core 0 to run abitration, in the verilog this
         # will be done by a verilog module
-        if core_id == 0:
-            async with self.lock_to_wait_for_all_cores:
+        # print(f"core {core_id} got to second lock")
+        async with self.lock_to_wait_for_all_cores:
+            if core_id == 0:
                 # build requests arr from axi_arr
                 requests_in: List[int] = [] 
                 for axi_request in self.cores_axi_requsts:
@@ -86,18 +89,22 @@ class WeightedRoundRobinArbiter:
 
                 # find core to let through
                 self.request_id = requests_out.index(1)
+                print(f"let {self.request_id} core through")
                 self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
 
+        # print(f"core {core_id} got past second lock")
 
         # let each core through one by one to check if it got its turn
         curr_core_axi_packet_temp: Optional[axi_request] = self.cores_axi_requsts[core_id]
+
+
+        ## i need to spin here not send back invalid packet !!
         if curr_core_axi_packet_temp is not None:
             curr_core_axi_packet: axi_request = curr_core_axi_packet_temp;
         else:
             raise TypeError("curr_core_axi_packet is None")
-
 
         # see if core was chosen by arbiter
         if core_id == self.request_id:
