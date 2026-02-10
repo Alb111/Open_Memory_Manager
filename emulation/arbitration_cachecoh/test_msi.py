@@ -12,8 +12,8 @@ Test Categories:
 5. Protocol Invariants - MSI rules are never violated
 6. Stress Tests - Complex multi-operation scenarios
 
-Author: [Your Team]
-Date: [Current Date]
+Author: Rishi & Nick
+Date: 2/8/25
 """
 
 from msi import (
@@ -134,7 +134,9 @@ def print_state(system: TestSystem, addr: int, label: str = ""):
     
     print(f"  Cache0: {state0.name}")
     print(f"  Cache1: {state1.name}")
-    print(f"  Directory: state={dir_state.name}, sharers={sharers:#04b}")
+    system.cache0.dump_cache()
+    system.cache1.dump_cache()
+    print(f"\n  Directory: state={dir_state.name}, sharers={sharers:#04b}")
     print(f"  Memory: {mem:#010x}")
 
 
@@ -510,6 +512,22 @@ def test_read_write_read():
     print("✓ PASSED")
 
 
+def test_test():
+    print_test_header("Nick's Test")
+
+    system = TestSystem()
+    addr = 0xD000
+    system.directory.memory[addr] = 0xDEADDEAD
+
+    print("\n Caches reading")
+
+    g0 = system.cpu_read(0, addr)
+    assert g0 == 0xDEADDEAD
+    print_state(system, addr, "WTF")
+
+    system.cpu_write(1, addr, 0xABCDEF01)
+    print_state(system, addr, "WTF2")
+
 # ============================================================================
 # Main Test Runner
 # ============================================================================
@@ -545,6 +563,7 @@ def run_all_tests():
         # Complex scenarios
         test_ping_pong,
         test_read_write_read,
+        test_test,
     ]
     
     passed = 0

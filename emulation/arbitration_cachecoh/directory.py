@@ -26,8 +26,8 @@ Integration Points:
 - Sends snoop messages to CacheControllers via registered ports
 - Handles normal memory traffic (mem_instr=False)
 
-Author: [Your Team]
-Date: [Current Date]
+Author: Rishi & Nick
+Date: 2/8/25
 """
 
 from dataclasses import dataclass
