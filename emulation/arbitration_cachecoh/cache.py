@@ -22,8 +22,8 @@ Integration Points:
 - Sends/receives axi_request to/from DirectoryController (coherence traffic)
 - Uses msi_state_machine module for state transitions
 
-Author: [Your Team]
-Date: [Current Date]
+Author: Rishi & Nick
+Date: 2/8/25
 """
 
 from dataclasses import dataclass
@@ -539,3 +539,15 @@ class CacheController:
         # Mark response as ready
         request.mem_ready = True
         return request
+    def dump_cache(self) -> None:
+        print(f"\n=== Cache contents (core {self.core_id}) ===")
+        if not self.lines:
+            print("  (empty)")
+            return
+
+        for addr, line in sorted(self.lines.items()):
+            print(
+                f"  addr=0x{addr:08X} | "
+                f"state={line.state.name:<8} | "
+                f"data=0x{line.data:08X}"
+            )

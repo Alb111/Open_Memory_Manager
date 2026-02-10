@@ -15,8 +15,8 @@ Integration Points:
 - DirectoryController uses CoherenceCmd to coordinate between caches
 - All modules use axi_request for communication
 
-Author: [Your Team]
-Date: [Current Date]
+Author: Rishi & Nick
+Date: 2/8/25
 """
 
 from dataclasses import dataclass
