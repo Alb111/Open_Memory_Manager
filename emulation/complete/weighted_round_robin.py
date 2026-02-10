@@ -53,7 +53,6 @@ class WeightedRoundRobinArbiter:
     async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) ->  axi_request:
 
         # Wait all cores to sumbit something
-        # print(f"core {core_id} got to first lock")
         async with self.lock_to_wait_for_all_cores:          
 
             # mark core as arrived and store its data
@@ -68,11 +67,9 @@ class WeightedRoundRobinArbiter:
 
         await self.all_arrived.wait() # this will stall till all cores here
 
-        # print(f"core {core_id} got past first lock")
 
         # use core 0 to run abitration, in the verilog this
         # will be done by a verilog module
-        # print(f"core {core_id} got to second lock")
         async with self.lock_to_wait_for_all_cores:
             if core_id == 0:
                 # build requests arr from axi_arr
@@ -93,8 +90,6 @@ class WeightedRoundRobinArbiter:
                 self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
-
-        # print(f"core {core_id} got past second lock")
 
         # let each core through one by one to check if it got its turn
         curr_core_axi_packet_temp: Optional[axi_request] = self.cores_axi_requsts[core_id]

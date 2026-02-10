@@ -63,4 +63,3 @@ class MemoryController:
                 request.mem_ready = True        
              
         return request 
-
