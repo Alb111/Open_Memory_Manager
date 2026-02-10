@@ -127,16 +127,11 @@ def print_state(system: TestSystem, addr: int, label: str = ""):
     """Print current state of system."""
     if label:
         print(f"\n{label}:")
-    state0 = system.get_cache_state(0, addr)
-    state1 = system.get_cache_state(1, addr)
     dir_state, sharers = system.get_directory_state(addr)
     mem = system.get_memory(addr)
-    
-    print(f"  Cache0: {state0.name}")
-    print(f"  Cache1: {state1.name}")
     system.cache0.dump_cache()
     system.cache1.dump_cache()
-    print(f"\n  Directory: state={dir_state.name}, sharers={sharers:#04b}")
+    print(f"  Directory: state={dir_state.name}, sharers={sharers:#04b}")
     print(f"  Memory: {mem:#010x}")
 
 

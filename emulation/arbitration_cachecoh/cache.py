@@ -539,15 +539,15 @@ class CacheController:
         # Mark response as ready
         request.mem_ready = True
         return request
+        
     def dump_cache(self) -> None:
-        print(f"\n=== Cache contents (core {self.core_id}) ===")
         if not self.lines:
-            print("  (empty)")
+            print(f"  Cache{self.core_id}:  (empty)")
             return
 
         for addr, line in sorted(self.lines.items()):
             print(
-                f"  addr=0x{addr:08X} | "
-                f"state={line.state.name:<8} | "
-                f"data=0x{line.data:08X}"
+                f"  Cache{self.core_id}:  addr=0x{addr:08X}| "
+                f" state={line.state.name:<8}|"
+                f" data=0x{line.data:08X}"
             )
