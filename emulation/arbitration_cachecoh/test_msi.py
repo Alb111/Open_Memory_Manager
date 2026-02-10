@@ -16,7 +16,7 @@ Author: [Your Team]
 Date: [Current Date]
 """
 
-from msi_state_machine_commented import (
+from msi import (
     MSIState,
     ProcessorEvent,
     SnoopEvent,
@@ -25,8 +25,8 @@ from msi_state_machine_commented import (
     on_processor_event,
     on_snoop_event,
 )
-from cache_controller_commented import CacheController
-from directory_controller_commented import DirectoryController
+from cache import CacheController
+from directory import DirectoryController
 
 
 # ============================================================================

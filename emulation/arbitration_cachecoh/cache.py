@@ -29,7 +29,7 @@ Date: [Current Date]
 from dataclasses import dataclass
 from typing import Callable, Dict
 
-from msi_state_machine_commented import (
+from msi import (
     MSIState,
     ProcessorEvent,
     SnoopEvent,

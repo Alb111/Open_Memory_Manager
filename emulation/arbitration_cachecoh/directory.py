@@ -33,7 +33,7 @@ Date: [Current Date]
 from dataclasses import dataclass
 from typing import Callable, Dict, Optional
 
-from msi_state_machine_commented import (
+from msi import (
     MSIState,
     CoherenceCmd,
     axi_request,
