@@ -4,14 +4,12 @@ module boot_fsm #(
 )(
     input logic clk_i,
     input logic reset_i,
-
     output logic spi_start_o,
     output logic [7:0] spi_out_o,
     input logic [7:0] spi_in_i,
     input logic spi_done_i,
     input logic spi_busy_i,
-    output logic flash_csb_o
-
+    output logic flash_csb_o,
     output logic cores_en_o,
     output logic boot_done_o
 
@@ -31,9 +29,9 @@ module boot_fsm #(
         WAIT_BYTE,
         WRITE_SRAM,
         DONE
-    } boot_states;
+    } boot_state_t;
 
-    boot_state curr_state, next_state;
+    boot_state_t curr_state, next_state;
     logic [31:0] word_buffer;  //collects 4 bytes
     logic [1:0]  byte_in_word;  // which byte in word (0-3)
     logic [31:0] byte_cntr;   // total bytes read
@@ -42,7 +40,7 @@ module boot_fsm #(
 
     //state register
     always_ff @(posedge clk_i) begin
-        if (reset_n) begin
+        if (reset_i) begin
             curr_state <= IDLE;
         end else begin
             curr_state <= next_state;
@@ -85,7 +83,7 @@ module boot_fsm #(
                 sram_addr <= sram_addr + 4;
                 byte_in_word <= 2'd0;
             end
-           
+            default: ; //do nothing
             endcase
         end
 
@@ -147,7 +145,7 @@ module boot_fsm #(
             READ_BYTE: begin
                 flash_csb_o = 1'b0;
                 spi_start_o = 1'b1;
-                spi_data_out_o = 8'h00;
+                spi_out_o = 8'h00;
                 next_state = WAIT_BYTE;
             end
 
@@ -170,7 +168,7 @@ module boot_fsm #(
                 sram_addr_o = sram_addr;
                 sram_data_o = word_buffer;
            
-                if (byte_counter >= BOOT_SIZE) begin
+                if (byte_cntr >= BOOT_SIZE) begin
                     next_state = DONE;
                 end else begin
                     next_state = READ_BYTE;
