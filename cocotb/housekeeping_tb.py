@@ -20,14 +20,14 @@ async def test_simple_boot(dut):
     
     dut._log.info("Starting Boot Sequence...")
     
-    # 1. wait for command (1 byte) and addr (3 bytes) phase to complete
+    # 1. wait for comandn (1 byte) and addr (3 bytes) phase to complete
     # total 32 rising edges of sck
     for _ in range(32):
         await RisingEdge(dut.spi_sck_o)
     
     dut._log.info("Address phase finished. Sending Flash Data...")
 
-    # 2. feed the actual data: 0xAA, 0xBB, 0xCC, 0xDD
+    # 2. feed actual data
     flash_data = [0xAA, 0xBB, 0xCC, 0xDD]
     
     for val in flash_data:
