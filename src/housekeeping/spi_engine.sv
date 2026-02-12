@@ -1,7 +1,6 @@
 module spi_engine (
     input logic clk_i,
     input logic reset_i,
-
     input logic start_i,
     input logic [7:0] data_in_i,
     output logic [7:0] data_out_o,
@@ -20,11 +19,6 @@ module spi_engine (
 
     logic [7:0] shift_out, shift_in;
     logic [2:0] bit_cnt;
-
-
-    //clock speed
-    // logic [2:0] div;
-    // logic sck_en;
 
     //state reg
     always_ff @(posedge clk_i) begin
@@ -49,7 +43,7 @@ module spi_engine (
                 if(start_i) begin
                     shift_out <= data_in_i;
                     bit_cnt <= 3'd0;
-                    spi_mosi_o <= data_in_i[7] //msb first
+                    spi_mosi_o <= data_in_i[7]; //msb first
                 end
             end
             SHIFT: begin
@@ -79,7 +73,7 @@ module spi_engine (
         done_o = 1'b0;
         busy_o = 1'b0;
 
-        unique case(curr_state)
+        case(curr_state)
             IDLE: begin
                 if(start_i) begin
                     next_state = SHIFT;
@@ -87,7 +81,7 @@ module spi_engine (
             end
             SHIFT: begin
                 busy_o = 1'b1;
-                spi_sck_o = 1'b1; //made clock always high for now 
+                spi_sck_o = clk_i; // simplified clock for now
 
                 if(bit_cnt == 3'd7) begin
                     done_o = 1'b1;
