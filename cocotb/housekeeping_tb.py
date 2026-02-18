@@ -6,7 +6,7 @@ from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, FallingEdge, ClockCycles
 import random
 
-# --- PATH FIX ---
+
 current_dir = Path(__file__).resolve().parent
 emulation_path = current_dir.parent / "emulation" / "arbitration_cachecoh"
 sys.path.append(str(emulation_path))
@@ -17,7 +17,6 @@ except ImportError:
     print(f"Error: Could not find weighted_round_robin.py in {emulation_path}")
     sys.exit(1)
 
-# --- HELPER: FLASH MODEL ---
 async def flash_model(dut, data):
     """Simulates a Flash chip bit-stream"""
     # Wait for the Address Phase (32 bits) to finish
@@ -29,18 +28,17 @@ async def flash_model(dut, data):
             await FallingEdge(dut.spi_sck_o)
             dut.spi_miso_i.value = (byte >> (7-i)) & 1
 
-# --- TEST CASE ---
 @cocotb.test()
 async def test_boot_with_arbiter_contention(dut):
     """Full Boot Test: 2 words with random Arbiter delays"""
     
     cocotb.start_soon(Clock(dut.clk_i, 20, "ns").start())
     
-    # Initialize Arbiter (Housekeeping is index 0)
+    # initialize arbiter (Housekeeping is index 0)
     weights = [1, 5] 
     arbiter = WeightedRoundRobinArbiter(num_requesters=2, weights=weights)
     
-    # Reset
+    # reset
     dut.reset_i.value = 1
     dut.arb_gnt_i.value = 0
     dut.spi_miso_i.value = 0
@@ -66,20 +64,20 @@ async def test_boot_with_arbiter_contention(dut):
 
     words_captured = 0
     while words_captured < len(expected_words):
-        # 1. Wait for Request
+        # 1. wait for request
         await RisingEdge(dut.arb_req_o)
         
-        # 2. Simulate other things happening on the bus (Wait 1-10 cycles)
+        # 2. simulate other things happening on the bus (Wait 1-10 cycles)
         delay = random.randint(1, 10)
         await ClockCycles(dut.clk_i, delay)
         
-        # 3. Call Python Arbiter (pretending Core 1 isn't requesting)
-        # requests = [Housekeeping, Core1]
+        # 3. call python arbiter (pretending core 1 isn't requesting)
+        # requests = [housekeeping, core1]
         grant_result = arbiter.arbitrate([1, 0]) 
         
         if grant_result[0] == 1:
             dut.arb_gnt_i.value = 1
-            # Wait for FSM to see grant and pulse write
+            # wait for fsm to see grant and pulse write
             await RisingEdge(dut.clk_i) 
             
             if dut.sram_wr_en_o.value == 1:
@@ -95,18 +93,16 @@ async def test_boot_with_arbiter_contention(dut):
     assert dut.cores_en_o.value == 1
     dut._log.info("✓ SUCCESS: Boot Sequence Complete!")
 
-# --- THE RUNNER ---
 if __name__ == "__main__":
     from cocotb_tools.runner import get_runner
     
-    # Tell the runner where your Verilog files are
     sources = [
         current_dir / "../src/housekeeping/spi_engine.sv",
         current_dir / "../src/housekeeping/boot_fsm.sv",
         current_dir / "../src/housekeeping/housekeeping_top.sv"
     ]
     
-    runner = get_runner("icarus") # Or "verilator"
+    runner = get_runner("icarus")
     runner.build(
         sources=sources,
         hdl_toplevel="housekeeping_top",
@@ -114,6 +110,6 @@ if __name__ == "__main__":
     )
     runner.test(
         hdl_toplevel="housekeeping_top",
-        test_module="housekeeping_tb", # Name of this python file
+        test_module="housekeeping_tb",
         waves=True
     )
