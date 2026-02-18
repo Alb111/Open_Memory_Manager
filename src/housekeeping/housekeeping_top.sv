@@ -11,6 +11,10 @@ module housekeeping_top #(
     input logic spi_miso_i,
     output logic flash_csb_o,
     
+    // Arbiter Handshake (New)
+    output logic arb_req_o,
+    input  logic arb_gnt_i,
+    
     // sram interface
     output logic sram_wr_en_o,
     output logic [31:0] sram_addr_o,
@@ -24,7 +28,7 @@ module housekeeping_top #(
    logic spi_start;
    logic [7:0] spi_data_out;
    logic [7:0] spi_data_in;
-   logic spi_ready;
+   logic spi_done;
    logic spi_busy;
    
    // spi Engine
@@ -34,7 +38,7 @@ module housekeeping_top #(
       .start_i(spi_start),
       .data_in_i(spi_data_out),
       .data_out_o(spi_data_in),
-      .done_o(spi_ready),
+      .done_o(spi_done),
       .busy_o(spi_busy),
       .spi_sck_o(spi_sck_o),
       .spi_mosi_o(spi_mosi_o),
@@ -51,14 +55,16 @@ module housekeeping_top #(
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),
-      .spi_done_i(spi_ready),
+      .spi_done_i(spi_done),
       .spi_busy_i(spi_busy),
       .flash_csb_o(flash_csb_o),
       .sram_wr_en_o(sram_wr_en_o),
       .sram_addr_o(sram_addr_o),
       .sram_data_o(sram_data_o),
       .cores_en_o(cores_en_o),
-      .boot_done_o(boot_done_o)
+      .boot_done_o(boot_done_o),
+      .arb_req_o(arb_req_o),
+      .arb_gnt_i(arb_gnt_i)
    );
 
 endmodule
