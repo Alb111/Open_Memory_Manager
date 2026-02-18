@@ -62,15 +62,12 @@ module boot_fsm #(
             sram_addr <= SRAM_BASE_ADDR;
             addr_byte_cnt <= 2'd0;
         end else begin
-            // FIX: Use IDLE to reset your counters before a new boot starts
+            // idle to reset counters before a new boot starts
             if (curr_state == IDLE) begin
                 byte_in_word <= 2'd0;
                 addr_byte_cnt <= 2'd0;
                 byte_cntr <= 32'h0;
             end
-            // if (curr_state == WAIT_ADDR && curr_state == READ_BYTE) begin
-            //     byte_in_word <= 2'd0;
-            // end
 
             if (curr_state == WAIT_ADDR && spi_done_i) begin
                 addr_byte_cnt <= addr_byte_cnt + 1'b1;
@@ -88,16 +85,12 @@ module boot_fsm #(
                 byte_cntr <= byte_cntr + 1'b1;
             end
 
-            // We only reset byte_in_word AFTER the arbiter has granted the write
+            // only reset byte_in_word after arbiter has granted the write
             if (curr_state == WRITE_SRAM && arb_gnt_i) begin
                 byte_in_word <= 2'd0;
                 sram_addr <= sram_addr + 4;
             end
 
-            // if (curr_state == WRITE_SRAM) begin
-            //     byte_in_word <= 2'd0;
-            //     sram_addr <= sram_addr + 4;
-            // end
         end
     end
 
@@ -145,10 +138,10 @@ module boot_fsm #(
                 flash_csb_o = 1'b0;
                 if (spi_done_i) begin
                     if (addr_byte_cnt == 2'd2)
-                        // send all 3 address bytes
+                        // send all 3 addr bytes
                         next_state = READ_BYTE;
                     else
-                        // send next address byte
+                        // send next addr byte
                         next_state = SEND_ADDR;
                 end
             end
@@ -183,7 +176,7 @@ module boot_fsm #(
                 sram_data_o = word_buffer;
 
                 if (arb_gnt_i) begin
-                    // Only pulse write enable if we are granted access
+                    // only pulse write enable if we are granted access
                     sram_wr_en_o = 1'b1;
                     if (byte_cntr >= BOOT_SIZE) begin
                         next_state = DONE;
@@ -191,7 +184,7 @@ module boot_fsm #(
                         next_state = READ_BYTE;
                     end
                 end else begin
-                    // Wait in this state until arbiter says yes
+                    // wait in this state until arbiter says yes
                     next_state = WRITE_SRAM;
                 end
             end
