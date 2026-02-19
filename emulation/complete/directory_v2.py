@@ -86,9 +86,9 @@ class DirectoryController:
         
         # Cache communication ports
         # Maps cache_id → cache's axi_handler function
-        self.cache_ports: Dict[int, Callable[[axi_and_coherence_request], axi_and_coherence_request]] = {}
+        self.cache_ports: Dict[int, Callable[[axi_and_coherence_request], Awaitable[axi_and_coherence_request]]] = {}
 
-    def register_cache(self, core_id: int, cache_axi_handler: Callable[[axi_and_coherence_request], axi_and_coherence_request]) -> None:
+    def register_cache(self, core_id: int, cache_axi_handler: Callable[[axi_and_coherence_request], Awaitable[axi_and_coherence_request]]) -> None:
         """
         Register a cache controller's AXI handler for snoop communication.
                 
@@ -96,6 +96,7 @@ class DirectoryController:
             core_id: Cache identifier (0, 1, ...)
             cache_axi_handler: Cache's axi_handler function        
         """
+
         self.cache_ports[core_id] = cache_axi_handler
 
 
@@ -116,7 +117,7 @@ class DirectoryController:
     
 
 
-    def _send_snoop(self, target_core: int, addr: int, snoop_cmd: CoherenceCmd, requester: int) -> int:
+    async def _send_snoop(self, target_core: int, addr: int, snoop_cmd: CoherenceCmd, requester: int) -> axi_and_coherence_request:
         """
         send a snoop message to a specific cache.
         
@@ -134,7 +135,7 @@ class DirectoryController:
         """
 
         # get target cache's axi handler
-        port: Callable[[axi_and_coherence_request], axi_and_coherence_request] = self.cache_ports[target_core]
+        port = self.cache_ports[target_core]
 
         # build snoop request
         req = axi_and_coherence_request(
@@ -150,14 +151,14 @@ class DirectoryController:
         )
              
         # send snoop to cache (synchronous call)
-        resp: axi_and_coherence_request = port(req)
+        resp: axi_and_coherence_request = await port(req)
         
         # verify cache acknowledged
         if not resp.mem_ready:
             raise RuntimeError(f"snoop not acknowledged by core {target_core}")
         
         # return any flushed data
-        return resp.mem_rdata
+        return resp
 
 
     async def _bus_rd(self, request: axi_and_coherence_request) -> axi_request:
@@ -199,7 +200,7 @@ class DirectoryController:
         if owner is not None and owner != request.core_id:
 
             # Snoop owner to get dirty data
-            flushed = self._send_snoop(owner, axi_and_coherence_request.mem_addr, CoherenceCmd.SNOOP_BUS_RD, axi_and_coherence_request.core_id)
+            flushed = (await self._send_snoop(owner, axi_and_coherence_request.mem_addr, CoherenceCmd.SNOOP_BUS_RD, axi_and_coherence_request.core_id)).mem_rdata
             
             # Update memory with flushed data
             write_request: axi_request = axi_request(
@@ -307,7 +308,7 @@ class DirectoryController:
         owner = entry.owner()
         if owner is not None and owner != request.core_id:
             # Get dirty data from owner
-            flushed = self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)
+            flushed = (await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)).mem_rdata
             
             # Update memory
             write_request: axi_request = axi_request(
@@ -503,7 +504,7 @@ class DirectoryController:
         raise ValueError(f"unknown coherence cmd {cmd}")
 
 
-    async def axi_handler(self, request: axi_and_coherence_request) -> axi_request:
+    async def axi_handler_for_arbiter(self, request: axi_and_coherence_request) -> axi_request:
         """
         Main AXI request handler for directory controller.
         

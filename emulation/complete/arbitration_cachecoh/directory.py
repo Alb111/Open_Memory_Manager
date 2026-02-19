@@ -33,10 +33,10 @@ Date: 2/8/25
 from dataclasses import dataclass
 from typing import Callable, Dict, Optional
 
+from axi_request import axi_request
 from msi import (
     MSIState,
     CoherenceCmd,
-    axi_request,
     pack_cmd,
     unpack_cmd,
 )
@@ -207,11 +207,7 @@ class DirectoryController:
         
         # Main memory storage
         self.memory: Dict[int, int] = {}
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
         # Cache communication ports
         # Maps cache_id → cache's axi_handler function
         self.cache_ports: Dict[int, Callable[[axi_request], axi_request]] = {}
@@ -330,6 +326,8 @@ class DirectoryController:
             mem_addr=addr,
             mem_wdata=pack_cmd(snoop_cmd, requester),
             mem_wstrb=0xF,
+            mem_ready=False,
+            mem_rdata=0
         )
         
         # Send snoop to cache (synchronous call)
