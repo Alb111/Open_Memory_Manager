@@ -3,11 +3,11 @@ from axi_request import axi_request
 
 class Core:
 
-    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request, int], Awaitable[axi_request]]):
+    def __init__(self, cpu_id: int, axi_handler: Callable[[axi_request], Awaitable[axi_request]]):
         # cpe inentifier
         self.cpu_id: int = cpu_id
         # functions pointers to send and recive axi packets
-        self.axi_send_and_recieve: Callable[[axi_request, int], Awaitable[axi_request]] = axi_handler
+        self.axi_send_and_recieve: Callable[[axi_request], Awaitable[axi_request]] = axi_handler
 
     # read functions
     async def read(self, addr: int) -> axi_request:
@@ -20,7 +20,7 @@ class Core:
             mem_wstrb=0b0000,
             mem_rdata=0)
 
-        return await self.axi_send_and_recieve(read_request, self.cpu_id)
+        return await self.axi_send_and_recieve(read_request)
 
 
     async def read_nothing(self) -> axi_request:
@@ -33,7 +33,7 @@ class Core:
             mem_wstrb=0b0000,
             mem_rdata=0)
 
-        return await self.axi_send_and_recieve(read_request, self.cpu_id)
+        return await self.axi_send_and_recieve(read_request)
     
     # write functions
     async def write(self, addr_in: int, data_in: int, wstb_in: int) -> axi_request:
@@ -47,7 +47,7 @@ class Core:
             mem_rdata=0
         ) 
        
-        return await self.axi_send_and_recieve(write_request, self.cpu_id)
+        return await self.axi_send_and_recieve(write_request)
 
 
     
@@ -62,5 +62,5 @@ class Core:
             mem_rdata=0
         ) 
       
-        return await self.axi_send_and_recieve(write_request, self.cpu_id)
+        return await self.axi_send_and_recieve(write_request)
            

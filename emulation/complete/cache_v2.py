@@ -37,11 +37,7 @@ class CacheController:
     Fully associative for simulation simplicity.
     """
 
-<<<<<<< HEAD
     def __init__(self, core_id: int, directory_axi_handler: Callable[[axi_and_coherence_request], Awaitable[axi_request]]) -> None:
-=======
-    def __init__(self, core_id: int, directory_axi_handler: Callable[[axi_and_coherence_request], Awaitable[axi_and_coherence_request]]) -> None:
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
         """
         Create a cache controller for a single core.
 
@@ -51,11 +47,7 @@ class CacheController:
         """
 
         self.core_id: int = core_id
-<<<<<<< HEAD
         self.directory_port: Callable[[axi_and_coherence_request], Awaitable[axi_request]] = directory_axi_handler       
-=======
-        self.directory_port: Callable[[axi_and_coherence_request], Awaitable[axi_and_coherence_request]] = directory_axi_handler       
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
 
         self.lines: Dict[int, CacheLine] = {}
         # self.lines is a simplication in hadware the addr wont be directly mapped to Cache line it will more like this:  
@@ -85,11 +77,7 @@ class CacheController:
         return self.lines[addr]
 
     
-<<<<<<< HEAD
     async def _send_dir_cmd(self, cmd: CoherenceCmd, addr: int, payload: int = 0) -> axi_request:
-=======
-    async def _send_dir_cmd(self, cmd: CoherenceCmd, addr: int, payload: int = 0) -> axi_and_coherence_request:
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
         """
         Send a coherence command to the directory and returns its response.
 
@@ -117,11 +105,7 @@ class CacheController:
         )
 
         # Send request to directory and get response
-<<<<<<< HEAD
         resp: axi_request = await self.directory_port(req)
-=======
-        resp: axi_and_coherence_request = await self.directory_port(req)
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
         
         # Verify directory acknowledged
         if not resp.mem_ready:
@@ -187,11 +171,7 @@ class CacheController:
 
         # If we need exclusive access or need to fetch data
         if tr.issue_cmd is not None:
-<<<<<<< HEAD
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
-=======
-            dir_resp: axi_and_coherence_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
 
             if dir_resp.mem_ready != True:
                 raise ValueError("directory response not right after read")
@@ -293,7 +273,6 @@ class CacheController:
         # Mark line as invalid after eviction
         line.state = MSIState.INVALID
 
-<<<<<<< HEAD
 
     async def handle_request(self, request):
         """
@@ -341,8 +320,7 @@ class CacheController:
 
 
     
-=======
-    async def axi_handler(self, request: axi_request ) -> axi_request:
+    async def axi_handler_for_core(self, request: axi_request) -> axi_request:
 
         """
         Core's AXI request handler - routes requests to appropriate handlers.
@@ -380,9 +358,8 @@ class CacheController:
         return request
 
 
-
-
-    def axi_and_coherence_handler(self, request: axi_and_coherence_request ) -> axi_and_coherence_request:
+    
+    async def axi_and_coherence_handler(self, request: axi_and_coherence_request ) -> axi_and_coherence_request:
 
         """
         Core's axi+coherence request handler - routes requests to appropriate handlers.
@@ -406,7 +383,7 @@ class CacheController:
         request = self._handle_snoop(request)
         # request.mem_ready = True  We shouldnt need this
         return request
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
+
 
     def dump_cache(self) -> None:
         if not self.lines:
@@ -420,7 +397,6 @@ class CacheController:
                 f" data=0x{line.data:08X}"
             )
 
-<<<<<<< HEAD
     # async def axi_handler(self, request: axi_request ) -> axi_request:
 
     #     """
@@ -486,5 +462,28 @@ class CacheController:
     #     # request.mem_ready = True  We shouldnt need this
     #     return request
 
-=======
->>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
+
+    # def axi_and_coherence_handler(self, request: axi_and_coherence_request ) -> axi_and_coherence_request:
+
+    #     """
+    #     Core's axi+coherence request handler - routes requests to appropriate handlers.
+
+    #     This is the primary entry point for all communication with the directory mainly just used for snoop requests.
+
+    #     Args:
+    #         AXI + Cohrence Cmd from directory
+
+    #     Returns:
+    #         AXI + Cohrence Cmd with mem_ready=True and appropriate data to the core        
+    #     """
+
+    #     # Coherence traffic: snoop from directory
+        
+    #     # Error Handling 
+    #     if not request.mem_valid:
+    #         request.mem_ready = False
+    #         return request
+
+    #     request = self._handle_snoop(request)
+    #     # request.mem_ready = True  We shouldnt need this
+    #     return request

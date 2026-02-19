@@ -6,6 +6,8 @@ import asyncio
 from core import Core
 from memory import MemoryController
 from weighted_round_robin import WeightedRoundRobinArbiter
+from cache_v2 import CacheController
+from directory_v2 import DirectoryController
 
 # types
 from axi_request import axi_request
@@ -19,19 +21,28 @@ class CPU:
         # setup memory 
         self.memory: MemoryController = MemoryController()
 
+        # setup directory
+        self.directory: DirectoryController = DirectoryController(size, self.memory.axi_handler)
+
         # setup arbiter
-        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1,1], self.memory.axi_handler)
+        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1] * size, self.directory.axi_handler_for_arbiter)
+        
+        # setup caches
+        self.caches: List[CacheController] = [] 
+        for i in range(size):
+            cache_to_add: CacheController = CacheController(i, self.arbiter.axi_handler_arbiter)
+            self.caches.append(cache_to_add)
+            self.directory.register_cache(i, cache_to_add.axi_and_coherence_handler)
 
         # num cores
         self.num_cores: int = size
-
         # state of those cores
         self.finsihed_cores: int = 0
 
         # arr of those cores
         self.cores: List[Core] = []
         for i in range(size):
-            self.cores.append(Core(i,self.arbiter.axi_handler_arbiter))
+            self.cores.append(Core(i, self.caches[i].axi_handler_for_core))
 
         # build work load for each of those cores
         self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
