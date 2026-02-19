@@ -207,7 +207,11 @@ class DirectoryController:
         
         # Main memory storage
         self.memory: Dict[int, int] = {}
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 3297f67c4970e12446db8edfcdb0d01bcf63c1b7
         # Cache communication ports
         # Maps cache_id → cache's axi_handler function
         self.cache_ports: Dict[int, Callable[[axi_request], axi_request]] = {}
