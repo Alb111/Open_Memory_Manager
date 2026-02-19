@@ -107,7 +107,7 @@ class CacheController:
         # print(req)
         # Send request to directory and get response
         resp: axi_request = await self.directory_port(req)
-        print(resp)
+        # print(resp)
         
         # Verify directory acknowledged
         # if not resp.mem_ready:
@@ -133,14 +133,17 @@ class CacheController:
         # Ask state machine: what do we do for a read in current state?
         tr: TransitionResult = on_processor_event(line.state, ProcessorEvent.PR_RD)
 
+
         # If cache miss (or other condition requiring coherence transaction)
         if tr.issue_cmd is not None:
             # Fetch data from directory/memory and update cache line
+            print("cache read miss")
             line.data = (await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)).mem_rdata
             request.mem_rdata = line.data            
 
         # we have data in cache so just pipe it straight through
         else:
+            print("cache read hit")
             request.mem_rdata = line.data
         
         request.mem_ready = True
@@ -399,6 +402,13 @@ class CacheController:
                 f" state={line.state.name:<8}|"
                 f" data=0x{line.data:08X}"
             )
+
+    def flush_all(self) -> None:
+        for line in self.lines.values():
+            line.state = MSIState.INVALID
+
+
+    
 
     # async def axi_handler(self, request: axi_request ) -> axi_request:
 
