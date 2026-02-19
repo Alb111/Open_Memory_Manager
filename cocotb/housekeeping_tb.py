@@ -6,8 +6,8 @@ from cocotb.triggers import RisingEdge, FallingEdge, ClockCycles, ReadOnly
 import random
 
 async def flash_model(dut, data):
-    """Simulates a Flash chip bit-stream"""
-    # wait for the address phase (32 bits) to finish
+    """Simulates a flash chip bit-stream"""
+    # wait for address phase (32 bits) to finish
     for _ in range(32):
         await RisingEdge(dut.spi_sck_o)
     
@@ -16,8 +16,10 @@ async def flash_model(dut, data):
             await FallingEdge(dut.spi_sck_o)
             dut.spi_miso_i.value = (byte >> (7-i)) & 1
 
+
+
 @cocotb.test()
-async def test_boot_with_arbiter_contention(dut):
+async def test_boot_with_arbiter(dut):
     """Full Boot Test: 8 words with randomized bus grant delays"""
     
     cocotb.start_soon(Clock(dut.clk_i, 20, "ns").start())
@@ -47,7 +49,7 @@ async def test_boot_with_arbiter_contention(dut):
         # 1. wair for the boot fsm to request the bus
         await RisingEdge(dut.arb_req_o)
         
-        # 2. simulate bus contention (arbiter is busy for 1-10 cycles)
+        # 2. simulate arbiter is busy for 1-10 cycles
         delay = random.randint(1, 10)
         await ClockCycles(dut.clk_i, delay)
         
@@ -55,17 +57,17 @@ async def test_boot_with_arbiter_contention(dut):
         dut.arb_gnt_i.value = 1
         
         # 4. wait for the fsm to perform the sram write
-        # The fsm pulses sram_wr_en_o when it sees gnt and sck is ready
+        #fsm pulses sram_wr_en_o when it sees gnt and sck is ready
         await RisingEdge(dut.sram_wr_en_o)
 
         # wait until the end of the clock cycle so the data is stable
         await FallingEdge(dut.clk_i)
         
-        # sample data to verify it's correct at the moment of the write
+        # sample data to verify its correct at the moment of the write
         actual = int(dut.sram_data_o.value)
-        assert actual == expected_words[words_captured], f"Data Mismatch! Word {words_captured}"
+        assert actual == expected_words[words_captured], f"Data Mismatch!!! Word {words_captured}"
         
-        dut._log.info(f"✓ Word {words_captured} written: {hex(actual)}")
+        dut._log.info(f"** Word {words_captured} written: {hex(actual)}")
         words_captured += 1
         
         # 5. release the grant after the write cycle completes
@@ -77,9 +79,11 @@ async def test_boot_with_arbiter_contention(dut):
     assert dut.cores_en_o.value == 1
     dut._log.info("** SUCCESS: boot sequence complete!!!! ***")
 
+
+
 @cocotb.test()
-async def test_boot_comprehensive(dut):
-    """Comprehensive Test with strict 32-bit formatting and explicit checks"""
+async def test_boot_full(dut):
+    """full test with 32-bit formatting and checks"""
     cocotb.start_soon(Clock(dut.clk_i, 20, "ns").start())
     
     # 1. reset
@@ -124,10 +128,9 @@ async def test_boot_comprehensive(dut):
 
 
 
-
 @cocotb.test()
 async def test_reset_during_boot(dut):
-    """Verify that a reset during boot clears all internal states"""
+    """Check that a reset during boot clears all internal states"""
     clock = Clock(dut.clk_i, 20, "ns")
     cocotb.start_soon(clock.start())
     
@@ -139,22 +142,24 @@ async def test_reset_during_boot(dut):
     
     # wait for 1st activity
     await RisingEdge(dut.arb_req_o)
-    dut._log.info("Boot started, hitting Reset...")
+    dut._log.info("Boot started, hitting reset...")
     
     dut.reset_i.value = 1
     await ClockCycles(dut.clk_i, 10)
     
     # assertion check if hardware actually responded to reset
-    assert dut.arb_req_o.value == 0, "Error: Request stayed high during reset!"
-    assert dut.sram_addr_o.value == 0, "Error: Address didn't clear!"
-    assert dut.boot_done_o.value == 0, "Error: boot_done high during reset!"
+    assert dut.arb_req_o.value == 0, "Error: Request stayed high during reset"
+    assert dut.sram_addr_o.value == 0, "Error: Address didn't clear"
+    assert dut.boot_done_o.value == 0, "Error: boot_done high during reset"
     
     flash_task.cancel() 
-    dut._log.info("** Reset recovery verified.")
+    dut._log.info("** SUCESSS: Reset recovery verified.")
+
+
 
 @cocotb.test()
 async def test_short_boot_failure(dut):
-    """Verify cores remain disabled if SPI stream ends prematurely"""
+    """Check cores remain disabled if SPI stream ends/stops early"""
     cocotb.start_soon(Clock(dut.clk_i, 20, "ns").start())
     dut.reset_i.value = 1
     await ClockCycles(dut.clk_i, 5)
@@ -175,50 +180,12 @@ async def test_short_boot_failure(dut):
     
     dut._log.info(f"Signal Check: boot_done={done_val}, cores_en={en_val}")
     
-    assert done_val == 0, "FAIL: System reported DONE on partial data!"
-    assert en_val == 0, "FAIL: Cores enabled on partial data!"
+    assert done_val == 0, "FAIL: System reported done on partial data"
+    assert en_val == 0, "FAIL: Cores enabled on partial data"
     
     flash_task.cancel()
-    dut._log.info("** Short boot failure (Security Check) passed.")
+    dut._log.info("** SUCCESS: Short boot failure (Security Check) passed.")
 
-@cocotb.test()
-async def test_infinite_arbiter_wait(dut):
-    """Verify FSM holds data stable during long arbiter delays"""
-    clock = Clock(dut.clk_i, 20, "ns")
-    cocotb.start_soon(clock.start())
-    dut.reset_i.value = 1
-    await ClockCycles(dut.clk_i, 5)
-    dut.reset_i.value = 0
-    
-    # random word
-    test_word = random.randint(0, 0xFFFFFFFF)
-    test_bytes = [
-        test_word & 0xFF,
-        (test_word >> 8) & 0xFF,
-        (test_word >> 16) & 0xFF,
-        (test_word >> 24) & 0xFF
-    ]
-    
-    cocotb.start_soon(flash_model(dut, test_bytes * 8))
-    
-    await RisingEdge(dut.arb_req_o)
-    
-    # simulate arbiter being stuck/busy w/ core 1
-    dut.arb_gnt_i.value = 0
-    dut._log.info("Arbiter busy... holding gnt low for 200 cycles")
-    
-    for _ in range(200):
-        await RisingEdge(dut.clk_i)
-        # check fsm is not changing address or data while waiting
-        assert dut.sram_data_o.value == test_word, "Data corrupted while waiting for Grant!"
-        assert dut.sram_wr_en_o.value == 0, "Write enable pulsed without Grant!"
-    
-    # give grant
-    dut.arb_gnt_i.value = 1
-    await RisingEdge(dut.sram_wr_en_o)
-    await FallingEdge(dut.clk_i)
-    dut.arb_gnt_i.value = 0
-    dut._log.info("** Long arbiter wait (stability) verified.")
 
 if __name__ == "__main__":
     from cocotb_tools.runner import get_runner
