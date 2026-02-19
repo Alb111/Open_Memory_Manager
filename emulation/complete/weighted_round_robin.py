@@ -2,13 +2,16 @@
 import asyncio
 
 # types
-from axi_request import axi_request
+from axi_request import (axi_request, axi_and_coherence_request)
 from typing import List, Callable, Optional, Awaitable
+
+# functions
+from util import (axi_and_cohrenece_cmd_to_axi)
 
 
 class WeightedRoundRobinArbiter:
 
-    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_request], Awaitable[axi_request]]):
+    def __init__(self, num_requesters: int, weights: List[int], axi_handler: Callable[[axi_and_coherence_request], Awaitable[axi_request]]):
  
         # error checking
         if len(weights) != num_requesters:
@@ -32,14 +35,14 @@ class WeightedRoundRobinArbiter:
         self.remaining_credits = self.weights[0]
 
         # area to send chossen axi call to
-        self.axi_send_and_recieve: Callable[[axi_request], Awaitable[axi_request]] = axi_handler
+        self.axi_send_and_recieve: Callable[[axi_and_coherence_request], Awaitable[axi_request]] = axi_handler
 
         # find max possible iterations needed for round bin
         self.max_possible_iterations: int = sum(weights)
 
         # bit mapping to track that all cores requested
         self.cores_arrived: int = 0
-        self.cores_axi_requsts: List[Optional[axi_request]] = [None] * self.num_requesters
+        self.cores_axi_requsts: List[Optional[axi_and_coherence_request]] = [None] * self.num_requesters
 
         # Syncronazation stuff need for coroutines 
         self.lock_to_wait_for_all_cores = asyncio.Lock()
@@ -50,14 +53,14 @@ class WeightedRoundRobinArbiter:
         self.request_id: int = -1         
 
 
-    async def axi_handler_arbiter(self, request_axi: axi_request, core_id: int ) ->  axi_request:
+    async def axi_handler_arbiter(self, request_axi: axi_and_coherence_request) ->  axi_request:
 
         # Wait all cores to sumbit something
         async with self.lock_to_wait_for_all_cores:          
 
             # mark core as arrived and store its data
             self.cores_arrived += 1
-            self.cores_axi_requsts[core_id] = request_axi
+            self.cores_axi_requsts[request_axi.core_id] = request_axi
 
             # all cores arrived
             if self.cores_arrived == self.num_requesters:
@@ -71,7 +74,7 @@ class WeightedRoundRobinArbiter:
         # use core 0 to run abitration, in the verilog this
         # will be done by a verilog module
         async with self.lock_to_wait_for_all_cores:
-            if core_id == 0:
+            if request_axi.core_id == 0:
                 # build requests arr from axi_arr
                 requests_in: List[int] = [] 
                 for axi_request in self.cores_axi_requsts:
@@ -92,20 +95,20 @@ class WeightedRoundRobinArbiter:
         await self.arbitation_done.wait() 
 
         # let each core through one by one to check if it got its turn
-        curr_core_axi_packet_temp: Optional[axi_request] = self.cores_axi_requsts[core_id]
+        curr_core_axi_packet_temp: Optional[axi_and_coherence_request] = self.cores_axi_requsts[request_axi.core_id]
 
 
         ## i need to spin here not send back invalid packet !!
         if curr_core_axi_packet_temp is not None:
-            curr_core_axi_packet: axi_request = curr_core_axi_packet_temp;
+            curr_core_axi_packet: axi_and_coherence_request = curr_core_axi_packet_temp;
         else:
             raise TypeError("curr_core_axi_packet is None")
 
         # see if core was chosen by arbiter
-        if core_id == self.request_id:
+        if request_axi.core_id == self.request_id:
             to_return: axi_request = await self.axi_send_and_recieve(curr_core_axi_packet)
         else:
-            to_return: axi_request = curr_core_axi_packet
+            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(curr_core_axi_packet) 
 
         # clean up
         async with self.lock_to_wait_for_all_cores:        
