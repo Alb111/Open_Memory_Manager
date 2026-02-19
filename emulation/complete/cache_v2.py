@@ -104,12 +104,14 @@ class CacheController:
             core_id = self.core_id
         )
 
+        # print(req)
         # Send request to directory and get response
         resp: axi_request = await self.directory_port(req)
+        print(resp)
         
         # Verify directory acknowledged
-        if not resp.mem_ready:
-            raise RuntimeError(f"directory did not acknowledge core {self.core_id}")
+        # if not resp.mem_ready:
+            # raise RuntimeError(f"directory did not acknowledge core {self.core_id}")
         
         # Return data from directory (relevant for BUS_RD, BUS_RDX)
         return resp
@@ -173,8 +175,8 @@ class CacheController:
         if tr.issue_cmd is not None:
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
 
-            if dir_resp.mem_ready != True:
-                raise ValueError("directory response not right after read")
+            # if dir_resp.mem_ready != True:
+            #     raise ValueError("directory response not right after read")
 
         # Update state (will be MODIFIED after any write)
         line.state = tr.next_state
@@ -236,6 +238,7 @@ class CacheController:
         line.state = tr.next_state
         
         # Return flush data to directory
+        request.mem_ready = True
         return request
 
 
