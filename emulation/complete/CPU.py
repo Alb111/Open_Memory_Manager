@@ -64,7 +64,21 @@ class CPU:
         else:
             return await self.cores[core_id].read_nothing()
               
-    
+    def print_caches(self)->None:
+        print("=" * 70)
+        print("Cache States")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].dump_cache()
+
+
+    def empty_caches(self)->None:
+        print("=" * 70)
+        print("invalidate all of cache")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].flush_all()
+
     
     async def start_sim(self):
 
@@ -106,7 +120,10 @@ class CPU:
                 if result.mem_ready:
                     core_workloads_copy[index].pop()                        
 
-        
+
+        self.print_caches()
+        self.empty_caches()
+
         print("=" * 70)
         print("Reading Stuff Out")
         print("=" * 70)
@@ -142,6 +159,39 @@ class CPU:
                     core_workloads_copy[index].pop()                        
 
             
+        print("=" * 70)
+        print("Reading Stuff Out again but from other core")
+        print("=" * 70)
+        
+
+        # to keep workloads intact for later use
+        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        while any(core_workloads_copy):
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                valid_testcase: bool = False
+                core_testcase: test_case = test_case(-1, -1, -1)           
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+             
+            
+                tasks.append(
+                    asyncio.create_task(
+                        self.core_worker_read(core_id, core_testcase, valid_testcase),
+                        name=f"Core-{core_id}"
+                    )
+                
+                )
+
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready:
+                    print(f" data at {result.mem_addr} is {result.mem_rdata}")
+                    core_workloads_copy[index].pop()                        
 
         print("=" * 70)
         print("We Did it")
