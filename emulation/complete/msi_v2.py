@@ -1,58 +1,13 @@
+"""
+MSI Cache Coherence Protocol - State Machine Core Module
+
+This module defines the MSI (Modified-Shared-Invalid) protocol state machine and 
+core data structures used by both cache controllers and the directory controller.
+"""
+
 from dataclasses import dataclass
-
-
 from enum import IntEnum
 from typing import Optional
-
-
-# Data Types
-
-
-# ============================================================================
-# AXI Request Structure
-# ============================================================================
-
-@dataclass
-class axi_request:
-    """
-    AXI-like memory request structure used for all communication.
-    
-    Usage Patterns:
-    
-    1. Normal Memory Access (CPU ↔ Cache):
-       - mem_instr = False
-       - mem_wstrb = 0 for read, non-zero for write
-       - mem_addr = memory address
-       - mem_wdata = write data (for writes)
-       - mem_rdata = read data (response)
-    
-    2. Coherence Commands (Cache ↔ Directory):
-       - mem_instr = True
-       - mem_wdata = packed coherence command (use pack_cmd/unpack_cmd)
-       - mem_rdata = response data (for BusRd, flushes)
-    
-    3. Snoop Messages (Directory ↔ Cache):
-       - mem_instr = True
-       - mem_wdata = packed snoop command
-       - mem_rdata = flushed data (if required)
-    
-    Fields:
-        mem_valid: Request is valid (handshake signal)
-        mem_instr: True = coherence traffic, False = normal memory traffic
-        mem_ready: Response is ready (handshake signal)
-        mem_addr: Memory address (word-aligned)
-        mem_wdata: Write data or packed coherence command
-        mem_wstrb: Write strobe (byte enable mask, 0 = read)
-        mem_rdata: Read data or response data
-    """
-    mem_valid: bool = False  # Initiator: request is valid
-    mem_instr: bool = False  # True = coherence command, False = memory access
-    mem_ready: bool = False  # Responder: response is ready
-    mem_addr: int = 0        # Memory address (word-aligned)
-    mem_wdata: int = 0       # Write data OR packed coherence command
-    mem_wstrb: int = 0       # Write strobe (0xF = write all bytes, 0 = read)
-    mem_rdata: int = 0       # Read data OR coherence response data
-
 
 # ============================================================================
 # MSI Protocol States and Events
@@ -182,69 +137,6 @@ class TransitionResult:
     next_state: MSIState           # New state after transition
     issue_cmd: Optional[CoherenceCmd] = None  # Command to issue (or None)
     flush: bool = False            # Whether to flush data (snoop only)
-
-
-# ============================================================================
-# Command Packing/Unpacking
-# ============================================================================
-
-def pack_cmd(cmd: CoherenceCmd, core_id: int, payload: int = 0) -> int:
-    """
-    Pack a coherence command into a 32-bit word for transmission.
-    
-    Used when sending coherence commands via AXI (stored in mem_wdata).
-    
-    Bit Layout:
-        [31:16] - payload (16 bits): Optional data (e.g., writeback data for evict)
-        [15:8]  - core_id (8 bits): Requesting/snooping cache ID (0 or 1)
-        [7:0]   - cmd (8 bits): CoherenceCmd value
-    
-    Args:
-        cmd: Coherence command to pack
-        core_id: ID of the cache issuing the command (0 or 1)
-        payload: Optional 16-bit payload (e.g., for writeback data reference)
-    
-    Returns:
-        Packed 32-bit integer suitable for mem_wdata field
-    
-    Example:
-        # Cache 0 issues BusRd
-        packed = pack_cmd(CoherenceCmd.BUS_RD, core_id=0)
-        # Result: 0x00000001
-        
-        # Cache 1 evicts dirty line with data at address 0x1234
-        packed = pack_cmd(CoherenceCmd.EVICT_DIRTY, core_id=1, payload=0x1234)
-        # Result: 0x12340105
-    """
-    return (payload << 16) | ((core_id & 0xFF) << 8) | (int(cmd) & 0xFF)
-
-
-def unpack_cmd(word: int) -> tuple[int, int, int]:
-    """
-    Unpack a coherence command from a 32-bit word.
-    
-    Reverses pack_cmd() to extract command, core ID, and payload.
-    
-    Args:
-        word: Packed 32-bit command word (from mem_wdata)
-    
-    Returns:
-        Tuple of (cmd, core_id, payload):
-            cmd: CoherenceCmd value (as int)
-            core_id: Cache ID (0 or 1)
-            payload: Optional payload data
-    
-    Example:
-        cmd, core_id, payload = unpack_cmd(0x12340105)
-        # cmd = 5 (EVICT_DIRTY)
-        # core_id = 1
-        # payload = 0x1234
-    """
-    cmd = word & 0xFF              # Extract bits [7:0]
-    core_id = (word >> 8) & 0xFF   # Extract bits [15:8]
-    payload = word >> 16           # Extract bits [31:16]
-    return cmd, core_id, payload
-
 
 # ============================================================================
 # MSI State Machine - Processor Events
@@ -413,3 +305,71 @@ def on_snoop_event(state: MSIState, event: SnoopEvent) -> TransitionResult:
     
     # Should never reach here if state is valid
     raise ValueError("invalid MSI state")
+
+
+
+
+
+# TO DELETE
+# ============================================================================
+# Command Packing/Unpacking
+# ============================================================================
+
+def pack_cmd(cmd: CoherenceCmd, core_id: int, payload: int = 0) -> int:
+    """
+    Pack a coherence command into a 32-bit word for transmission.
+    
+    Used when sending coherence commands via AXI (stored in mem_wdata).
+    
+    Bit Layout:
+        [31:16] - payload (16 bits): Optional data (e.g., writeback data for evict)
+        [15:8]  - core_id (8 bits): Requesting/snooping cache ID (0 or 1)
+        [7:0]   - cmd (8 bits): CoherenceCmd value
+    
+    Args:
+        cmd: Coherence command to pack
+        core_id: ID of the cache issuing the command (0 or 1)
+        payload: Optional 16-bit payload (e.g., for writeback data reference)
+    
+    Returns:
+        Packed 32-bit integer suitable for mem_wdata field
+    
+    Example:
+        # Cache 0 issues BusRd
+        packed = pack_cmd(CoherenceCmd.BUS_RD, core_id=0)
+        # Result: 0x00000001
+        
+        # Cache 1 evicts dirty line with data at address 0x1234
+        packed = pack_cmd(CoherenceCmd.EVICT_DIRTY, core_id=1, payload=0x1234)
+        # Result: 0x12340105
+    """
+    return (payload << 16) | ((core_id & 0xFF) << 8) | (int(cmd) & 0xFF)
+
+
+def unpack_cmd(word: int) -> tuple[int, int, int]:
+    """
+    Unpack a coherence command from a 32-bit word.
+    
+    Reverses pack_cmd() to extract command, core ID, and payload.
+    
+    Args:
+        word: Packed 32-bit command word (from mem_wdata)
+    
+    Returns:
+        Tuple of (cmd, core_id, payload):
+            cmd: CoherenceCmd value (as int)
+            core_id: Cache ID (0 or 1)
+            payload: Optional payload data
+    
+    Example:
+        cmd, core_id, payload = unpack_cmd(0x12340105)
+        # cmd = 5 (EVICT_DIRTY)
+        # core_id = 1
+        # payload = 0x1234
+    """
+    cmd = word & 0xFF              # Extract bits [7:0]
+    core_id = (word >> 8) & 0xFF   # Extract bits [15:8]
+    payload = word >> 16           # Extract bits [31:16]
+    return cmd, core_id, payload
+
+

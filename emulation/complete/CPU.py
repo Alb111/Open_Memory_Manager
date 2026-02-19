@@ -6,6 +6,8 @@ import asyncio
 from core import Core
 from memory import MemoryController
 from weighted_round_robin import WeightedRoundRobinArbiter
+from cache_v2 import CacheController
+from directory_v2 import DirectoryController
 
 # types
 from axi_request import axi_request
@@ -19,19 +21,28 @@ class CPU:
         # setup memory 
         self.memory: MemoryController = MemoryController()
 
+        # setup directory
+        self.directory: DirectoryController = DirectoryController(size, self.memory.axi_handler)
+
         # setup arbiter
-        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1,1], self.memory.axi_handler)
+        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1] * size, self.directory.axi_handler_for_arbiter)
+        
+        # setup caches
+        self.caches: List[CacheController] = [] 
+        for i in range(size):
+            cache_to_add: CacheController = CacheController(i, self.arbiter.axi_handler_arbiter)
+            self.caches.append(cache_to_add)
+            self.directory.register_cache(i, cache_to_add.axi_and_coherence_handler)
 
         # num cores
         self.num_cores: int = size
-
         # state of those cores
         self.finsihed_cores: int = 0
 
         # arr of those cores
         self.cores: List[Core] = []
         for i in range(size):
-            self.cores.append(Core(i,self.arbiter.axi_handler_arbiter))
+            self.cores.append(Core(i, self.caches[i].axi_handler_for_core))
 
         # build work load for each of those cores
         self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
@@ -53,7 +64,21 @@ class CPU:
         else:
             return await self.cores[core_id].read_nothing()
               
-    
+    def print_caches(self)->None:
+        print("=" * 70)
+        print("Cache States")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].dump_cache()
+
+
+    def empty_caches(self)->None:
+        print("=" * 70)
+        print("invalidate all of cache")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].flush_all()
+
     
     async def start_sim(self):
 
@@ -95,7 +120,10 @@ class CPU:
                 if result.mem_ready:
                     core_workloads_copy[index].pop()                        
 
-        
+
+        self.print_caches()
+        self.empty_caches()
+
         print("=" * 70)
         print("Reading Stuff Out")
         print("=" * 70)
@@ -131,6 +159,39 @@ class CPU:
                     core_workloads_copy[index].pop()                        
 
             
+        print("=" * 70)
+        print("Reading Stuff Out again but from other core")
+        print("=" * 70)
+        
+
+        # to keep workloads intact for later use
+        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        while any(core_workloads_copy):
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                valid_testcase: bool = False
+                core_testcase: test_case = test_case(-1, -1, -1)           
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+             
+            
+                tasks.append(
+                    asyncio.create_task(
+                        self.core_worker_read(core_id, core_testcase, valid_testcase),
+                        name=f"Core-{core_id}"
+                    )
+                
+                )
+
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready:
+                    print(f" data at {result.mem_addr} is {result.mem_rdata}")
+                    core_workloads_copy[index].pop()                        
 
         print("=" * 70)
         print("We Did it")
