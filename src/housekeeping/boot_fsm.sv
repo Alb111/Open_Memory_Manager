@@ -17,11 +17,7 @@ module boot_fsm #(
 
     output logic sram_wr_en_o,
     output logic [31:0] sram_addr_o,
-    output logic [31:0] sram_data_o,
-
-    //arbiter interface
-    output logic arb_req_o,
-    input  logic arb_gnt_i
+    output logic [31:0] sram_data_o
 
 );
 
@@ -85,8 +81,7 @@ module boot_fsm #(
                 byte_cntr <= byte_cntr + 1'b1;
             end
 
-            // only reset byte_in_word after arbiter has granted the write
-            if (curr_state == WRITE_SRAM && arb_gnt_i) begin
+            if (curr_state == WRITE_SRAM) begin
                 byte_in_word <= 2'd0;
                 sram_addr <= sram_addr + 4;
             end
@@ -105,7 +100,6 @@ module boot_fsm #(
         sram_data_o = word_buffer;
         cores_en_o = 1'b0;
         boot_done_o = 1'b0;
-        arb_req_o = 1'b0; // default is no request
         
         case(curr_state)
             IDLE: begin
@@ -170,22 +164,14 @@ module boot_fsm #(
 
             WRITE_SRAM: begin
                 flash_csb_o = 1'b0;
-                //sram_wr_en_o = 1'b1;
-                arb_req_o   = 1'b1;  // signal to arbiter we want the bus
+                sram_wr_en_o = 1'b1;
                 sram_addr_o = sram_addr;
                 sram_data_o = word_buffer;
 
-                if (arb_gnt_i) begin
-                    // only pulse write enable if we are granted access
-                    sram_wr_en_o = 1'b1;
-                    if (byte_cntr >= BOOT_SIZE) begin
-                        next_state = DONE;
-                    end else begin
-                        next_state = READ_BYTE;
-                    end
+                if (byte_cntr >= BOOT_SIZE) begin
+                    next_state = DONE;
                 end else begin
-                    // wait in this state until arbiter says yes
-                    next_state = WRITE_SRAM;
+                    next_state = READ_BYTE;
                 end
             end
 
