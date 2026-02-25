@@ -11,11 +11,7 @@ module housekeeping_top #(
     input logic spi_miso_i,
     output logic flash_csb_o,
     
-    // Arbiter Handshake (New)
-    output logic arb_req_o,
-    input  logic arb_gnt_i,
-    
-    // sram interface
+    // output writing
     output logic sram_wr_en_o,
     output logic [31:0] sram_addr_o,
     output logic [31:0] sram_data_o,
@@ -62,9 +58,7 @@ module housekeeping_top #(
       .sram_addr_o(sram_addr_o),
       .sram_data_o(sram_data_o),
       .cores_en_o(cores_en_o),
-      .boot_done_o(boot_done_o),
-      .arb_req_o(arb_req_o),
-      .arb_gnt_i(arb_gnt_i)
+      .boot_done_o(boot_done_o)
    );
 
 endmodule
