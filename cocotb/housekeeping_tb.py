@@ -7,7 +7,7 @@ import random
 
 async def flash_model(dut, data):
     """Simulates a flash chip bit-stream"""
-    # wait for the fsm to lower CSB to start the command
+    # wait for the fsm to lower csb to start the command
     await FallingEdge(dut.flash_csb_o)
     # wait for command and address phase (32 bits total) to finish
     for _ in range(32):
@@ -50,8 +50,8 @@ async def test_boot_full(dut):
         actual_data = int(dut.sram_data_o.value)
         actual_addr = int(dut.sram_addr_o.value)
         
-        assert actual_data == expected_words[i], f"DATA ERROR! Word {i}: Expected {hex(expected_words[i])}, Got {hex(actual_data)}"
-        assert actual_addr == (i * 4), f"ADDR ERROR! Word {i}: Expected {hex(i*4)}, Got {hex(actual_addr)}"
+        assert actual_data == expected_words[i], f"** DATA ERROR! Word {i}: Expected {hex(expected_words[i])}, Got {hex(actual_data)}"
+        assert actual_addr == (i * 4), f"** ADDR ERROR! Word {i}: Expected {hex(i*4)}, Got {hex(actual_addr)}"
         
         dut._log.info(f"** Word {i} Verified: Addr=0x{actual_addr:08x}, Data=0x{actual_data:08x}")
 
@@ -59,7 +59,7 @@ async def test_boot_full(dut):
     await RisingEdge(dut.boot_done_o)
     assert dut.cores_en_o.value == 1
     dut._log.info("** SUCCESS: Full boot verified.")
-    
+
 
 @cocotb.test()
 async def test_reset_during_boot(dut):
@@ -72,7 +72,7 @@ async def test_reset_during_boot(dut):
     
     flash_task = cocotb.start_soon(flash_model(dut, [0xAA]*32))
     
-    # wait for spi clock to start ticking (indicates fsm is active)
+    # wait for spi clock to start ticking, indicates fsm is active
     await RisingEdge(dut.spi_sck_o)
     dut._log.info("Boot started, hitting reset...")
     
@@ -80,8 +80,8 @@ async def test_reset_during_boot(dut):
     await ClockCycles(dut.clk_i, 10)
     
     # signal checks: verify everything went back to zero/idle
-    assert dut.sram_wr_en_o.value == 0, "Error: Write enable stayed high during reset"
-    assert dut.boot_done_o.value == 0, "Error: boot_done high during reset"
+    assert dut.sram_wr_en_o.value == 0, "** Error: Write enable stayed high during reset"
+    assert dut.boot_done_o.value == 0, "** Error: boot_done high during reset"
     
     flash_task.cancel() 
     dut._log.info("** SUCCESS: Reset recovery verified.")
@@ -90,7 +90,7 @@ async def test_reset_during_boot(dut):
 
 @cocotb.test()
 async def test_short_boot_failure(dut):
-    """Check cores remain disabled if SPI stream ends/stops early"""
+    """check cores remain disabled if SPI stream ends/stops early"""
     cocotb.start_soon(Clock(dut.clk_i, 20, "ns").start())
     dut.reset_i.value = 1
     await ClockCycles(dut.clk_i, 5)
@@ -100,7 +100,7 @@ async def test_short_boot_failure(dut):
     short_data = [0xAA, 0xBB, 0xCC, 0xDD]
     flash_task = cocotb.start_soon(flash_model(dut, short_data))
     
-    dut._log.info("Sent partial data, waiting to see if system incorrectly activates...")
+    dut._log.info("** Sent partial data, waiting to see if system incorrectly activates...")
     await ClockCycles(dut.clk_i, 1000) 
     
     # signal check
@@ -109,10 +109,10 @@ async def test_short_boot_failure(dut):
     done_val = dut.boot_done_o.value
     en_val = dut.cores_en_o.value
     
-    dut._log.info(f"Signal Check: boot_done={done_val}, cores_en={en_val}")
+    dut._log.info(f"** Signal Check: boot_done={done_val}, cores_en={en_val}")
     
-    assert done_val == 0, "FAIL: System reported done on partial data"
-    assert en_val == 0, "FAIL: Cores enabled on partial data"
+    assert done_val == 0, "** FAIL: System reported done on partial data"
+    assert en_val == 0, "** FAIL: Cores enabled on partial data"
     
     flash_task.cancel()
     dut._log.info("** SUCCESS: Short boot failure (Security Check) passed.")
