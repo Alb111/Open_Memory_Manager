@@ -1,35 +1,173 @@
+from dataclasses import dataclass, field
 from serializer import serializer
+from collections import deque
 
-dut = serializer(32, 32)
-dut2 = serializer(32, 32)
-en_i = 0
-tvalid_i = 0
-rready_i = 1
-tdata_i = [1,1,1,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,1,0,1]
-tmsg_len = 30
+@dataclass
+class input_packet:
+    num_pins : int = 1
+    maxlen : int = 32
 
-dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 1, [0]*32, 32)
-dut.print_state()
-dut2.print_state()
-input("Press to start transmission")
-tvalid_i = 1
-while dut.tmsg_cnt != 0:
-    dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-    dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 0, [0]*32, 32)
-    print("Dut 1:")
-    dut.print_state() 
-    print("Dut 2:")
-    dut2.print_state() 
-    tvalid_i = 0
-    tdata_i = [0] * 32
-    input()
+    req_i    : bool = 0
+    serial_i : list = field(default_factory=list)
+    rready_i : bool = 1
+    tvalid_i : bool = 0
+    tdata_i  : deque = field(default_factory=deque)
 
-for i in range(2):
-    dut.cycle_clock(en_i, dut2.serial_io, tvalid_i, rready_i, tdata_i, tmsg_len)
-    dut2.cycle_clock(dut.en_o, dut.serial_io, 0, 1, [0]*32, 32)
-    print("Dut 1:")
-    dut.print_state() 
-    print("Dut 2:")
-    dut2.print_state()
-    input()  
+def bstr_to_deque(bstr : int, len : int, maxlen : int) -> deque:
+    output = deque([], maxlen=maxlen)
+    for _ in range(len):
+        output.appendleft(bstr & 1)
+        bstr >>= 1
+    return output
+
+def deque_to_bstr(deque) -> int:
+    output = 0
+    while deque:
+        output = (output << 1) | deque.popleft()
+    return output
+
+def cycle(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+    input("Press Enter for Next Cycle")
+    nreq_o_0 = not dut0.req_o
+    nreq_o_1 = not dut1.req_o
+
+    dut0.cycle_clock(
+        req_i=int((input1.tvalid_i & nreq_o_1) | input0.req_i),
+        serial_i=input0.serial_i,
+        rready_i=input0.rready_i,
+        tvalid_i=input0.tvalid_i,
+        tdata_i=input0.tdata_i,
+    )
+    dut1.cycle_clock(
+        req_i=int((input0.tvalid_i & nreq_o_0) | input1.req_i),
+        serial_i=input1.serial_i,
+        rready_i=input1.rready_i,
+        tvalid_i=input1.tvalid_i,
+        tdata_i=input1.tdata_i,
+    )
+    assert (dut1.driving & dut0.driving) == 0, "Serializer Test: Both Sides Driving at the same time!"
+
+    if dut1.driving:
+        serial_io = dut1.serial_io
+    elif dut0.driving:
+        serial_io = dut0.serial_io
+    else:
+        serial_io = [0]*input0.num_pins
+
+    input0.serial_i = serial_io
+    input1.serial_i = serial_io
+    input0.req_i = dut1.req_o
+    input1.req_i = dut0.req_o
+    print(f"\n\n---- After Clockedge ----")
+    dut0.print_state()
+    dut1.print_state()
+    print(f"\nserial_io: {serial_io}")
+
+def test_send(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+    message = 0xDEADBEEF
+    input0.tdata_i = bstr_to_deque(message, len=32, maxlen=input0.tdata_i.maxlen)
+    input0.tvalid_i = 1
+
+    cycle(dut0, dut1, input0, input1)
+
+    input0.tdata_i.clear()
+    input0.tvalid_i = 0
+
+    cycle(dut0, dut1, input0, input1)
+
+    while dut1.state == "receive":
+        cycle(dut0, dut1, input0, input1)
+    
+    assert deque_to_bstr(dut1.rdata_o) == message, "test_send: message was corrupted"
+
+    cycle(dut0, dut1, input0, input1)
+
+def test_receive(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+    message = 0xDEADBEEF
+    input1.tdata_i = bstr_to_deque(message, len=32, maxlen=input1.tdata_i.maxlen)
+    input1.tvalid_i = 1
+
+    cycle(dut0, dut1, input0, input1)
+
+    input1.tdata_i.clear()
+    input1.tvalid_i = 0
+
+    cycle(dut0, dut1, input0, input1)
+
+    while dut0.state == "receive":
+        cycle(dut0, dut1, input0, input1)
+    
+    assert deque_to_bstr(dut0.rdata_o) == message, "test_send: message was corrupted"
+
+    cycle(dut0, dut1, input0, input1)
+
+def test_const_send(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+    message = 0xDEADBEEF
+    input0.tdata_i = bstr_to_deque(message, len=32, maxlen=input0.tdata_i.maxlen)
+    input0.tvalid_i = 1
+
+    cycle(dut0, dut1, input0, input1)
+    cycle(dut0, dut1, input0, input1)
+
+    while dut1.state == "receive":
+        cycle(dut0, dut1, input0, input1)
+    
+    assert deque_to_bstr(dut1.rdata_o) == message, "test_send: message was corrupted"
+
+    cycle(dut0, dut1, input0, input1)
+
+    input0.tdata_i.clear()
+    input0.tvalid_i = 0
+
+    while dut1.state == "receive":
+        cycle(dut0, dut1, input0, input1)
+    
+    assert deque_to_bstr(dut1.rdata_o) == message, "test_send: message was corrupted"
+
+    cycle(dut0, dut1, input0, input1)
+
+def test_const_send_receive(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+    input0.tdata_i = bstr_to_deque(0xDEADBEEF, len=32, maxlen=input0.tdata_i.maxlen)
+    input0.tvalid_i = 1
+    input1.tdata_i = bstr_to_deque(0xDEADBEEF, len=32, maxlen=input1.tdata_i.maxlen)
+    input1.tvalid_i = 1
+
+    cycle(dut0, dut1, input0, input1)
+
+    for _ in range(2):
+        while dut1.state == "receive":
+            cycle(dut0, dut1, input0, input1)
+        
+        cycle(dut0, dut1, input0, input1)
+
+        while dut0.state == "receive":
+            cycle(dut0, dut1, input0, input1)
+    
+    input0.tdata_i.clear()
+    input0.tvalid_i = 0
+    input1.tdata_i.clear()
+    input1.tvalid_i = 0
+
+    cycle(dut0, dut1, input0, input1)
+    cycle(dut0, dut1, input0, input1)
+
+def run_tests(num_pins = 1, tmsg_max=32, rmsg_max=32):
+    dut0 = serializer(num_pins, 0, tmsg_max, rmsg_max)
+    dut1 = serializer(num_pins, 1, rmsg_max, tmsg_max)
+
+    input0 = input_packet(num_pins=num_pins, maxlen=32, serial_i=[0]*num_pins, tdata_i=deque([], maxlen=tmsg_max))
+    input1 = input_packet(num_pins=num_pins, maxlen=32, serial_i=[0]*num_pins, tdata_i=deque([], maxlen=rmsg_max))
+
+    cycle(dut0, dut1, input0, input1)
+
+    print("send_test")
+    test_send(dut0, dut1, input0, input1)
+    test_receive(dut0, dut1, input0, input1)
+    # test_const_send(dut0, dut1, input0, input1)
+    # test_const_send_receive(dut0, dut1, input0, input1)
+
+def main():
+    run_tests(32)
+
+if __name__ == "__main__":
+    main()

@@ -1,112 +1,131 @@
+from collections import deque
+
 class serializer:
 
-    def __init__(self, tdata_size: int, rdata_size: int):
+    def __init__(self, num_pins: int, init_priority : bool, tdata_size: int, rdata_size: int):
         
         # serial interface
-        # io pin
-        self.serial_io = 0
-        # output
-        self.en_o = 0
-        # inputs
-        self.en_i = 0
+        self.serial_io : list = [0] * num_pins
+        self.req_o     : bool = 0
+        self.req_i     : bool = 0
 
         # data interface
         # recieving
-        self.rvalid_o = 0
-        self.rready_i = 0
-        self.rdata_o = [0] * rdata_size
+        self.rready_i : bool = 0
+        self.rvalid_o : bool = 0
+        self.rdata_o  : deque = deque([], maxlen=rdata_size)
         # transmitting
-        self.tvalid_i = 0
-        self.tready_o = 0
-        self.tdata_i = None
-        self.tmsg_len = 0
+        self.tvalid_i : bool = 0
+        self.tready_o : bool = 1
+        self.tdata_i  : deque = None
         
 
         # internal state
-        self.tdata_r = [0] * tdata_size
-        self.rdata_r = 0
-        self.tmsg_cnt = 0
-        self.rmsg_cnt = 0
-    
-        self.state = "idle"
+        self.num_pins = num_pins
+        self.tdata_size = tdata_size
+        self.rdata_size = rdata_size
+        self.tdata_r  : deque = deque([], maxlen=tdata_size)
+        self.state    : str  = "idle"
+        self.priority : bool = init_priority
+        self.driving  : bool = 0
         # idle, send, receive
 
-    def print_state(self):
-        # helper to convert list of [1,0,1] to "101"
-        tdata_str = "".join(map(str, self.tdata_r))
-        rdata_str = "".join(map(str, self.rdata_o)) 
-        tdata_i_str = "".join(map(str, self.tdata_i))
+    def print_config(self):
+        print("Serializer Config:")
+        print(f"  serial_pins : {self.num_pins}")
+        print(f"  tdata_size  : {self.tdata_size}")
+        print(f"  rdata_size  : {self.rdata_size}")
 
-        print(f"\n--- Model State: {self.state.upper()} ---")
+    def print_state(self):
+
+        print(f"\n--- Serializer State: {self.state.upper()} ---")
         
         print("Serial Interface:")
-        print(f"  IO Pin : serial_io={self.serial_io}")
-        print(f"  Outputs: en_o={self.en_o}")
-        print(f"  Inputs : en_i={self.en_i}")
+        print(f"  req_o={self.req_o}, req_i={self.req_i}, serial_io={self.serial_io}")
 
         print("Data Interface:")
         print(f"  Receiving    : rready_i={self.rready_i}, rvalid_o={self.rvalid_o}")
-        print(f"                 rdata_o={rdata_str}")
+        print(f"                 rdata_o={list(self.rdata_o)}")
         print(f"  Transmitting : tready_o={self.tready_o}, tvalid_i={self.tvalid_i}")
-        print(f"                 tdata_i={tdata_i_str}")
-        print(f"  Config Input : tmsg_len={self.tmsg_len}")
+        print(f"                 tdata_i={self.tdata_i}")
 
         print("Internal Registers:")
-        print(f"  tmsg_cnt: {self.tmsg_cnt:3d} | rmsg_cnt: {self.rmsg_cnt:3d}")
-        print(f"  tdata_r : [{tdata_str}]")
-        print(f"  rdata_r : {bin(self.rdata_r)}")
+        print(f"  tdata_r     : {list(self.tdata_r)}")
+        print(f"  priority    : {self.priority}")
+        print(f"  driving     : {self.driving}")
         print("-" * 30)
 
-    def cycle_clock(self, en_i: bool, serial_i: bool, tvalid_i: bool, rready_i: bool, tdata_i: list, tmsg_len: int):
+    def _send_serial_packet(self):
+        output = []
+        for i in range(self.num_pins):
+            if self.tdata_r:
+                output.append(self.tdata_r.pop())
+            else:
+                output.append(0)
 
-        assert len(tdata_i) == len(self.tdata_r), "Transmission data does not match shift register length"
+        assert len(self.serial_io) == len(output), "Serializer: serial packet length doesn't match serial pin count"
 
-        # set inputs
-        self.en_i = en_i
-        self.serial_io |= serial_i
-        self.tvalid_i = tvalid_i
+        self.serial_io = output
+
+    def _receive_serial_packet(self):
+        self.rdata_o.extendleft(self.serial_io)
+        assert len(self.rdata_o) <= self.rdata_size, "Serializer: rdata overflow"
+
+
+    def cycle_clock(self, req_i: bool, serial_i: bool, rready_i : bool, tvalid_i: bool, tdata_i: deque):
+       
+        assert tdata_i.maxlen == self.tdata_size, "Serializer: tdata_i size and tdata_size do not match"
+        assert len(serial_i) == self.num_pins
+
+        # set state (before clock edge)
+        self.req_i = req_i
+        self.serial_io = serial_i
         self.rready_i = rready_i
+        self.tvalid_i = tvalid_i
         self.tdata_i = tdata_i
-        self.tmsg_len = tmsg_len
+
+        # if data already taken invalidate handshake
+        if rready_i:
+            self.rvalid_o = 0
 
         if self.state == "idle":
-            self.tdata_r = self.tdata_i
-            self.en_o = 0
-            self.tmsg_cnt = tmsg_len
-            self.serial_io = 0
-            self.rdata_r = 0
-            self.tready_o = 1
+            
+            # before clock edge
+            self.req_o = tvalid_i
+            self.tdata_r = tdata_i.copy()
+            self.driving = 0
 
-            if self.rready_i == 1:
-                self.rvalid_o = 0
-
-            if (self.tvalid_i == 1) and (self.en_i == 0):
+            ## on clock edge ##
+            # move to send
+            if tvalid_i & ((not req_i) | self.priority):
+                self.priority = 0
+                self.driving = 1
+                self.tready_o = 0
                 self.state = "send"
-                self.en_o = 1
+                self._send_serial_packet()
+
+            # move to receive
+            if req_i & ((not tvalid_i) | (not self.priority)):
+                self.rdata_r = deque([], maxlen=self.rdata_size)
+                self.priority = 1
                 self.tready_o = 0
-            elif (en_i == 1):
                 self.state = "receive"
-                self.tready_o = 0
 
         elif self.state == "send":
-            if self.tmsg_cnt == 0:
-                self.state = "idle"
-                self.en_o = 0
+            if self.tdata_r:
+                self._send_serial_packet()
             else:
-                self.serial_io = self.tdata_r[self.tmsg_cnt-1]
-                self.tmsg_cnt -= 1
+                # done sending
+                self.state = "idle"
+                self.driving = 0
+                self.tready_o = 1
+                self.req_o = 0
 
         elif self.state == "receive":
-            if en_i == 0:
-                self.rmsg_cnt = 0
-                self.rvalid_o = 1
-                while self.rdata_r != 0:
-                    self.rdata_o[self.rmsg_cnt] = self.rdata_r & 1
-                    self.rdata_r >>= 1
-                    self.rmsg_cnt += 1
+            if req_i:
+                self._receive_serial_packet()
+            else:
+                # done receiving
                 self.state = "idle"
-                    
-            self.serial_io = serial_i
-            self.rdata_r = (self.rdata_r << 1) | self.serial_io
-            
-
+                self.rvalid_o = 1
+                self.tready_o = 1
