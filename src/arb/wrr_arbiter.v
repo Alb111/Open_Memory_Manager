@@ -12,7 +12,7 @@ module wrr_arbiter (
 	input wire clk_i;
 	input wire rst_i;
 	input wire [NUM_REQ - 1:0] req_i;
-	output reg [NUM_REQ - 1:0] grant_o;
+	output wire [NUM_REQ - 1:0] grant_o;
 	output wire [NUM_REQ - 1:0] req_o;
 	localparam PTR_MASK = NUM_REQ - 1;
 	reg [$clog2(NUM_REQ) - 1:0] curr_ptr;
@@ -52,13 +52,12 @@ module wrr_arbiter (
 		if (rst_i) begin
 			curr_ptr <= 1'sb0;
 			credit_cnt <= weight_table[0];
-			grant_o <= 1'sb0;
 		end
 		else begin
 			curr_ptr <= next_ptr;
 			credit_cnt <= next_credit_cnt;
-			grant_o <= next_grant;
 		end
+	assign grant_o = (rst_i ? {NUM_REQ {1'sb0}} : next_grant);
 	assign req_o = req_i;
 	initial _sv2v_0 = 0;
 endmodule
