@@ -4,6 +4,7 @@
 `default_nettype none
 
 `include "slot_defines.svh"
+`include "arb/wrr_arbiter.sv"
 
 module chip_top #(
     // Power/ground pads for core and I/O
