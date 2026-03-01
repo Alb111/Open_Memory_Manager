@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from serializer import serializer
+from bidir_serializer import bidir_serializer
 from collections import deque
 
 @dataclass
@@ -26,26 +26,23 @@ def deque_to_bstr(deque) -> int:
         output = (output << 1) | deque.popleft()
     return output
 
-def cycle(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
-    input("Press Enter for Next Cycle")
-    nreq_o_0 = not dut0.req_o
-    nreq_o_1 = not dut1.req_o
+def cycle(dut0 : bidir_serializer, dut1 : bidir_serializer, input0 : input_packet, input1 : input_packet):
 
     dut0.cycle_clock(
-        req_i=int((input1.tvalid_i & nreq_o_1) | input0.req_i),
+        req_i=input0.req_i,
         serial_i=input0.serial_i,
         rready_i=input0.rready_i,
         tvalid_i=input0.tvalid_i,
         tdata_i=input0.tdata_i,
     )
     dut1.cycle_clock(
-        req_i=int((input0.tvalid_i & nreq_o_0) | input1.req_i),
+        req_i=input1.req_i,
         serial_i=input1.serial_i,
         rready_i=input1.rready_i,
         tvalid_i=input1.tvalid_i,
         tdata_i=input1.tdata_i,
     )
-    assert (dut1.driving & dut0.driving) == 0, "Serializer Test: Both Sides Driving at the same time!"
+    assert (dut1.driving & dut0.driving) == 0, "bidir_serializer test: both sides driving at the same time"
 
     if dut1.driving:
         serial_io = dut1.serial_io
@@ -63,7 +60,7 @@ def cycle(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : 
     dut1.print_state()
     print(f"\nserial_io: {serial_io}")
 
-def test_send(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+def test_send(dut0 : bidir_serializer, dut1 : bidir_serializer, input0 : input_packet, input1 : input_packet):
     message = 0xDEADBEEF
     input0.tdata_i = bstr_to_deque(message, len=32, maxlen=input0.tdata_i.maxlen)
     input0.tvalid_i = 1
@@ -82,7 +79,7 @@ def test_send(dut0 : serializer, dut1 : serializer, input0 : input_packet, input
 
     cycle(dut0, dut1, input0, input1)
 
-def test_receive(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+def test_receive(dut0 : bidir_serializer, dut1 : bidir_serializer, input0 : input_packet, input1 : input_packet):
     message = 0xDEADBEEF
     input1.tdata_i = bstr_to_deque(message, len=32, maxlen=input1.tdata_i.maxlen)
     input1.tvalid_i = 1
@@ -97,11 +94,11 @@ def test_receive(dut0 : serializer, dut1 : serializer, input0 : input_packet, in
     while dut0.state == "receive":
         cycle(dut0, dut1, input0, input1)
     
-    assert deque_to_bstr(dut0.rdata_o) == message, "test_send: message was corrupted"
+    assert deque_to_bstr(dut0.rdata_o) == message, "test_receive: message was corrupted"
 
     cycle(dut0, dut1, input0, input1)
 
-def test_const_send(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
+def test_const_send(dut0 : bidir_serializer, dut1 : bidir_serializer, input0 : input_packet, input1 : input_packet):
     message = 0xDEADBEEF
     input0.tdata_i = bstr_to_deque(message, len=32, maxlen=input0.tdata_i.maxlen)
     input0.tvalid_i = 1
@@ -112,7 +109,7 @@ def test_const_send(dut0 : serializer, dut1 : serializer, input0 : input_packet,
     while dut1.state == "receive":
         cycle(dut0, dut1, input0, input1)
     
-    assert deque_to_bstr(dut1.rdata_o) == message, "test_send: message was corrupted"
+    assert deque_to_bstr(dut1.rdata_o) == message, "test_const_send: message was corrupted"
 
     cycle(dut0, dut1, input0, input1)
 
@@ -122,26 +119,34 @@ def test_const_send(dut0 : serializer, dut1 : serializer, input0 : input_packet,
     while dut1.state == "receive":
         cycle(dut0, dut1, input0, input1)
     
-    assert deque_to_bstr(dut1.rdata_o) == message, "test_send: message was corrupted"
+    assert deque_to_bstr(dut1.rdata_o) == message, "test_const_send: message was corrupted"
 
     cycle(dut0, dut1, input0, input1)
 
-def test_const_send_receive(dut0 : serializer, dut1 : serializer, input0 : input_packet, input1 : input_packet):
-    input0.tdata_i = bstr_to_deque(0xDEADBEEF, len=32, maxlen=input0.tdata_i.maxlen)
+def test_const_send_receive(dut0 : bidir_serializer, dut1 : bidir_serializer, input0 : input_packet, input1 : input_packet):
+    message0 = 0xDEADBEEF
+    message1 = 0xBEEFDEAD
+
+    input0.tdata_i = bstr_to_deque(message0, len=32, maxlen=input0.tdata_i.maxlen)
     input0.tvalid_i = 1
-    input1.tdata_i = bstr_to_deque(0xDEADBEEF, len=32, maxlen=input1.tdata_i.maxlen)
+    input1.tdata_i = bstr_to_deque(message1, len=32, maxlen=input1.tdata_i.maxlen)
     input1.tvalid_i = 1
 
-    cycle(dut0, dut1, input0, input1)
-
     for _ in range(2):
-        while dut1.state == "receive":
+        cycle(dut0, dut1, input0, input1)
+        cycle(dut0, dut1, input0, input1)
+        while dut0.state == "receive":
             cycle(dut0, dut1, input0, input1)
+
+        assert deque_to_bstr(dut0.rdata_o) == message1, "test_const_send_receive: message0 was corrupted"
         
         cycle(dut0, dut1, input0, input1)
 
-        while dut0.state == "receive":
+        while dut1.state == "receive":
             cycle(dut0, dut1, input0, input1)
+        
+        assert deque_to_bstr(dut1.rdata_o) == message0, "test_const_send_receive: message1 was corrupted"
+
     
     input0.tdata_i.clear()
     input0.tvalid_i = 0
@@ -152,22 +157,22 @@ def test_const_send_receive(dut0 : serializer, dut1 : serializer, input0 : input
     cycle(dut0, dut1, input0, input1)
 
 def run_tests(num_pins = 1, tmsg_max=32, rmsg_max=32):
-    dut0 = serializer(num_pins, 0, tmsg_max, rmsg_max)
-    dut1 = serializer(num_pins, 1, rmsg_max, tmsg_max)
+    dut0 = bidir_serializer(num_pins, 0, tmsg_max, rmsg_max)
+    dut1 = bidir_serializer(num_pins, 1, rmsg_max, tmsg_max)
 
     input0 = input_packet(num_pins=num_pins, maxlen=32, serial_i=[0]*num_pins, tdata_i=deque([], maxlen=tmsg_max))
     input1 = input_packet(num_pins=num_pins, maxlen=32, serial_i=[0]*num_pins, tdata_i=deque([], maxlen=rmsg_max))
 
     cycle(dut0, dut1, input0, input1)
 
-    print("send_test")
     test_send(dut0, dut1, input0, input1)
     test_receive(dut0, dut1, input0, input1)
-    # test_const_send(dut0, dut1, input0, input1)
-    # test_const_send_receive(dut0, dut1, input0, input1)
+    test_const_send(dut0, dut1, input0, input1)
+    test_const_send_receive(dut0, dut1, input0, input1)
 
 def main():
-    run_tests(32)
+    run_tests(1)
+    print("All tests passed")
 
 if __name__ == "__main__":
     main()

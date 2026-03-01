@@ -1,6 +1,6 @@
 from collections import deque
 
-class serializer:
+class bidir_serializer:
 
     def __init__(self, num_pins: int, init_priority : bool, tdata_size: int, rdata_size: int):
         
@@ -57,14 +57,17 @@ class serializer:
 
     def _send_serial_packet(self):
         output = []
-        for i in range(self.num_pins):
-            if self.tdata_r:
+        # fill unpopulated bits of the message with zeros (sent first)
+        for i in range(len(self.tdata_r) % self.num_pins):
+            self.tdata_r.append(0)
+        
+        # build packet
+        for _ in range(self.num_pins):
                 output.append(self.tdata_r.pop())
-            else:
-                output.append(0)
 
         assert len(self.serial_io) == len(output), "Serializer: serial packet length doesn't match serial pin count"
 
+        # put current packet on the serial interface
         self.serial_io = output
 
     def _receive_serial_packet(self):
@@ -88,16 +91,16 @@ class serializer:
         if rready_i:
             self.rvalid_o = 0
 
-        if self.state == "idle":
-            
-            # before clock edge
-            self.req_o = tvalid_i
+        if self.state != "request" and self.state != "send":
             self.tdata_r = tdata_i.copy()
+
+        if self.state == "idle" or self.state == "request":
+
             self.driving = 0
 
             ## on clock edge ##
             # move to send
-            if tvalid_i & ((not req_i) | self.priority):
+            if self.req_o & ((not req_i) | self.priority):
                 self.priority = 0
                 self.driving = 1
                 self.tready_o = 0
@@ -105,11 +108,18 @@ class serializer:
                 self._send_serial_packet()
 
             # move to receive
-            if req_i & ((not tvalid_i) | (not self.priority)):
+            elif req_i & ((not self.req_o) | (not self.priority)):
                 self.rdata_r = deque([], maxlen=self.rdata_size)
                 self.priority = 1
                 self.tready_o = 0
                 self.state = "receive"
+                self.req_o = tvalid_i
+            
+            if self.state == "idle":
+                self.req_o = tvalid_i
+                if self.req_o:
+                    self.state = "request"
+
 
         elif self.state == "send":
             if self.tdata_r:
@@ -126,6 +136,9 @@ class serializer:
                 self._receive_serial_packet()
             else:
                 # done receiving
-                self.state = "idle"
+                if self.req_o:
+                    self.state = "request"
+                else:
+                    self.state = "idle"
                 self.rvalid_o = 1
                 self.tready_o = 1
