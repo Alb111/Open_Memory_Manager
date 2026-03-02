@@ -73,6 +73,9 @@
           
           # For logo generation
           pillow
+
+          # For running multiple tests
+          pytest
         ];
       }) {};
     });

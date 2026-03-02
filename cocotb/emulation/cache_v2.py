@@ -1,9 +1,8 @@
 # External 
-from contextlib import redirect_stdout
 from dataclasses import dataclass
 
 # Data Types
-from typing import (Callable, Awaitable, Dict, Required)
+from typing import (Callable, Awaitable, Dict)
 from axi_request import (axi_and_coherence_request, axi_request)
 from msi_v2 import (MSIState, ProcessorEvent, SnoopEvent, CoherenceCmd, TransitionResult) 
 
