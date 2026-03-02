@@ -1,0 +1,10 @@
+[verilog]
+include_paths = [
+    "src",
+    "tb",
+    "gf180mcu/gf180mcuD/libs.ref"
+]
+defines = ["DEBUG", "VAR=1"]
+
+[option]
+linter = false
