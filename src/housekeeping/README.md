@@ -3,11 +3,12 @@
 ## Overview
 The Bootloader subsystem is responsible for initializing the system SRAM with executable code stored in an external SPI Flash. This process starts automatically once the system is powered on and the initial hardware reset is de-asserted.
 
-## Hardware Architecture
+## Technical Specifications
 * **Flash Interface:** Uses the SPI protocol (Mode 0) to communicate with external flash memory via the SPI Engine.
 * **Word Assembly:** The controller retrieves 8-bit data packets and assembles them into 32-bit words using a **Little-Endian** format.
 * **System Control:** * `cores_en_o`: Held low during the boot process to keep the CPU cores in a reset state.
     * `boot_done_o`: Signals the completion of the transfer and acts as the selector for the Memory Controller mux.
+* **Bypass Path:** Muxed directly into the Memory Controller to ensure MSI Directory state remains clean during initialization.
 
 ## Module Descriptions
 
