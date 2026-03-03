@@ -92,14 +92,45 @@ render-image: ## Render an image from the final layout (after copy-final)
 # Cocotb Module Tests
 # ===========================================================================
 
+# ==============================================================================
+# Global Makefile - MSI Protocol & Cocotb Testing
+# ==============================================================================
+
+# --- Cocotb Simulation Configuration ---
+SIM                  ?= icarus
+TOPLEVEL_LANG        = verilog
+VERILOG_SOURCES      = /workspaces/Open_Memory_Manager/src/msi_protocol/msi.v
+TOPLEVEL             = msi_protocol
+COCOTB_TEST_MODULES  = msi_test
+
+# --- Python Environment & Path Setup ---
+# We include the directory where your test script lives (cocotb/msi) 
+# in the PYTHONPATH so Cocotb can find 'msi_test.py'
+PYTHON_BIN          := /home/codespace/.python/current/bin/python3
+export PYGPI_PYTHON_BIN := $(PYTHON_BIN)
+export VIRTUAL_ENV  := /home/codespace/.python/current
+export PYTHONHOME   :=
+export PYTHONPATH   := $(shell $(PYTHON_BIN) -c "import site; print(':'.join(site.getsitepackages()+[site.getusersitepackages()]))"):$(CURDIR)/cocotb/msi:$(PYTHONPATH)
+
+# --- Standard Targets ---
+.PHONY: help test-msi test-msi-view test-all clean
+
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
 test-msi: ## Run MSI protocol cocotb tests
-	$(MAKE) -C cocotb/msi
-.PHONY: test-msi
+	$(MAKE) sim
 
 test-msi-view: ## View MSI simulation waveforms in GTKWave
-	gtkwave cocotb/msi/sim_build/msi_protocol.fst
-.PHONY: test-msi-view
+	gtkwave sim_build/msi_protocol.fst
 
-test-all: ## Run all cocotb module tests
-	$(MAKE) -C cocotb/msi
-.PHONY: test-all
+test-all: test-msi ## Run all tests (currently just MSI)
+
+clean:: ## Clean up simulation files
+	rm -rf sim_build
+	rm -f results.xml
+
+# --- Cocotb Integration ---
+# This include pulls in the actual simulation rules from Cocotb
+include $(shell cocotb-config --makefiles)/Makefile.sim
+
