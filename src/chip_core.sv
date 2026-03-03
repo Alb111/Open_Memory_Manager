@@ -8,6 +8,7 @@ module chip_core #(
     parameter NUM_BIDIR_PADS,
     parameter NUM_ANALOG_PADS
     )(
+
     `ifdef USE_POWER_PINS
     inout  wire VDD,
     inout  wire VSS,

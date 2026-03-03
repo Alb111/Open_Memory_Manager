@@ -70,6 +70,10 @@ sim: ## Run RTL simulation with cocotb
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim
 
+test-all: ## Run all cocotb tests on all modules
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_all.py
+.PHONY: test-all
+
 sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 	cd cocotb; GL=1 PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-gl
@@ -77,6 +81,11 @@ sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 sim-view: ## View simulation waveforms in GTKWave
 	gtkwave cocotb/sim_build/chip_top.fst
 .PHONY: sim-view
+
+see: ## View simulation waveforms in GTKWave
+	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
+.PHONY: see
+	
 
 copy-final: ## Copy final output files from the last run
 	rm -rf final/
