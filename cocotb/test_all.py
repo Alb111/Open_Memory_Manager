@@ -18,10 +18,10 @@ scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
-hdl_toplevel = "mem_ctrl_512x32"
+hdl_toplevel = "mem_ctrl_2048x32"
 
 async def start_clock(dut, freq_mhz=50):
-    clock = Clock(dut.clk_i, 1 / freq_mhz * 1000, units="ns")
+    clock = Clock(dut.clk_i, 1 / freq_mhz * 1000, unit="ns")
     cocotb.start_soon(clock.start())
 
 
@@ -34,7 +34,7 @@ async def reset(dut, duration_ns=100):
     dut.mem_wdata_i.value = 0
     dut.mem_wstrb_i.value = 0
 
-    await Timer(duration_ns, units="ns")
+    await Timer(duration_ns, unit="ns")
     await FallingEdge(dut.clk_i)
     dut.rst_ni.value = 1
     await FallingEdge(dut.clk_i)
@@ -85,7 +85,7 @@ async def test_mem_ctrl_against_golden(dut):
 
     for i in range(NUM_TRANSACTIONS):
 
-        addr = random.randint(0, 512)
+        addr = random.randint(0, 2048)
         data = random.randint(0, 0xFFFF)
         # wstrb = random.randint(1, 0xF)
         wstrb = 0xF
@@ -113,8 +113,10 @@ def mem_ctrl_runner():
     sources = [
         # SRAM macro
         Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
-        # DUT
-        proj_path / "../src/mem_ctrl/mem_ctrl.sv",
+        # SRAM bank 
+        proj_path / "../src/mem_ctrl/mem512x32.sv",
+        # memory with sram bank muxing
+        proj_path / "../src/mem_ctrl/mem2048x32.sv"
     ]
 
     build_args = []
@@ -126,14 +128,14 @@ def mem_ctrl_runner():
     runner = get_runner(sim)
     runner.build(
         sources=sources,
-        hdl_toplevel="mem_ctrl_512x32",
+        hdl_toplevel="mem_ctrl_2048x32",
         always=True,
         build_args=build_args,
         waves=True,
     )
 
     runner.test(
-        hdl_toplevel="mem_ctrl_512x32",
+        hdl_toplevel="mem_ctrl_2048x32",
         test_module="test_all",
         waves=True,
     )
