@@ -121,7 +121,7 @@ class CPU:
                     core_workloads_copy[index].pop()                        
 
 
-        self.print_caches()
+        self.print_caches()  
         self.empty_caches()
 
         print("=" * 70)
