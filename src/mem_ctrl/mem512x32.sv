@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2025 XXX Authors
+// SPDX-FileCopyrightText: © 2025 Albert Felix
 // SPDX-License-Identifier: Apache-2.0
 
 `default_nettype none
