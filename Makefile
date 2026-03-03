@@ -87,3 +87,19 @@ render-image: ## Render an image from the final layout (after copy-final)
 	mkdir -p img/
 	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/lay2img.py final/gds/${TOP}.gds img/${TOP}.png --width 2048 --oversampling 4
 .PHONY: copy-final
+
+# ===========================================================================
+# Cocotb Module Tests
+# ===========================================================================
+
+test-msi: ## Run MSI protocol cocotb tests
+	$(MAKE) -C cocotb/msi
+.PHONY: test-msi
+
+test-msi-view: ## View MSI simulation waveforms in GTKWave
+	gtkwave cocotb/msi/sim_build/msi_protocol.fst
+.PHONY: test-msi-view
+
+test-all: ## Run all cocotb module tests
+	$(MAKE) -C cocotb/msi
+.PHONY: test-all
