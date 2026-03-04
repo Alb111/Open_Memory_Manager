@@ -70,10 +70,6 @@ sim: ## Run RTL simulation with cocotb
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim
 
-test-all: ## Run all cocotb tests on all modules
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_all.py
-.PHONY: test-all
-
 sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 	cd cocotb; GL=1 PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-gl
@@ -81,11 +77,6 @@ sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 sim-view: ## View simulation waveforms in GTKWave
 	gtkwave cocotb/sim_build/chip_top.fst
 .PHONY: sim-view
-
-see: ## View simulation waveforms in GTKWave
-	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
-.PHONY: see
-	
 
 copy-final: ## Copy final output files from the last run
 	rm -rf final/
@@ -96,3 +87,17 @@ render-image: ## Render an image from the final layout (after copy-final)
 	mkdir -p img/
 	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/lay2img.py final/gds/${TOP}.gds img/${TOP}.png --width 2048 --oversampling 4
 .PHONY: copy-final
+
+# Our Commands
+test-mem: ## Run all cocotb tests on all modules
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_test.py
+.PHONY: test-all
+
+test-msi: ## Run all cocotb tests on all modules
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
+.PHONY: test-all
+
+see-mem: ## View simulation waveforms in GTKWave
+	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
+.PHONY: see
+	
