@@ -14,6 +14,7 @@ The Bootloader subsystem is responsible for initializing the system SRAM with ex
 The subsystem supports external flash reprogramming using a USB-to-SPI bridge IC.
 
 **Operation:**
+
 When `pass_thru_en_i = 1`:
 * Boot FSM and SPI Engine are held in reset.
 * Internal SPI master signals are disabled.
