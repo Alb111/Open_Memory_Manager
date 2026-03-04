@@ -5,7 +5,8 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import Timer
+from cocotb.triggers import Timer, Edge, RisingEdge, FallingEdge, ClockCycles
+from cocotb_tools.runner import get_runner
 from itertools import product
 
 from emulation.msi_v2 import (
@@ -239,33 +240,34 @@ async def test_fuzz_both_valid(dut):
     dut._log.info(f"  Result: {total - len(failures)}/{total} passed")
     assert not failures, "\n".join(failures)   
 
-    def mem_ctrl_runner():
-        proj_path = Path(__file__).resolve().parent
+def mem_ctrl_runner():
+    proj_path = Path(__file__).resolve().parent
 
-        sources = [
-            proj_path / "../../src/msi_protocol/msi.v",
-        ]
 
-        build_args = []
-        if sim == "icarus":
-            pass
-        if sim == "verilator":
-            build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
-        
-        runner = get_runner(sim)
-        runner.build(
-            sources=sources,
-            hdl_toplevel="msi_protocol",
-            always=True,
-            build_args=build_args,
-            waves=True,
-        )
+    sources = [
+        proj_path / "../src/msi_protocol/msi.v",
+    ]
 
-        runner.test(
-            hdl_toplevel="msi_protocol",
-            test_module="test_all",
-            waves=True,
-        )
+    build_args = []
+    if sim == "icarus":
+        pass
+    if sim == "verilator":
+        build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
+    
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel="msi_protocol",
+        always=True,
+        build_args=build_args,
+        waves=True,
+    )
 
-    if __name__ == "__main__":
-        mem_ctrl_runner()
+    runner.test(
+        hdl_toplevel="msi_protocol",
+        test_module="msi_test",
+        waves=True,
+    )
+
+if __name__ == "__main__":
+    mem_ctrl_runner()

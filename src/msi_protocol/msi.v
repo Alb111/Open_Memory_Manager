@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 // ============================================================================
 // MSI State and Event Definitions
 // ============================================================================
@@ -45,23 +46,6 @@ module msi_protocol (
     output reg         flush
 );
 
-    // CS is the registered current state — advances to NS each clock edge
-    // NS is purely combinational — computed from CS + events each cycle
-    reg [1:0] CS;
-    reg [1:0] NS;
-
-    // -------------------------------------------------------------------------
-    // Sequential: CS register
-    // Resets to INVALID, advances to NS each clock edge.
-    // NS is computed combinationally below — no conflict.
-    // -------------------------------------------------------------------------
-    always @(posedge clk_i or posedge reset_i) begin
-        if (reset_i)
-            CS <= `I;
-        else
-            CS <= NS;   // advance registered state to combinational next state
-    end
-
     // -------------------------------------------------------------------------
     // Combinational: MSI transition logic
     // Reads CS (registered state), writes NS and outputs.
@@ -70,26 +54,87 @@ module msi_protocol (
     always @(*) begin : msi_transitions
 
         // Safe defaults — hold state, no command, no flush
-        NS        = CS;
         cmd_valid = 1'b0;
         issue_cmd = `CMD_BUS_RD;   // don't-care when cmd_valid=0
         flush     = 1'b0;
+        next_state = current_state;
+
+
+        // -------------------------------------------------------
+        // Snoop events (directory -> MSI module)
+        // -------------------------------------------------------
+        if (snoop_valid) begin
+            case (current_state)
+
+                `I: begin
+                    // No copy of this line, ignore all snoops
+                    next_state = `I;
+                    flush = 1'b0;
+                end
+
+                `S: begin
+                    case (snoop_event)
+                        `BUS_RD: begin
+                            // Another cache reading, stay SHARED
+                            next_state = `S;
+                            flush = 1'b0;
+                        end
+                        `BUS_RDX: begin
+                            // Another cache writing, invalidate our copy
+                            next_state = `I;
+                            flush = 1'b0;
+                        end
+                        `BUS_UPGR: begin
+                            // Another cache upgrading, invalidate our copy
+                            next_state = `I;
+                            flush = 1'b0;
+                        end
+                        default: next_state = `I;
+                    endcase
+                end
+
+                `M: begin
+                    case (snoop_event)
+                        `BUS_RD: begin
+                            // Another cache reading: flush dirty data, downgrade
+                            next_state = `S;
+                            flush = 1'b1;
+                        end
+                        `BUS_RDX: begin
+                            // Another cache writing: flush dirty data, invalidate
+                            next_state = `I;
+                            flush = 1'b1;
+                        end
+                        `BUS_UPGR: begin
+                            // Protocol violation: BUS_UPGR only issued from SHARED
+                            // Handle gracefully — stay MODIFIED, no flush
+                            next_state = `M;
+                            flush = 1'b0;
+                        end
+                        default: next_state = `M;
+                    endcase
+                end
+
+                default: next_state = `I;
+
+            endcase
+        end
 
         // -------------------------------------------------------
         // Processor events (cache controller -> MSI module)
         // -------------------------------------------------------
-        if (proc_valid) begin
-            case (CS)
+        else if (proc_valid) begin
+            case (current_state)
 
                 `I: begin
                     if (proc_event == `PR_RD) begin
                         // Read miss: fetch from memory, go SHARED
-                        NS        = `S;
+                        next_state = `S;
                         cmd_valid = 1'b1;
                         issue_cmd = `CMD_BUS_RD;
                     end else begin
                         // Write miss: get exclusive access, go MODIFIED
-                        NS        = `M;
+                        next_state = `M;
                         cmd_valid = 1'b1;
                         issue_cmd = `CMD_BUS_RDX;
                     end
@@ -98,11 +143,11 @@ module msi_protocol (
                 `S: begin
                     if (proc_event == `PR_RD) begin
                         // Read hit: already have data, stay SHARED
-                        NS        = `S;
+                        next_state = `S;
                         cmd_valid = 1'b0;
                     end else begin
                         // Write upgrade: already have data, invalidate others
-                        NS        = `M;
+                        next_state = `M;
                         cmd_valid = 1'b1;
                         issue_cmd = `CMD_BUS_UPGR;
                     end
@@ -110,78 +155,14 @@ module msi_protocol (
 
                 `M: begin
                     // Read or write hit: already exclusive, no action needed
-                    NS        = `M;
+                    next_state = `M;
                     cmd_valid = 1'b0;
                 end
 
-                default: NS = `I;
+                default: next_state = `I;
 
             endcase
 
-        // -------------------------------------------------------
-        // Snoop events (directory -> MSI module)
-        // -------------------------------------------------------
-        end else if (snoop_valid) begin
-            case (CS)
-
-                `I: begin
-                    // No copy of this line, ignore all snoops
-                    NS    = `I;
-                    flush = 1'b0;
-                end
-
-                `S: begin
-                    case (snoop_event)
-                        `BUS_RD: begin
-                            // Another cache reading, stay SHARED
-                            NS    = `S;
-                            flush = 1'b0;
-                        end
-                        `BUS_RDX: begin
-                            // Another cache writing, invalidate our copy
-                            NS    = `I;
-                            flush = 1'b0;
-                        end
-                        `BUS_UPGR: begin
-                            // Another cache upgrading, invalidate our copy
-                            NS    = `I;
-                            flush = 1'b0;
-                        end
-                        default: NS = `I;
-                    endcase
-                end
-
-                `M: begin
-                    case (snoop_event)
-                        `BUS_RD: begin
-                            // Another cache reading: flush dirty data, downgrade
-                            NS    = `S;
-                            flush = 1'b1;
-                        end
-                        `BUS_RDX: begin
-                            // Another cache writing: flush dirty data, invalidate
-                            NS    = `I;
-                            flush = 1'b1;
-                        end
-                        `BUS_UPGR: begin
-                            // Protocol violation: BUS_UPGR only issued from SHARED
-                            // Handle gracefully — stay MODIFIED, no flush
-                            NS    = `M;
-                            flush = 1'b0;
-                        end
-                        default: NS = `M;
-                    endcase
-                end
-
-                default: NS = `I;
-
-            endcase
         end
     end
-
-    // next_state output reflects the combinational NS
-    always @(*) begin
-        next_state = NS;
-    end
-
-endmodule
+  endmodule

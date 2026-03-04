@@ -70,10 +70,6 @@ sim: ## Run RTL simulation with cocotb
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim
 
-test-all: ## Run all cocotb tests on all modules
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_all.py
-.PHONY: test-all
-
 sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 	cd cocotb; GL=1 PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-gl
@@ -81,11 +77,6 @@ sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 sim-view: ## View simulation waveforms in GTKWave
 	gtkwave cocotb/sim_build/chip_top.fst
 .PHONY: sim-view
-
-see: ## View simulation waveforms in GTKWave
-	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
-.PHONY: see
-	
 
 copy-final: ## Copy final output files from the last run
 	rm -rf final/
@@ -97,49 +88,63 @@ render-image: ## Render an image from the final layout (after copy-final)
 	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/lay2img.py final/gds/${TOP}.gds img/${TOP}.png --width 2048 --oversampling 4
 .PHONY: copy-final
 
-# ===========================================================================
-# Cocotb Module Tests
-# ===========================================================================
+# Our Commands
+test-all: ## Run all cocotb tests on all modules
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_all.py
+.PHONY: test-all
 
-# ==============================================================================
-# Global Makefile - MSI Protocol & Cocotb Testing
-# ==============================================================================
+test-msi: ## Run all cocotb tests on all modules
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
+.PHONY: test-all
 
-# --- Cocotb Simulation Configuration ---
-SIM                  ?= icarus
-TOPLEVEL_LANG        = verilog
-VERILOG_SOURCES      = /workspaces/Open_Memory_Manager/src/msi_protocol/msi.v
-TOPLEVEL             = msi_protocol
-COCOTB_TEST_MODULES  = msi_test
+see: ## View simulation waveforms in GTKWave
+	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
+.PHONY: see
+	
 
-# --- Python Environment & Path Setup ---
-# We include the directory where your test script lives (cocotb/msi) 
-# in the PYTHONPATH so Cocotb can find 'msi_test.py'
-PYTHON_BIN          := /home/codespace/.python/current/bin/python3
-export PYGPI_PYTHON_BIN := $(PYTHON_BIN)
-export VIRTUAL_ENV  := /home/codespace/.python/current
-export PYTHONHOME   :=
-export PYTHONPATH   := $(shell $(PYTHON_BIN) -c "import site; print(':'.join(site.getsitepackages()+[site.getusersitepackages()]))"):$(CURDIR)/cocotb/msi:$(PYTHONPATH)
+# # ===========================================================================
+# # Cocotb Module Tests
+# # ===========================================================================
 
-# --- Standard Targets ---
-.PHONY: help test-msi test-msi-view test-all clean
+# # ==============================================================================
+# # Global Makefile - MSI Protocol & Cocotb Testing
+# # ==============================================================================
 
-help: ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+# # --- Cocotb Simulation Configuration ---
+# SIM                  ?= icarus
+# TOPLEVEL_LANG        = verilog
+# VERILOG_SOURCES      = /workspaces/Open_Memory_Manager/src/msi_protocol/msi.v
+# TOPLEVEL             = msi_protocol
+# COCOTB_TEST_MODULES  = msi_test
 
-test-msi: ## Run MSI protocol cocotb tests
-	$(MAKE) sim
+# # --- Python Environment & Path Setup ---
+# # We include the directory where your test script lives (cocotb/msi) 
+# # in the PYTHONPATH so Cocotb can find 'msi_test.py'
+# PYTHON_BIN          := /home/codespace/.python/current/bin/python3
+# export PYGPI_PYTHON_BIN := $(PYTHON_BIN)
+# export VIRTUAL_ENV  := /home/codespace/.python/current
+# export PYTHONHOME   :=
+# export PYTHONPATH   := $(shell $(PYTHON_BIN) -c "import site; print(':'.join(site.getsitepackages()+[site.getusersitepackages()]))"):$(CURDIR)/cocotb/msi:$(PYTHONPATH)
 
-test-msi-view: ## View MSI simulation waveforms in GTKWave
-	gtkwave sim_build/msi_protocol.fst
+# # --- Standard Targets ---
+# .PHONY: help test-msi test-msi-view test-all clean
 
-test-all: test-msi ## Run all tests (currently just MSI)
+# help: ## Show this help message
+# 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-clean:: ## Clean up simulation files
-	rm -rf sim_build
-	rm -f results.xml
+# test-msi: ## Run MSI protocol cocotb tests
+# 	$(MAKE) sim
 
-# --- Cocotb Integration ---
-# This include pulls in the actual simulation rules from Cocotb
-include $(shell cocotb-config --makefiles)/Makefile.sim
+# test-msi-view: ## View MSI simulation waveforms in GTKWave
+# 	gtkwave sim_build/msi_protocol.fst
+
+# test-all: test-msi ## Run all tests (currently just MSI)
+
+# clean:: ## Clean up simulation files
+# 	rm -rf sim_build
+# 	rm -f results.xml
+
+# # --- Cocotb Integration ---
+# # This include pulls in the actual simulation rules from Cocotb
+# include $(shell cocotb-config --makefiles)/Makefile.sim
 
