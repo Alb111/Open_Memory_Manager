@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from .msi_v2 import CoherenceCmd
+from msi_v2 import CoherenceCmd
 
 @dataclass
 class axi_request:

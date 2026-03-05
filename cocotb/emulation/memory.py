@@ -1,5 +1,5 @@
 # types
-from .axi_request import axi_request
+from axi_request import axi_request
 
 class MemoryController:
     def __init__(self):

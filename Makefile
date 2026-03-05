@@ -89,15 +89,23 @@ render-image: ## Render an image from the final layout (after copy-final)
 .PHONY: copy-final
 
 # Our Commands
-test-mem: ## Run all cocotb tests on all modules
+test-mem: ## Run all cocotb on mem
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_test.py
 .PHONY: test-all
 
-test-msi: ## Run all cocotb tests on all modules
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
-.PHONY: test-all
-
-see-mem: ## View simulation waveforms in GTKWave
+mem-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
-.PHONY: see
+.PHONY: mem-wave
+
+test-msi: ## Run all cocotb tests on msi
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
+.PHONY: test-msi
+
+test-arb: ## Run all cocotb tests on msi
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
+.PHONY: test-arb
 	
+arb-wave: ## View simulation waveforms for mem
+	gtkwave cocotb/sim_build/wrr_arbiter.fst
+.PHONY: arb-wave
+
