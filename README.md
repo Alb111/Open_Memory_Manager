@@ -4,7 +4,7 @@ Project for wafer.space MPW runs using the gf180mcu PDK.
 
 ## Documentation  
 To access the documentation locally run the following
-`git submodule add git@github.com:Alb111/Open_Memory_Manager.git wiki`
+`git submodule add git@github.com:YOUR_GITHUB_USERNAME/Open_Memory_Manager.git wiki`
 
 ## Prerequisites
 
