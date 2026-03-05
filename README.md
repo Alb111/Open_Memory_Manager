@@ -1,6 +1,10 @@
-# gf180mcu Project Template
+# Open Memory Manager
 
-Project template for wafer.space MPW runs using the gf180mcu PDK.
+Project for wafer.space MPW runs using the gf180mcu PDK. 
+
+## Documentation  
+To access the documentation locally run the following
+`git submodule add git@github.com:Alb111/Open_Memory_Manager.git wiki`
 
 ## Prerequisites
 
