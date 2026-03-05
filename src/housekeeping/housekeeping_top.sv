@@ -44,8 +44,8 @@ module housekeeping_top #(
       .data_out_o(spi_data_in),
       .done_o(spi_done),
       .busy_o(spi_busy),
-      .spi_sck_o(spi_sck_o), //connected to mux
-      .spi_mosi_o(spi_mosi_o),  //connected to mux
+      .spi_sck_o(spi_sck_o), 
+      .spi_mosi_o(spi_mosi_o),
       .spi_miso_i(spi_miso_i)
    );
    
@@ -55,13 +55,13 @@ module housekeeping_top #(
       .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
    ) boot_controller (
       .clk_i(clk_i),
-      .reset_i(reset_i || pass_thru_en_i),   //fsm idel during pass thru
+      .reset_i(reset_i || pass_thru_en_i),   //fsm idle during pass thru
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),
       .spi_done_i(spi_done),
       .spi_busy_i(spi_busy),
-      .flash_csb_o(flash_csb_o),     //connect to mux
+      .flash_csb_o(flash_csb_o),
       .sram_wr_en_o(sram_wr_en_o),
       .sram_addr_o(sram_addr_o),
       .sram_data_o(sram_data_o),
