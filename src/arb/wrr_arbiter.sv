@@ -1,5 +1,6 @@
+`timescale 1ns/1ps
 /*
-WRR Arbiter flow
+wrr arbiter flow
 Cycle   curr_ptr    credit_cnt  grant
 1       0           1           0001
 2       1           3           0010

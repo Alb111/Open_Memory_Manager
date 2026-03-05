@@ -1,7 +1,24 @@
+import os
+import random
+import logging
+from pathlib import Path
+
 import cocotb
 from cocotb.triggers import RisingEdge, Timer
+from cocotb_tools.runner import get_runner
 from cocotb.clock import Clock
 import random
+
+
+sim = os.getenv("SIM", "icarus")
+pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+pdk = os.getenv("PDK", "gf180mcuD")
+scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
+gl = os.getenv("GL", False)
+slot = os.getenv("SLOT", "1x1")
+
+hdl_toplevel = "wrr_arbiter.sv"
+
 
 
 # ─── Reference Model ──────────────────────────────────────────────────────────
@@ -517,3 +534,35 @@ async def test_reset_clears_pointer_and_resumes(dut):
     assert g == [1, 0], (
         f"First post-reset grant: got {g}, expected [1, 0] (ptr should be 0)"
     )
+
+def wrr_arbiter_runner():
+    proj_path = Path(__file__).resolve().parent
+
+    sources = [
+        proj_path / "../src/arb/wrr_arbiter.sv",
+    ]
+
+    build_args = []
+    if sim == "icarus":
+        pass
+    if sim == "verilator":
+        build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
+    
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel="wrr_arbiter",
+        always=True,
+        build_args=build_args,
+        waves=True,
+    )
+
+    runner.test(
+        hdl_toplevel="wrr_arbiter",
+        test_module="wrr_arbiter_test",
+        waves=True,
+    )
+
+if __name__ == "__main__":
+    wrr_arbiter_runner()
+
