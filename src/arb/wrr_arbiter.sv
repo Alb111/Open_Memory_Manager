@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 /*
 WRR Arbiter flow
 
@@ -17,7 +18,7 @@ module wrr_arbiter #(
     parameter logic [NUM_REQ*WEIGHT_W-1:0] WEIGHTS = {3'd1, 3'd1}
 )(
     input logic clk_i,
-    input logic rst_i,                     // active high reset
+    input logic rst_ni,                     // active high reset
     input logic [NUM_REQ-1:0] req_i,      // req[0], req[1]
 
     output logic [NUM_REQ-1:0] grant_o,     // one-hot grant
@@ -86,7 +87,7 @@ module wrr_arbiter #(
 // Sequential logic
 
     always_ff @(posedge clk_i) begin
-        if (rst_i) begin
+        if (!rst_ni) begin
             curr_ptr   <= '0;
             credit_cnt <= weight_table[0]; // set to first requester (if set to '0 it will skip first)
         end
@@ -96,8 +97,7 @@ module wrr_arbiter #(
         end
     end
 
-    assign grant_o = rst_i ? '0 : next_grant; // grant_o combination logic
+    assign grant_o = !rst_ni ? '0 : next_grant; // grant_o combination logic
     assign req_o = req_i; // pass-through
-
 
 endmodule
