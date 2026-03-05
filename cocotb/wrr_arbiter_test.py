@@ -24,15 +24,8 @@ hdl_toplevel = "wrr_arbiter.sv"
 # ─── Reference Model ──────────────────────────────────────────────────────────
 
 class WeightedRoundRobinModel:
-    """
-    Mirrors the RTL exactly:
-      - Each call to step() models ONE clock cycle.
-      - If req[curr_ptr] is asserted  → grant it, decrement credit.
-            credit hits 0             → advance pointer, reload credit.
-      - If req[curr_ptr] is NOT asserted → advance pointer, reload credit.
-            grant is 0 this cycle.
-    The combinational grant_o is returned for the cycle BEFORE the clock edge.
-    """
+    # Mirrors RTL: each step() models one clock cycle.
+    # Grant curr_ptr if requested, decrement credit; advance pointer when credit hits 0 or miss.
     def __init__(self, num_requesters, weights):
         self.num_requesters = num_requesters
         self.weights = weights
@@ -44,11 +37,7 @@ class WeightedRoundRobinModel:
         self.credit_cnt = self.weights[0]
 
     def step(self, requests):
-        """
-        Compute combinational grant for this cycle, then update state
-        (simulating what the RTL clocks in on the rising edge).
-        Returns the grant list for this cycle.
-        """
+        # Returns combinational grant for this cycle, then updates state.
         grant = [0] * self.num_requesters
 
         if requests[self.curr_ptr] == 1:
@@ -65,13 +54,8 @@ class WeightedRoundRobinModel:
         return grant
 
 
-# ─── Constants ────────────────────────────────────────────────────────────────
-
 NUM_REQ = 2
-WEIGHTS = [1, 1]   # matches RTL default WEIGHTS = {3'd1, 3'd1}
-
-
-# ─── Utilities ────────────────────────────────────────────────────────────────
+WEIGHTS = [1, 1]
 
 def onehot_to_list(val, width=NUM_REQ):
     return [(val >> i) & 1 for i in range(width)]
@@ -86,26 +70,21 @@ def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def reset_dut(dut):
-    """Assert active-low reset for 5 cycles then release."""
+    # Assert active-low reset for 5 cycles then release.
     dut.rst_ni.value = 0   # assert reset (active low)
     dut.req_i.value = 0
     for _ in range(5):
         await RisingEdge(dut.clk_i)
     dut.rst_ni.value = 1   # deassert reset
-    await Timer(1, unit="ns")   # let combinational outputs settle after reset
+    await Timer(1, unit="ns")
 
 async def drive_and_sample(dut, req_int):
-    """
-    Zero-cycle grant protocol:
-      1. Drive req_i.
-      2. Wait 1 ns for combinational grant_o to settle.
-      -- Caller reads grant_o here, BEFORE any clock edge --
-    """
+    # Drive req_i, wait 1 ns for combinational grant_o to settle.
     dut.req_i.value = req_int
     await Timer(1, unit="ns")
 
 async def clock_step(dut):
-    """Commit one rising edge (clocks in next_ptr / next_credit_cnt)."""
+    # Commit one rising edge, then settle.
     await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")   # settle after clock
 
@@ -114,7 +93,7 @@ async def clock_step(dut):
 
 @cocotb.test()
 async def test_reset_state(dut):
-    """grant_o must be zero while rst_ni is asserted (low), regardless of requests."""
+    # grant_o must be zero while rst_ni is asserted, regardless of requests.
     start_clock(dut)
 
     dut.rst_ni.value = 0   # assert reset (active low)
@@ -131,7 +110,7 @@ async def test_reset_state(dut):
 
 @cocotb.test()
 async def test_no_request(dut):
-    """No requests should produce no grants."""
+    # No requests should produce no grants.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -146,12 +125,7 @@ async def test_no_request(dut):
 
 @cocotb.test()
 async def test_single_requester_0(dut):
-    """
-    Only req[0] active.
-    With weights [1,1] the pointer alternates every cycle, so req[0] is only
-    served on even cycles (ptr=0) and grant=0 on odd cycles (ptr=1, miss →
-    rotate). Verify against the reference model.
-    """
+    # Only req[0] active; verify grant pattern matches reference model.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -169,11 +143,7 @@ async def test_single_requester_0(dut):
 
 @cocotb.test()
 async def test_single_requester_1(dut):
-    """
-    Only req[1] active.
-    Pointer starts at 0; req[0] absent → rotate to 1, grant req[1], rotate
-    back to 0, etc. Verify against the reference model.
-    """
+    # Only req[1] active; verify grant pattern matches reference model.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -191,7 +161,7 @@ async def test_single_requester_1(dut):
 
 @cocotb.test()
 async def test_weighted_both_requesting(dut):
-    """Both requesting — verify grant pattern matches reference model weights [1,1]."""
+    # Both requesting — verify grant pattern matches reference model weights [1,1].
     start_clock(dut)
     await reset_dut(dut)
 
@@ -209,7 +179,7 @@ async def test_weighted_both_requesting(dut):
 
 @cocotb.test()
 async def test_grant_is_onehot(dut):
-    """Grant must always be one-hot (or zero) — never two bits set simultaneously."""
+    # Grant must always be one-hot or zero — never two bits set simultaneously.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -225,7 +195,7 @@ async def test_grant_is_onehot(dut):
 
 @cocotb.test()
 async def test_req_passthrough(dut):
-    """req_o must always mirror req_i combinationally."""
+    # req_o must always mirror req_i combinationally.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -240,11 +210,7 @@ async def test_req_passthrough(dut):
 
 @cocotb.test()
 async def test_randomized(dut):
-    """
-    Randomized test: each cycle drive a random request, sample the
-    combinational grant BEFORE the clock edge, advance the reference model
-    in lockstep, then clock.
-    """
+    # Random requests each cycle; verify grant matches reference model in lockstep.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -264,18 +230,9 @@ async def test_randomized(dut):
 
         await clock_step(dut)
 
-
-# ─── Additional Functionality Tests ───────────────────────────────────────────
-
 @cocotb.test()
 async def test_mid_run_reset(dut):
-    """
-    Assert reset in the middle of normal operation, then release it.
-    After reset de-assertion:
-      - pointer must be back at 0
-      - credit must be reloaded to weight_table[0]
-      - grant output must immediately match a freshly-reset reference model
-    """
+    # Assert reset mid-operation; verify pointer and credit reload correctly after release.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -318,11 +275,7 @@ async def test_mid_run_reset(dut):
 
 @cocotb.test()
 async def test_req_deassert_mid_sequence(dut):
-    """
-    Start with both requesters active, then drop one mid-sequence.
-    Verify the arbiter stops granting the dropped requester and the
-    reference model stays in sync.
-    """
+    # Drop req[1] mid-sequence; verify it stops being granted and model stays in sync.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -357,11 +310,7 @@ async def test_req_deassert_mid_sequence(dut):
 
 @cocotb.test()
 async def test_req_assert_after_pointer_passes(dut):
-    """
-    req[1] is silent for several cycles (pointer bounces past it), then
-    asserts.  Verify it gets served correctly on the next opportunity and
-    the reference model agrees throughout.
-    """
+    # req[1] silent for several cycles, then asserts; verify it's served correctly.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -392,12 +341,7 @@ async def test_req_assert_after_pointer_passes(dut):
 
 @cocotb.test()
 async def test_fairness_grant_counts(dut):
-    """
-    With both requesters active for 100 cycles and equal weights [1,1],
-    each requester must receive exactly half the total grants (±1 for any
-    odd-length run).  This catches implementations that silently starve
-    one requester.
-    """
+    # With equal weights [1,1], each requester must receive ~50% of grants over 100 cycles.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -422,11 +366,7 @@ async def test_fairness_grant_counts(dut):
 
 @cocotb.test()
 async def test_grant_stable_between_clocks(dut):
-    """
-    grant_o must not glitch between the moment req_i is driven and the
-    next clock edge.  Sample at 1 ns and again at 8 ns (just before the
-    rising edge) and verify they are identical.
-    """
+    # grant_o must not glitch; sample at 1 ns and 8 ns and verify they match.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -455,11 +395,7 @@ async def test_grant_stable_between_clocks(dut):
 
 @cocotb.test()
 async def test_pointer_wraps_correctly(dut):
-    """
-    Drive only req[0] and req[1] in strict alternation for many cycles.
-    The pointer must wrap from index 1 back to index 0 without getting
-    stuck, and the reference model must agree every cycle.
-    """
+    # Alternate single requester each cycle; verify pointer wraps and model agrees.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -479,10 +415,7 @@ async def test_pointer_wraps_correctly(dut):
 
 @cocotb.test()
 async def test_grant_only_to_active_requesters(dut):
-    """
-    Exhaustive check over all non-zero 2-bit request patterns for 10 cycles
-    each: a grant bit must never be set for a requester that is not active.
-    """
+    # For all non-zero request patterns, a grant bit must never be set for an inactive requester.
     start_clock(dut)
     await reset_dut(dut)
 
@@ -505,13 +438,7 @@ async def test_grant_only_to_active_requesters(dut):
 
 @cocotb.test()
 async def test_reset_clears_pointer_and_resumes(dut):
-    """
-    Advance the pointer to req[1] by running one cycle with only req[0]
-    active (miss on ptr=0 → ptr advances to 1 is NOT what happens;
-    instead grant on ptr=0 with weight=1 → ptr advances to 1).
-    Then assert reset and confirm pointer is back at 0 by checking that
-    req[0] is granted on the very first cycle after reset.
-    """
+    # Advance pointer to 1, assert reset, verify pointer returns to 0 on first post-reset grant.
     start_clock(dut)
     await reset_dut(dut)
 
