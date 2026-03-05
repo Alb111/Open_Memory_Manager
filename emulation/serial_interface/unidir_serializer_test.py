@@ -36,6 +36,7 @@ def cycle(tdut: tserializer, rdut : rserializer, tinput : tinput_packet, rinput 
 
     tdut.print_state()
     rdut.print_state()
+    print(f"Serial Pins: {tdut.serial_o}")
 
 def bstr_to_deque(bstr : int, len : int, maxlen : int) -> deque:
     output = deque([], maxlen=maxlen)
