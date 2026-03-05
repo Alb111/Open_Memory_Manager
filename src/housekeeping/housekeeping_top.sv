@@ -4,19 +4,14 @@ module housekeeping_top #(
 )(
    input logic clk_i,
    input logic reset_i,
-
-   //external pins (where the computer plugs in)
-   input logic ext_sck_i,
-   input logic ext_mosi_i,
-   input logic ext_csb_i,
-   output logic ext_miso_o,
-   input logic pass_thru_en_i   // switch: 0 = boot, 1 = pass thru
     
    // spi Flash pins
    output logic spi_sck_o,
    output logic spi_mosi_o,
    input logic spi_miso_i,
    output logic flash_csb_o,
+
+   input logic pass_thru_en_i,   // switch: 0 = boot, 1 = pass thru
     
    // output writing
    output logic sram_wr_en_o,
@@ -28,21 +23,17 @@ module housekeeping_top #(
    output logic boot_done_o
 );
    // wires between spi and fsm
-   logic fsm_sck, fsm_mosi, fsm_csb;
    logic spi_start;
    logic spi_done;
    logic spi_busy;
    logic [7:0] spi_data_out;
    logic [7:0] spi_data_in;
-   logic raw_boot_done, raw_cores_en;
 
    //pass thru mux logic
-   // if pass_thru_en_i high -> external pins drive flash
-   // else our internal FSM/SPI engine drives flash
-   assign spi_sck_o = (pass_thru_en_i) ? ext_sck_i : fsm_sck;
-   assign spi_mosi_o = (pass_thru_en_i) ? ext_mosi_i : fsm_mosi;
-   assign flash_csb_o = (pass_thru_en_i) ? ext_csb_i  : fsm_csb;
-   assign ext_miso_o = spi_miso_i; // pass falsh data back to computer
+   // chip top logic
+   // assign flash_sck = (pass_thru_en_i) ? 1'bz : spi_sck_o;
+   // assign flash_mosi = (pass_thru_en_i) ? 1'bz : spi_mosi_o;
+   // assign flash_csb = (pass_thru_en_i) ? 1'bz  : flash_csb_o;
       
    // spi Engine
    spi_engine spi_master (
@@ -53,8 +44,8 @@ module housekeeping_top #(
       .data_out_o(spi_data_in),
       .done_o(spi_done),
       .busy_o(spi_busy),
-      .spi_sck_o(fsm_sck), //connected to mux
-      .spi_mosi_o(fsm_mosi),  //connected to mux
+      .spi_sck_o(spi_sck_o), //connected to mux
+      .spi_mosi_o(spi_mosi_o),  //connected to mux
       .spi_miso_i(spi_miso_i)
    );
    
@@ -70,7 +61,7 @@ module housekeeping_top #(
       .spi_in_i(spi_data_in),
       .spi_done_i(spi_done),
       .spi_busy_i(spi_busy),
-      .flash_csb_o(fsm_csb),     //connect to mux
+      .flash_csb_o(flash_csb_o),     //connect to mux
       .sram_wr_en_o(sram_wr_en_o),
       .sram_addr_o(sram_addr_o),
       .sram_data_o(sram_data_o),
