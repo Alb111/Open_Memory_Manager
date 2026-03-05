@@ -109,3 +109,6 @@ arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
 .PHONY: arb-wave
 
+test-all: ## Run all cocotb testbenches via pytest
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
+.PHONY: test-all
