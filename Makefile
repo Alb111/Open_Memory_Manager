@@ -94,7 +94,7 @@ test-mem: ## Run all cocotb on mem
 .PHONY: test-all
 
 mem-wave: ## View simulation waveforms for mem
-	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
+	gtkwave cocotb/sim_build/mem_ctrl_2048x32.fst
 .PHONY: mem-wave
 
 test-msi: ## Run all cocotb tests on msi
