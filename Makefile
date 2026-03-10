@@ -91,7 +91,7 @@ render-image: ## Render an image from the final layout (after copy-final)
 # Our Commands
 test-mem: ## Run all cocotb on mem
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_test.py
-.PHONY: test-all
+.PHONY: test-mem
 
 mem-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
