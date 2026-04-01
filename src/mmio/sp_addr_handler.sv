@@ -1,3 +1,5 @@
+`timescale 1ns/1ps
+
 module sp_addr_handler #(
     parameter int WHOAMI_ID = 32'hA1B2_C3D4 // ID
 )(
@@ -30,7 +32,7 @@ module sp_addr_handler #(
     //addr decoding
     //check if addr starts with 0x8000
     always_comb begin
-        if(addr_i[31:16] == 16'h8000) begin
+        if((addr_i & 32'hFFFF_0000) == 32'h8000_0000) begin
             is_special_addr = 1'b1;
         end else begin
             is_special_addr = 1'b0;
