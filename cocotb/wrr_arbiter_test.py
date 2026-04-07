@@ -75,15 +75,48 @@ def list_to_int(lst):
 def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
-async def reset_dut(dut, weights=(1, 1)):
-    # Assert active-low reset for 5 cycles then release; weights_i driven before release so RTL latches weight0.
-    dut.rst_ni.value   = 0
-    dut.req_i.value    = 0
+async def load_weights(dut, weights):
+    """
+    Strobe weight_en_i high for one cycle then low.
+    The RTL captures weights_i on the falling edge of weight_en_d
+    (i.e. one cycle after weight_en_i goes low), so we wait an extra
+    rising edge after de-asserting to guarantee the capture has happened
+    before the caller proceeds.
+
+    Timeline (all on posedge clk_i):
+      cycle N  : weight_en_d gets weight_en_i=1  (registered)
+      cycle N+1: weight_en_d=1, weight_en_i driven low →
+                 weight_capture = weight_en_d & ~weight_en_i = 1 →
+                 weight0_q/weight1_q updated on this posedge
+    """
     dut.weights_i.value = weights_to_int(weights)
+    dut.weight_en_i.value = 1
+    await RisingEdge(dut.clk_i)   # cycle N: weight_en_d captures 1
+    dut.weight_en_i.value = 0
+    await RisingEdge(dut.clk_i)   # cycle N+1: weight_capture fires, weights latched
+    await Timer(1, unit="ns")     # settle
+
+async def reset_dut(dut, weights=(1, 1)):
+    """
+    Assert active-low reset for 5 cycles, release it, then load weights.
+
+    During reset weight0_q/weight1_q are forced to 0, so we MUST load
+    weights after rst_ni goes high; otherwise credit_cnt starts at 0.
+    """
+    dut.rst_ni.value      = 0
+    dut.req_i.value       = 0
+    dut.weight_en_i.value = 0
+    dut.weights_i.value   = weights_to_int(weights)
     for _ in range(5):
         await RisingEdge(dut.clk_i)
+
+    # Release reset
     dut.rst_ni.value = 1
+    await RisingEdge(dut.clk_i)   # let the FF come out of reset cleanly
     await Timer(1, unit="ns")
+
+    # Now load the desired weights via the enable strobe
+    await load_weights(dut, weights)
 
 async def drive_and_sample(dut, req_int):
     # Drive req_i, wait 1 ns for combinational grant_o to settle.
@@ -103,9 +136,10 @@ async def test_reset_state(dut):
     # grant_o must be zero while rst_ni is asserted, regardless of requests.
     start_clock(dut)
 
-    dut.rst_ni.value    = 0
-    dut.req_i.value     = 0b11
-    dut.weights_i.value = weights_to_int([1, 1])
+    dut.rst_ni.value      = 0
+    dut.req_i.value       = 0b11
+    dut.weight_en_i.value = 0
+    dut.weights_i.value   = weights_to_int([1, 1])
     for cycle in range(5):
         await RisingEdge(dut.clk_i)
         await Timer(1, unit="ns")
@@ -194,7 +228,6 @@ async def test_weighted_2_1(dut):
     weights = [2, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -225,7 +258,6 @@ async def test_weighted_3_1(dut):
     weights = [3, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -256,7 +288,6 @@ async def test_weighted_1_3(dut):
     weights = [1, 3]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -287,7 +318,6 @@ async def test_max_weights(dut):
     weights = [MAX_WEIGHT, MAX_WEIGHT]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -309,7 +339,6 @@ async def test_grant_is_onehot(dut):
     weights = [2, 3]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     for cycle in range(50):
         req = random.randint(1, 3)
@@ -342,7 +371,6 @@ async def test_randomized(dut):
     weights = [random.randint(1, MAX_WEIGHT), random.randint(1, MAX_WEIGHT)]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -368,7 +396,6 @@ async def test_mid_run_reset(dut):
     weights = [2, 3]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -379,8 +406,9 @@ async def test_mid_run_reset(dut):
         await clock_step(dut)
 
     # Assert reset mid-run (active low)
-    dut.rst_ni.value = 0
-    dut.req_i.value  = 0b11
+    dut.rst_ni.value      = 0
+    dut.req_i.value       = 0b11
+    dut.weight_en_i.value = 0
     for cycle in range(3):
         await RisingEdge(dut.clk_i)
         await Timer(1, unit="ns")
@@ -389,9 +417,13 @@ async def test_mid_run_reset(dut):
             f"Mid-reset cycle {cycle}: grant_o={bin(grant)} should be 0"
         )
 
-    # Release reset — pointer must be at 0, credits reloaded from weight0
+    # Release reset
     dut.rst_ni.value = 1
+    await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
+
+    # Reload weights after reset (weight registers were cleared during reset)
+    await load_weights(dut, weights)
 
     # Re-sync reference model to reset state
     model.reset()
@@ -413,7 +445,6 @@ async def test_req_deassert_mid_sequence(dut):
     weights = [2, 2]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -449,7 +480,6 @@ async def test_req_assert_after_pointer_passes(dut):
     weights = [1, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -482,7 +512,6 @@ async def test_fairness_grant_counts_equal_weights(dut):
     weights = [1, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     NUM_CYCLES = 100
     grant_counts = [0, 0]
@@ -509,7 +538,6 @@ async def test_fairness_grant_counts_unequal_weights(dut):
     weights = [3, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     NUM_CYCLES = 120
     grant_counts = [0, 0]
@@ -537,7 +565,6 @@ async def test_grant_stable_between_clocks(dut):
     weights = [2, 2]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     for cycle in range(30):
         req = random.randint(0, 3)
@@ -566,7 +593,6 @@ async def test_pointer_wraps_correctly(dut):
     weights = [1, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 
@@ -587,7 +613,6 @@ async def test_grant_only_to_active_requesters(dut):
     weights = [3, 2]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     for req_int in range(1, 1 << NUM_REQ):
         req_vec = [(req_int >> i) & 1 for i in range(NUM_REQ)]
@@ -602,8 +627,8 @@ async def test_grant_only_to_active_requesters(dut):
                     )
             await clock_step(dut)
 
+        # Reset and reload weights for next pattern
         await reset_dut(dut, weights)
-        dut.weights_i.value = weights_to_int(weights)
 
 
 @cocotb.test()
@@ -612,20 +637,23 @@ async def test_reset_clears_pointer_and_resumes(dut):
     weights = [1, 1]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     # One cycle with both requesting: ptr=0 grants req[0], advances to ptr=1
     await drive_and_sample(dut, 0b11)
     await clock_step(dut)
 
     # Now ptr should be 1. Assert reset (active low).
-    dut.rst_ni.value = 0
+    dut.rst_ni.value      = 0
+    dut.weight_en_i.value = 0
     await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
     assert int(dut.grant_o.value) == 0, "grant_o must be 0 during reset"
 
+    # Release reset and reload weights
     dut.rst_ni.value = 1
+    await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
+    await load_weights(dut, weights)
 
     # First cycle post-reset with both requesting: ptr=0 → must grant req[0]
     await drive_and_sample(dut, 0b11)
@@ -641,7 +669,6 @@ async def test_weight0_boundary(dut):
     weights = [1, 4]
     start_clock(dut)
     await reset_dut(dut, weights)
-    dut.weights_i.value = weights_to_int(weights)
 
     model = WeightedRoundRobinModel(NUM_REQ, weights)
 

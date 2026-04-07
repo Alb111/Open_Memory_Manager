@@ -9,7 +9,7 @@ module wrr_arbiter #(
 
     input  logic [NUM_REQ-1:0] req_i,      // req[1:0]
     input  logic [2*WEIGHT_W-1:0] weights_i,
-    input  logic weight_en_i
+    input  logic weight_en_i,
 
     output logic [NUM_REQ-1:0] grant_o,
     output logic [NUM_REQ-1:0] req_o
