@@ -5,6 +5,9 @@ module cache_interface #(
     parameter int MAX_MSG_LEN = 68
 )
 (
+    input  logic                clk_i
+    input  logic                rst_ni
+
     // axi packet
     input  logic                mem_valid,
     output logic                mem_ready,

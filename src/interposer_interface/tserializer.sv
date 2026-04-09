@@ -9,7 +9,7 @@ module tserializer #(
     parameter int MSG_LEN_3 = 68
 )(
     input  logic                   clk_i,    
-    input  logic                   rst_n, 
+    input  logic                   rst_ni, 
 
     // data interface
     input  logic                   valid_i, 
