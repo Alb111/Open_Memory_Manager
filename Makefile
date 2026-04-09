@@ -108,6 +108,10 @@ test-arb: ## Run all cocotb tests on msi
 test-tserializer: ## Run all cocotb tests on tserializer
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_tserializer.py
 .PHONY: test-tserializer
+
+test-rserializer: ## Run all cocotb tests on rserializer
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_rserializer.py
+.PHONY: test-rserializer
 	
 arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
@@ -116,3 +120,7 @@ arb-wave: ## View simulation waveforms for mem
 test-all: ## Run all cocotb testbenches via pytest
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
 .PHONY: test-all
+
+clean-sim: ## Remove all sim-build dirs in cocotb
+	cd cocotb; rm -r sim_build*
+.PHONY: clean-sim
