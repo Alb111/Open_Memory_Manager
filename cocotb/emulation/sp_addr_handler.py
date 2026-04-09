@@ -1,6 +1,19 @@
 from axi_request import axi_request
-from special_addresses import SP_ADDR
+from enum import Enum
 
+class SP_ADDR(Enum):
+
+    WHOAMI    = {0x8000_0000}
+    MMIO_CSR  = {0x8000_0018}
+    MMIO_DATA = {0x8000_0010, 
+                 0x8000_0011, 
+                 0x8000_0012, 
+                 0x8000_0013, 
+                 0x8000_0014, 
+                 0x8000_0015, 
+                 0x8000_0016, 
+                 0x8000_0017}
+    
 class MMIO:
 
     def __init__(self):
@@ -69,3 +82,30 @@ class MMIO:
             # write req
             else:
                 self._set_data(addr, wdata, wstrb)
+
+class sp_addr_handler:
+
+    def __init__(self, WhoAmI : int):
+        self.mem_packet  : axi_request = None
+
+        self.MMIO = MMIO()
+
+        self.cc_packet_o : axi_request = None
+        self.WAI_r       : int = WhoAmI
+        
+    def _yield_WAI(self):
+        self.mem_packet.mem_rdata = self.WAI_r
+    
+    def handle_req(self, axi_packet : axi_request):
+        self.cc_packet_o = None
+        addr = axi_packet.mem_addr
+
+        if addr in SP_ADDR.WHOAMI:
+            self._yield_WAI()
+
+        elif addr in SP_ADDR.MMIO_CSR or addr in SP_ADDR.MMIO_DATA:
+            self.MMIO.handle_req(axi_packet)
+
+        # normal address passthrough
+        else:
+            self.cc_packet_o = axi_packet
