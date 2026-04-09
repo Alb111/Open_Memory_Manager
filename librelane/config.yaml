@@ -28,6 +28,14 @@ DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
+- dir::../src/arb/wrr_arbiter.v
+- dir::../src/housekeeping/boot_fsm.v
+- dir::../src/housekeeping/housekeeping_top.v
+- dir::../src/housekeeping/spi_engine.v
+- dir::../src/mem_ctrl/mem2048x32.v
+- dir::../src/mem_ctrl/mem512x32.v
+- dir::../src/msi_protocol/msi.v
+- dir::../src/msi_protocol/msi_v2.v
 
 # Enable plugin for better SystemVerilog support
 # USE_SLANG: True
