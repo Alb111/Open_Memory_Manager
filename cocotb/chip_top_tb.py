@@ -110,7 +110,12 @@ def chip_top_runner():
         sources.append(proj_path / "../src/mem_ctrl/mem512x32.sv")
         sources.append(proj_path / "../src/msi_protocol/msi.v")
         sources.append(proj_path / "../src/msi_protocol/msi_v2.sv")
-
+        sources.append(proj_path / "../src/mmio/mmio.sv")
+        sources.append(proj_path / "../src/mmio/sp_addr_handler.sv")
+        sources.append(proj_path / "../src/interposer_interface/tserializer.sv")
+        sources.append(proj_path / "../src/interposer_interface/rserializer.sv")
+        sources.append(proj_path / "../src/interposer_interface/directory_interface.sv")
+        sources.append(proj_path / "../src/interposer_interface/cache_interface.sv")
     sources += [
         # IO pad models
         Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_io/verilog/gf180mcu_fd_io.v",
