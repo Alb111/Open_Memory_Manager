@@ -6,7 +6,7 @@ module rserializer #(
 )(
 
     input  logic                  clk_i,
-    input  logic                  rst_n,
+    input  logic                  rst_ni,
 
     input  logic [NUM_PINS-1 : 0] serial_i,
     input  logic                  req_i,
