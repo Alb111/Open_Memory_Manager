@@ -102,6 +102,14 @@ def chip_top_runner():
     else:
         sources.append(proj_path / "../src/chip_top.sv")
         sources.append(proj_path / "../src/chip_core.sv")
+        sources.append(proj_path / "../src/arb/wrr_arbiter.sv")
+        sources.append(proj_path / "../src/housekeeping/boot_fsm.sv")
+        sources.append(proj_path / "../src/housekeeping/housekeeping_top.sv")
+        sources.append(proj_path / "../src/housekeeping/spi_engine.sv")
+        sources.append(proj_path / "../src/mem_ctrl/mem2048x32.sv")
+        sources.append(proj_path / "../src/mem_ctrl/mem512x32.sv")
+        sources.append(proj_path / "../src/msi_protocol/msi.v")
+        sources.append(proj_path / "../src/msi_protocol/msi_v2.sv")
 
     sources += [
         # IO pad models

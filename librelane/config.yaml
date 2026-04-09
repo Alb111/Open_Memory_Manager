@@ -28,10 +28,18 @@ DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
+- dir::../src/arb/wrr_arbiter.sv
+- dir::../src/housekeeping/boot_fsm.sv
+- dir::../src/housekeeping/housekeeping_top.sv
+- dir::../src/housekeeping/spi_engine.sv
+- dir::../src/mem_ctrl/mem2048x32.sv
+- dir::../src/mem_ctrl/mem512x32.sv
+- dir::../src/msi_protocol/msi.v
+- dir::../src/msi_protocol/msi_v2.sv
 
 # Enable plugin for better SystemVerilog support
-# USE_SLANG: True
-# SLANG_ARGUMENTS: ['--keep-hierarchy']
+USE_SLANG: True
+SLANG_ARGUMENTS: ['--keep-hierarchy']
 
 # Slightly smaller file sizes
 PRIMARY_GDSII_STREAMOUT_TOOL: klayout
