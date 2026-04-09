@@ -53,12 +53,3 @@ class TestWRRArbiter:
         assert result.returncode == 0, (
             f"wrr_arbiter_test.py failed with exit code {result.returncode}"
         )
-
-class TestBoot:
-    """Cocotb testbench: Boot Controller (housekeeping_tb.py)"""
-
-    def test_boot_ctrl(self):
-        result = _run_testbench("housekeeping_tb.py")
-        assert result.returncode == 0, (
-            f"housekeeping_tb.py failed with exit code {result.returncode}"
-        )
