@@ -91,10 +91,10 @@ render-image: ## Render an image from the final layout (after copy-final)
 # Our Commands
 test-mem: ## Run all cocotb on mem
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_test.py
-.PHONY: test-mem
+.PHONY: test-all
 
 mem-wave: ## View simulation waveforms for mem
-	gtkwave cocotb/sim_build/mem_ctrl_2048x32.fst
+	gtkwave cocotb/sim_build/mem_ctrl_512x32.fst
 .PHONY: mem-wave
 
 test-msi: ## Run all cocotb tests on msi
@@ -104,19 +104,23 @@ test-msi: ## Run all cocotb tests on msi
 test-arb: ## Run all cocotb tests on msi
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
 .PHONY: test-arb
+
+test-tserializer: ## Run all cocotb tests on tserializer
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_tserializer.py
+.PHONY: test-tserializer
+
+test-rserializer: ## Run all cocotb tests on rserializer
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_rserializer.py
+.PHONY: test-rserializer
 	
 arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
 .PHONY: arb-wave
 
-test-boot: ## Run all cocotb tests on boot contlr
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 housekeeping_tb.py
-.PHONY: test-boot
-
-boot-wave: ## View simulation waveforms for boot contlr
-	gtkwave cocotb/sim_build/housekeeping_top.fst
-.PHONY: boot-wave
-
 test-all: ## Run all cocotb testbenches via pytest
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
 .PHONY: test-all
+
+clean-sim: ## Remove all sim-build dirs in cocotb
+	cd cocotb; rm -r sim_build*
+.PHONY: clean-sim
