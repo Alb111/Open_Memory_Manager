@@ -1,7 +1,6 @@
 `timescale 1ns/1ps
 
 module tserializer #(
-    parameter int INPUT_WIDTH = 8,
     parameter int NUM_PINS = 1,
     parameter int MAX_MSG_LEN = 68,
     parameter int MSG_LEN_0 = 4,
@@ -20,7 +19,7 @@ module tserializer #(
 
     // serial interface
     output logic                   req_o,
-    output logic [NUM_PINS-1:0]    data_o 
+    output logic [NUM_PINS-1:0]    serial_o 
 );  
 
     // parameters
@@ -36,10 +35,9 @@ module tserializer #(
     logic cnt_done;
 
     // state machine
-    typedef enum logic [1:0] { 
-        IDLE = 2'b00,
-        SEND = 2'b01,
-        DONE = 2'b10
+    typedef enum logic { 
+        IDLE = 1'b0,
+        SEND = 1'b1
     } state;
 
     state current_state, next_state;
@@ -55,11 +53,7 @@ module tserializer #(
         next_state = current_state;
         case (current_state)
             IDLE: if (valid_i) next_state = SEND;
-            SEND: if (cnt_done) next_state = DONE;
-            DONE: begin
-                if (valid_i) next_state = SEND;
-                else next_state = IDLE;
-            end
+            SEND: if (cnt_done) next_state = IDLE;
             default: next_state = IDLE;
         endcase
     end
@@ -103,7 +97,7 @@ module tserializer #(
             for (int i = 1; i < shift_depth; i++) begin : shift
                 shift_arr[i] <= shift_arr[i-1];
             end
-        end else if (valid_i) begin
+        end else begin
             for (int i = 0; i < shift_depth; i++) begin : set_shift
                 shift_arr[i] <= data_in[i*shift_width +: shift_width];
             end
@@ -111,7 +105,7 @@ module tserializer #(
     end
     
     // output
-    assign data_o = shift_arr[curr_msg_len-1];
+    assign serial_o = shift_arr[curr_msg_len-1];
     assign req_o = (current_state == SEND);
     assign ready_o = (current_state != SEND);
 

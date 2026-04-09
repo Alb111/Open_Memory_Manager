@@ -37,13 +37,13 @@ async def reset_dut(dut):
 async def collect_message(dut):
 
     logger = logging.getLogger("cocotb.test")
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
     captured_bits = 0
     bit_count = 0
     while int(dut.current_state.value) == 1:
         bit_count += NUM_PINS
         captured_bits <<= NUM_PINS
-        captured_bits += int(dut.data_o.value)
+        captured_bits += int(dut.serial_o.value)
         await RisingEdge(dut.clk_i)
 
     logger.info(f"Captured {bit_count} bits: {bin(captured_bits)}")
@@ -65,7 +65,7 @@ class CycleCounter:
 @cocotb.test
 async def test_simple_t0(dut):
 
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     msg_type = 0
     msg_len = int(dut.MSG_LEN_0.value)
@@ -96,14 +96,12 @@ async def test_simple_t0(dut):
 
     # Validation
     expected_bit_count = ceil(msg_len / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -111,7 +109,7 @@ async def test_simple_t0(dut):
 @cocotb.test
 async def test_simple_t1(dut):
 
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     msg_type = 1
     msg_len = int(dut.MSG_LEN_1.value)
@@ -142,14 +140,12 @@ async def test_simple_t1(dut):
 
     # Validation
     expected_bit_count = ceil(msg_len / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -157,7 +153,7 @@ async def test_simple_t1(dut):
 @cocotb.test
 async def test_simple_t2(dut):
 
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     msg_type = 2
     msg_len = int(dut.MSG_LEN_2.value)
@@ -188,14 +184,12 @@ async def test_simple_t2(dut):
 
     # Validation
     expected_bit_count = ceil(msg_len / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -203,7 +197,7 @@ async def test_simple_t2(dut):
 @cocotb.test
 async def test_simple_t3(dut):
 
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     msg_type = 3
     msg_len = int(dut.MSG_LEN_3.value)
@@ -234,21 +228,19 @@ async def test_simple_t3(dut):
 
     # Validation
     expected_bit_count = ceil(msg_len / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
 
 @cocotb.test
 async def test_const_send(dut):
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -279,14 +271,12 @@ async def test_const_send(dut):
 
     # Validation
     expected_bit_count = ceil(int(dut.MSG_LEN_1.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -296,19 +286,17 @@ async def test_const_send(dut):
 
     # Validation (part 2)
     expected_bit_count = ceil(int(dut.MSG_LEN_3.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1 
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 @cocotb.test
 async def test_single_spaced_send(dut):
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -340,14 +328,12 @@ async def test_single_spaced_send(dut):
 
     # Validation
     expected_bit_count = ceil(int(dut.MSG_LEN_1.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -362,20 +348,18 @@ async def test_single_spaced_send(dut):
 
     # Validation (part 2)
     expected_bit_count = ceil(int(dut.MSG_LEN_3.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 @cocotb.test
 async def test_multi_spaced_send(dut):
 
-    NUM_PINS = len(dut.data_o)
+    NUM_PINS = len(dut.serial_o)
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -407,14 +391,12 @@ async def test_multi_spaced_send(dut):
 
     # Validation
     expected_bit_count = ceil(int(dut.MSG_LEN_0.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -432,14 +414,12 @@ async def test_multi_spaced_send(dut):
 
     # Validation (part 2)
     expected_bit_count = ceil(int(dut.MSG_LEN_2.value) / NUM_PINS) * NUM_PINS
-    expected_mask = 0
-    for _ in range(expected_bit_count):
-        expected_mask = (expected_mask << 1) + 1
+    expected_mask = 2 ** expected_bit_count -1
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 2, "Should be in DONE state"
+    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 
@@ -474,14 +454,14 @@ def tserializer_runner():
             always=True,
             build_args=build_args,
             waves=True,
-            build_dir=f"sim_build_{run_id}"
+            build_dir=f"sim_build_ts_{run_id}"
         )
 
         runner.test(
             hdl_toplevel=hdl_toplevel,
             test_module="test_tserializer",
             waves=True,
-            build_dir=f"sim_build_{run_id}"
+            build_dir=f"sim_build_ts_{run_id}"
         )
 
 if __name__ == "__main__":
