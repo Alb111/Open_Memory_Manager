@@ -44,6 +44,10 @@ class MemoryController:
     
     async def axi_handler(self, request: axi_request) -> axi_request:
 
+        
+        print("=== Directory to Memory ===")
+        print(request)
+
         self.log.debug(f"memory axi handler started")        
         # we get a valid mem request and handshake
         if request.mem_valid:
@@ -54,10 +58,13 @@ class MemoryController:
 
             # write 
             else:
+                print("did we even write")
                 await self.write(request.mem_addr, request.mem_wdata, request.mem_wstrb)
 
             # mark request as done
             request.mem_ready = True        
              
         self.log.debug(f"memory axi handler ended")        
+        print("=== Memory to Directory ===")
+        print(request)
         return request 

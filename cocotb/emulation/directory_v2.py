@@ -4,8 +4,11 @@ from dataclasses import dataclass
 # types
 from typing import (Optional, Dict, Callable, Awaitable)
 from msi_v2 import (MSIState, CoherenceCmd)
-from axi_request import (axi_and_coherence_request, axi_request)
+from axi_request_types import (axi_and_coherence_request, axi_request)
 from util import (axi_and_cohrenece_cmd_to_axi)
+
+# helper functions
+from util import axi_and_cohrenece_cmd_to_axi
 
 @dataclass
 class DirectoryEntry:
@@ -272,17 +275,18 @@ class DirectoryController:
         entry = self._entry(request.mem_addr)
 
         # read data from address
-        read_request: axi_request = axi_request(
-            mem_valid= True,
-            mem_instr= False,
-            mem_ready= False,
-            mem_addr= request.mem_addr,
-            mem_wdata= 0,
-            mem_wstrb= 0x00,
-            mem_rdata= 0
-        ) 
+        # write_request: axi_request = axi_request(
+        #     mem_valid= True,
+        #     mem_instr= False,
+        #     mem_ready= False,
+        #     mem_addr= request.mem_addr,
+        #     mem_wdata= 0,
+        #     mem_wstrb= 0x00,
+        #     mem_rdata= 0
+        # ) 
+        write_request: axi_request = axi_and_cohrenece_cmd_to_axi(request)
 
-        data: axi_request = await self.memory_axi_handler(read_request)
+        data: axi_request = await self.memory_axi_handler(write_request)
 
         # Case 1: INVALID - no cache has it
         if entry.state == MSIState.INVALID:
@@ -519,20 +523,24 @@ class DirectoryController:
             AXI response with data and mem_ready=True
         
        """
-        # Ignore invalid requests
+        # Ignore invalid requests         
+        print("=== Arbiter to Directory ===")
+        print(request)
+
         if not request.mem_valid:
             request.mem_ready = False
             return axi_and_cohrenece_cmd_to_axi(request)
 
-
-        return await self._handle_coherence(request)
+        x = await self._handle_coherence(request)
+        print("=== Directory to Arbiter ===")
+        print(x)
+        return x
 
         # # Route based on traffic type
         # if request.mem_instr:
         #     # Coherence command from cache
             
             
-
         # # Direct memory access (non-coherent)
         # if request.mem_wstrb == 0:
         #     # Memory read

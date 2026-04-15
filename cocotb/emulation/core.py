@@ -1,5 +1,5 @@
 from typing import Callable, Optional, Awaitable
-from axi_request import axi_request
+from axi_request_types import axi_request
 
 class Core:
 
@@ -37,6 +37,7 @@ class Core:
     
     # write functions
     async def write(self, addr_in: int, data_in: int, wstb_in: int) -> axi_request:
+
         write_request: axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -53,13 +54,13 @@ class Core:
     
     async def write_nothing(self) -> axi_request:
         write_request: axi_request = axi_request(
-            mem_valid= False,
+            mem_valid=False,
             mem_instr=False,
             mem_ready=False,
             mem_addr=0,
-            mem_wdata=0,
-            mem_wstrb=0,
-            mem_rdata=0
+            mem_wdata= 0,
+            mem_wstrb= 0b1111,
+            mem_rdata= 0
         ) 
       
         return await self.axi_send_and_recieve(write_request)

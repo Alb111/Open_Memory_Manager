@@ -99,8 +99,7 @@ class CacheController:
             mem_addr = addr,
             mem_wdata_or_msi_payload = payload,
             mem_wstrb = 0xF,  # All bytes valid
-            mem_rdata = 0,
-            coherence_cmd = cmd,
+            mem_rdata = 0,            coherence_cmd = cmd,
             core_id = self.core_id
         )
 
