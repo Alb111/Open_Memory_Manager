@@ -1,8 +1,7 @@
 # External 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # Data Types & Consts
-from math import degrees
 from typing import (Callable, Awaitable, Dict, List)
 from axi_request_types import (axi_and_coherence_request, axi_request)
 from msi_v2 import (MSIState, ProcessorEvent, SnoopEvent, CoherenceCmd, TransitionResult) 
@@ -110,6 +109,7 @@ class CacheController:
         return resp
 
     async def _send_dir_cmd_invalid(self) -> axi_request:
+
         req = axi_and_coherence_request(
             mem_valid=False,  # invalid = just a dummy to satisfy arbiter
             mem_ready=False,
@@ -121,9 +121,15 @@ class CacheController:
             coherence_cmd=CoherenceCmd.BUS_RD,
             core_id=self.core_id
         )
+
         return await self.arbiter_port(req)
 
     async def _handle_tag_mismatch(self, cache_line: CacheLine, request_addr: int) -> None:
+
+        # skip if cacheline invalid
+        if cache_line.state == MSIState.INVALID:
+            return
+
 
         # isolate tag
         bit_mask_to_isolate_tag: int = (1 << TAG_WIDTH) - 1
@@ -200,9 +206,10 @@ class CacheController:
 
         """
 
+
         if request.mem_valid == False:
+            print("invalid request")
             await self._send_dir_cmd_invalid() # need something to send to arbiter
-            print(request)
             return request
 
         line: CacheLine = self._line(request.mem_addr)
@@ -213,21 +220,21 @@ class CacheController:
         # Ask state machine: what do we do for a write in current state?
         tr: TransitionResult = on_processor_event(line.state, ProcessorEvent.PR_WR)
 
+        print("right before dir_resp")
+        print(request)
+
         # If we need exclusive access or need to fetch data
         if tr.issue_cmd is not None:
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
+            if dir_resp.mem_ready:
+                line.state = tr.next_state        
+                line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
         else:
             # cahce hit
             await self._send_dir_cmd_invalid() # need something to send to arbiter
             dir_resp: axi_request = request
             dir_resp.mem_ready = True
 
-        # Update state (will be MODIFIED after any write)
-        line.state = tr.next_state
-        
-        # Apply byte-level write to existing data
-        # This allows partial word updates (e.g., writing only 1 byte)
-        line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
         
         # Return updated data
         # request.mem_ready = True
@@ -351,12 +358,8 @@ class CacheController:
         """
         
         print("=== core to cache ===")
-        print(request)
 
-        # Ignore invalid requests
-        # if not request.mem_valid:
-        #     request.mem_ready = False
-        #     return request
+        print(request)
 
         # CPU memory traffic: read or write
         if request.mem_wstrb == 0:

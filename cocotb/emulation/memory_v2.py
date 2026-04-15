@@ -58,7 +58,6 @@ class MemoryController:
 
             # write 
             else:
-                print("did we even write")
                 await self.write(request.mem_addr, request.mem_wdata, request.mem_wstrb)
 
             # mark request as done
