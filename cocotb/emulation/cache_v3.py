@@ -157,9 +157,14 @@ class CacheController:
             a axi_request repsone with handshake complete (connected to core.py)
         """
 
+        if request.mem_valid == False:
+            print("invalid request")
+            await self._send_dir_cmd_invalid() # need something to send to arbiter
+            return request
+
         line: CacheLine = self._line(request.mem_addr)
-        print("this cache line for read")
-        print(line)
+        # print("this cache line for read")
+        # print(line)
 
         # check if tags match
         await self._handle_tag_mismatch(line, request.mem_addr)
@@ -172,11 +177,12 @@ class CacheController:
             # Fetch data from directory/memory and update cache line
             print("cache read miss")
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
-            line.data = dir_resp.mem_rdata
+            if dir_resp.mem_ready:
+                line.state = tr.next_state        
+                line.data = dir_resp.mem_rdata
 
         # we have data in cache so just pipe it straight through
         else:
-            print("cache read hit")
             request.mem_rdata = line.data
             request.mem_ready = True
             return request
@@ -185,8 +191,7 @@ class CacheController:
         # request.mem_ready = True
             
         # Update cache line state based on state machine result
-        line.state = tr.next_state
-        
+        # line.state = tr.next_state
         # Return data to CPU
         return dir_resp
 
@@ -218,8 +223,8 @@ class CacheController:
         # Ask state machine: what do we do for a write in current state?
         tr: TransitionResult = on_processor_event(line.state, ProcessorEvent.PR_WR)
 
-        print("right before dir_resp")
-        print(request)
+        # print("right before dir_resp")
+        # print(request)
 
         # If we need exclusive access or need to fetch data
         if tr.issue_cmd is not None:
