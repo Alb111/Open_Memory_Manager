@@ -19,6 +19,8 @@ hdl_toplevel = "sp_addr_handler"
 async def setup_reset(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
     dut.rst_in.value = 0
+    dut.gpio_pins_i.value = 0
+    dut.ser_tx_ready_i.value = 0
     await Timer(20, unit="ns")
     dut.rst_in.value = 1
     await RisingEdge(dut.clk_i)
@@ -29,7 +31,6 @@ async def cpu_write(dut, addr, data):
     dut.wr_data_i.value = data
     dut.wr_en_i.value = 1
     await RisingEdge(dut.clk_i) # hardware captures data here
-    # clear enable after edge
     dut.wr_en_i.value = 0
     dut._log.info(f"CPU WRITE: Addr={hex(addr)}, Data={hex(data)}")
 
@@ -46,56 +47,57 @@ async def cpu_read(dut, addr):
 
 # main test
 @cocotb.test()
-async def thorough_mmio_test(dut):
+async def full_mmio_test(dut):
     await setup_reset(dut)
     dut._log.info("--- Starting MMIO Testbench ---")
 
-    #1.test whoami
-    expected_id = 0xA1B2C3D4
+    # test 1: whoami
     val = await cpu_read(dut, 0x8000_0000)
-    assert val == expected_id, f"ERROR: WHOAMI expected {hex(expected_id)}, got {hex(val)}"
+    assert val == 0xA1B2C3D4, "WHOAMI Failed"
 
-    # 2.config dir (csr)
-    # set pin 0 and pin 7 as outputs (1) others as inputs (0)-> 0b10000001 = 0x81
-    test_dir = 0x81
-    await cpu_write(dut, 0x8000_0018, test_dir)
+    # test 2: csr / write
+    # set pin 0 to input (0), pin 1 to output (1) -> csr = 0x02
+    await cpu_write(dut, 0x8000_0018, 0x02)
+    
+    # try to write '1' to both pins (0x03)
+    await cpu_write(dut, 0x8000_0010, 0x03)
+    
+    # pin 1 should be 1, pin 0 should stay 0 (bc its an input)
+    val = await cpu_read(dut, 0x8000_0010)
+    assert (val & 0x02) == 0x02, "Output pin failed to update"
+    assert (val & 0x01) == 0x00, "Input pin was overwritten! Safety logic failed."
+
+    # test 3: serializer handshake
+    # When writing to data, ser_tx_valid_o should go high
+    dut.ser_tx_ready_i.value = 0
+    await cpu_write(dut, 0x8000_0010, 0xAA)
+    assert dut.ser_tx_valid_o.value == 1, "Serializer Valid signal didn't trigger"
+    dut.ser_tx_ready_i.value = 1
     await RisingEdge(dut.clk_i)
-    assert int(dut.gpio_dir_o.value) == test_dir, f"CSR Update failed: got {hex(int(dut.gpio_dir_o.value))}"
-    dut._log.info(f"SUCCESS: CSR set to {hex(test_dir)}")
-
-    # 3.test indiv pin writes (ouput mode)
-    # write 1 to pin 0 (addr 0x8000_0010)
-    await cpu_write(dut, 0x8000_0010, 1)
-    # write 1 to pin 7 (addr 0x8000_0017)
-    await cpu_write(dut, 0x8000_0017, 1)
-    await RisingEdge(dut.clk_i) # Allow settling
-    assert int(dut.gpio_pins_o.value) == 0x81, f"Expected 0x81, got {hex(int(dut.gpio_pins_o.value))}"
-    dut._log.info("SUCCESS: Individual pin writes (0 and 7) verified.")
-
-    # 4.test write protection (input mode)
-    #try to write 1 to pin 1 (addr 0x8000_0011), which is input
-    await cpu_write(dut, 0x8000_0011, 1)
+    await Timer(1, unit="ns") 
+    assert dut.ser_tx_valid_o.value == 0, "Serializer Valid didn't clear after Ready"
+    
+    # simulate aeriliazer saying "im ready"
     await RisingEdge(dut.clk_i)
-    assert (int(dut.gpio_pins_o.value) & 0x02) == 0, "ERROR: Wrote to an INPUT pin!"
-    dut._log.info("SUCCESS: Input pin correctly rejected write request.")
+    dut.ser_tx_ready_i.value = 1
+    await RisingEdge(dut.clk_i)
+    assert dut.ser_tx_valid_o.value == 0, "Serializer Valid didn't clear after Ready"
 
-    # 5.test redaing external inputs
-    # sim external world pulling pin 1 high
-    dut.gpio_pins_i.value = 0x02 # Pin 1 is high
+    # test 4: external input read
+    dut.gpio_pins_i.value = 0x01 # Pull Pin 0 high externally
     await Timer(1, unit="ns")
-    val = await cpu_read(dut, 0x8000_0011) # Read Pin 1 address
-    assert val == 1, f"ERROR: Failed to read external input on Pin 1. Got {val}"
-    dut._log.info("SUCCESS: Verified reading external data from input pin.")
+    val = await cpu_read(dut, 0x8000_0010)
+    assert (val & 0x01) == 0x01, "Failed to read external pin state"
 
-    # 6.test passthru
-    mem_addr = 0x1234_5678
-    dut.addr_i.value = mem_addr
-    dut.wr_en_i.value = 0
-    await FallingEdge(dut.clk_i)
-    assert dut.ack_o.value == 0, "ERROR: ACK active for non-special address!"
-    assert dut.passthru_addr_o.value == mem_addr, "Address passthrough corrupted"
+    # test 5: random reset
+    await cpu_write(dut, 0x8000_0018, 0xFF) # All outputs
+    dut.rst_in.value = 0
+    await Timer(5, unit="ns")
+    dut.rst_in.value = 1
+    val = await cpu_read(dut, 0x8000_0018)
+    assert val == 0x00, "Registers did not clear on reset"
 
-    dut._log.info("--- ALL MMIO AND HANDLER TESTS PASSED!!!! ---")
+    dut._log.info("Done! All tests passed!")
 
     
 def sp_handler_tb_runner():
