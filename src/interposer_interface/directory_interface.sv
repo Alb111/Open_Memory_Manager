@@ -5,6 +5,9 @@ module directory_interface #(
     parameter int MAX_MSG_LEN = 68
 )
 (
+    input  logic                clk_i
+    input  logic                rst_ni
+
     // axi packet
     output logic                mem_valid,
     input  logic                mem_ready,

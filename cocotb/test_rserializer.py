@@ -25,13 +25,13 @@ async def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def reset_dut(dut):
-    dut.rst_n.value = 0
+    dut.rst_ni.value = 0
     dut.ready_i.value = 0
     dut.serial_i.value = 0
     dut.req_i.value = 0
     await Timer(50, unit="ns")
     await FallingEdge(dut.clk_i)
-    dut.rst_n.value = 1
+    dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
 
 class CycleCounter:
@@ -59,19 +59,157 @@ def bstr_to_grouped_list(bstr : int, group_size : int, group_cnt : int):
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
 @cocotb.test
-async def test_simple(dut):
+async def test_single(dut):
 
     NUM_PINS = int(dut.NUM_PINS.value)
     MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
 
     logger = logging.getLogger("cocotb.test")
+    msg_lens = {1,2,4,12,36,68}
+    
+    for msg_len in msg_lens:
+        await start_clock(dut)
+        await reset_dut(dut)
 
+        # Prepare signals
+        await FallingEdge(dut.clk_i)
+        test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
+        
+        dut.req_i.value = 1
+
+        serial_list = bstr_to_grouped_list(
+            bstr=test_data,
+            group_size=NUM_PINS,
+            group_cnt= ceil(MAX_MSG_LEN / NUM_PINS)
+        )
+        
+        msg_cycles = ceil(msg_len / NUM_PINS)
+
+        for i in range(msg_cycles-1, -1, -1):
+            dut.serial_i.value = serial_list[i]
+            await FallingEdge(dut.clk_i)
+        
+        dut.req_i.value = 0
+
+        await RisingEdge(dut.clk_i)
+        await FallingEdge(dut.clk_i)
+
+        mask = 2 ** msg_len - 1
+        data = int(dut.data_o.value) & mask
+        expected = test_data & mask
+        logger.info(f"Captured Message: {hex(data)}, Expected Message Length: {msg_len}")
+        assert data == expected, f"Expected data {hex(expected)}, got {hex(data)}, whole data: {hex(dut.data_o.value)}"
+        assert int(dut.valid_o.value) == 1, f"valid_o not high after tranmission finished"
+
+        await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_const_send(dut):
+
+    NUM_PINS = int(dut.NUM_PINS.value)
+    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+
+    logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
     await reset_dut(dut)
 
-    # Prepare signals
+    msg_lens = {1,2,4,12,36,68}
+
     await FallingEdge(dut.clk_i)
-    test_data = 0x123ABCDEFDEADBEEA # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
+    for msg_len in msg_lens:
+
+        # Prepare signals
+        test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
+        
+        dut.req_i.value = 1
+
+        serial_list = bstr_to_grouped_list(
+            bstr=test_data,
+            group_size=NUM_PINS,
+            group_cnt= ceil(MAX_MSG_LEN / NUM_PINS)
+        )
+        
+        msg_cycles = ceil(msg_len / NUM_PINS)
+
+        for i in range(msg_cycles-1, -1, -1):
+            dut.serial_i.value = serial_list[i]
+            await FallingEdge(dut.clk_i)
+        
+        dut.req_i.value = 0
+
+        await RisingEdge(dut.clk_i)
+        await FallingEdge(dut.clk_i)
+
+        mask = 2 ** msg_len - 1
+        data = int(dut.data_o.value) & mask
+        expected = test_data & mask
+        logger.info(f"Captured Message: {hex(data)}, Expected Message Length: {msg_len}")
+        assert data == expected, f"Expected data {hex(expected)}, got {hex(data)}, whole data: {hex(dut.data_o.value)}"
+        assert int(dut.valid_o.value) == 1, f"valid_o not high after tranmission finished"
+
+@cocotb.test
+async def test_delayed_send(dut):
+
+    NUM_PINS = int(dut.NUM_PINS.value)
+    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+
+    logger = logging.getLogger("cocotb.test")
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    msg_lens = {1,2,4,12,36,68}
+
+    await FallingEdge(dut.clk_i)
+    for msg_len in msg_lens:
+
+        for _ in range(10):
+            await FallingEdge(dut.clk_i)
+
+        # Prepare signals
+        test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
+        
+        dut.req_i.value = 1
+
+        serial_list = bstr_to_grouped_list(
+            bstr=test_data,
+            group_size=NUM_PINS,
+            group_cnt= ceil(MAX_MSG_LEN / NUM_PINS)
+        )
+        
+        msg_cycles = ceil(msg_len / NUM_PINS)
+
+        for i in range(msg_cycles-1, -1, -1):
+            dut.serial_i.value = serial_list[i]
+            await FallingEdge(dut.clk_i)
+        
+        dut.req_i.value = 0
+
+        await RisingEdge(dut.clk_i)
+        await FallingEdge(dut.clk_i)
+
+        mask = 2 ** msg_len - 1
+        data = int(dut.data_o.value) & mask
+        expected = test_data & mask
+        logger.info(f"Captured Message: {hex(data)}, Expected Message Length: {msg_len}")
+        assert data == expected, f"Expected data {hex(expected)}, got {hex(data)}, whole data: {hex(dut.data_o.value)}"
+        assert int(dut.valid_o.value) == 1, f"valid_o not high after tranmission finished"
+
+@cocotb.test
+async def test_valid_o_single(dut):
+
+    NUM_PINS = int(dut.NUM_PINS.value)
+    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+
+    logger = logging.getLogger("cocotb.test")
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    assert dut.valid_o.value == 0, "valid_o, should be low before message sent"
+
+    await FallingEdge(dut.clk_i)
+    # Prepare signals
+    msg_len = 12
+    test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
     
     dut.req_i.value = 1
 
@@ -80,12 +218,14 @@ async def test_simple(dut):
         group_size=NUM_PINS,
         group_cnt= ceil(MAX_MSG_LEN / NUM_PINS)
     )
+    
+    msg_cycles = ceil(msg_len / NUM_PINS)
 
-    msg_len = 4
-
-    for i in range(msg_len-1, -1, -1):
+    for i in range(msg_cycles-1, -1, -1):
         dut.serial_i.value = serial_list[i]
         await FallingEdge(dut.clk_i)
+        assert dut.valid_o.value == 0, "valid_o, should be low while message being received"
+
     
     dut.req_i.value = 0
 
@@ -95,9 +235,66 @@ async def test_simple(dut):
     mask = 2 ** msg_len - 1
     data = int(dut.data_o.value) & mask
     expected = test_data & mask
+    logger.info(f"Captured Message: {hex(data)}, Expected Message Length: {msg_len}")
     assert data == expected, f"Expected data {hex(expected)}, got {hex(data)}, whole data: {hex(dut.data_o.value)}"
     assert int(dut.valid_o.value) == 1, f"valid_o not high after tranmission finished"
 
+    dut.ready_i.value = 1
+
+    await RisingEdge(dut.clk_i)
+    await FallingEdge(dut.clk_i)
+    assert dut.valid_o.value == 0, "valid_o, should be high after ready-valid handshake"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_valid_o_new_msg(dut):
+    
+    NUM_PINS = int(dut.NUM_PINS.value)
+    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+
+    logger = logging.getLogger("cocotb.test")
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    assert dut.valid_o.value == 0, "valid_o, should be low before message sent"
+
+    await FallingEdge(dut.clk_i)
+    # Prepare signals
+    msg_lens = {12, 36}
+    
+    for msg_len in msg_lens:
+        test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
+        
+        dut.req_i.value = 1
+
+        serial_list = bstr_to_grouped_list(
+            bstr=test_data,
+            group_size=NUM_PINS,
+            group_cnt= ceil(MAX_MSG_LEN / NUM_PINS)
+        )
+        
+        msg_cycles = ceil(msg_len / NUM_PINS)
+
+        for i in range(msg_cycles-1, -1, -1):
+            dut.serial_i.value = serial_list[i]
+            await FallingEdge(dut.clk_i)
+            assert dut.valid_o.value == 0, "valid_o, should be low while message being received"
+
+        
+        dut.req_i.value = 0
+
+        await RisingEdge(dut.clk_i)
+        await FallingEdge(dut.clk_i)
+
+        mask = 2 ** msg_len - 1
+        data = int(dut.data_o.value) & mask
+        expected = test_data & mask
+        logger.info(f"Captured Message: {hex(data)}, Expected Message Length: {msg_len}")
+        assert data == expected, f"Expected data {hex(expected)}, got {hex(data)}, whole data: {hex(dut.data_o.value)}"
+        assert int(dut.valid_o.value) == 1, f"valid_o not high after tranmission finished"
+
+        await FallingEdge(dut.clk_i)
     await RisingEdge(dut.clk_i)
 
 
