@@ -147,7 +147,7 @@ class DirectoryController:
             mem_instr = False,  # this is coherence traffic
             mem_addr = addr,
             mem_wdata_or_msi_payload = 0,
-            mem_wstrb = 0xF,
+            mem_wstrb = 0x0,
             mem_rdata = 0,
             coherence_cmd = snoop_cmd,
             core_id = requester
@@ -275,22 +275,21 @@ class DirectoryController:
         entry = self._entry(request.mem_addr)
 
         # read data from address
-        # write_request: axi_request = axi_request(
-        #     mem_valid= True,
-        #     mem_instr= False,
-        #     mem_ready= False,
-        #     mem_addr= request.mem_addr,
-        #     mem_wdata= 0,
-        #     mem_wstrb= 0x00,
-        #     mem_rdata= 0
-        # ) 
-        write_request: axi_request = axi_and_cohrenece_cmd_to_axi(request)
+        read_request: axi_request = axi_request(
+            mem_valid= True,
+            mem_instr= False,
+            mem_ready= False,
+            mem_addr= request.mem_addr,
+            mem_wdata= 0,
+            mem_wstrb= 0x00,
+            mem_rdata= 0
+        ) 
 
-        data: axi_request = await self.memory_axi_handler(write_request)
-
+        # write_request: axi_request = axi_and_cohrenece_cmd_to_axi(request)
         # Case 1: INVALID - no cache has it
         if entry.state == MSIState.INVALID:
             # Grant exclusive access
+            data: axi_request = await self.memory_axi_handler(read_request)
             entry.state = MSIState.MODIFIED
             entry.sharers = 1 << request.core_id
             return data 
@@ -302,6 +301,7 @@ class DirectoryController:
                 if c != request.core_id and ((entry.sharers >> c) & 1):
                     # Send invalidation
                     _ = self._send_snoop(c, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)
+            data: axi_request = await self.memory_axi_handler(read_request)
             
             # Grant exclusive access
             entry.state = MSIState.MODIFIED
@@ -312,7 +312,7 @@ class DirectoryController:
         owner = entry.owner()
         if owner is not None and owner != request.core_id:
             # Get dirty data from owner
-            flushed = (await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)).mem_rdata
+            flushed = await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)
             
             # Update memory
             write_request: axi_request = axi_request(
@@ -320,19 +320,26 @@ class DirectoryController:
                 mem_instr= False,
                 mem_ready= False,
                 mem_addr= request.mem_addr,
-                mem_wdata= flushed,
+                mem_wdata= flushed.mem_rdata,
                 mem_wstrb= 0x0f,
-                mem_rdata=0
+                mem_rdata= 0
             ) 
+
             await self.memory_axi_handler(write_request)
 
-        # Grant exclusive access to requester
-        entry.state = MSIState.MODIFIED
-        entry.sharers = 1 << request.core_id
-        return data
+            data: axi_request = axi_and_cohrenece_cmd_to_axi(flushed)
+            # Grant exclusive access to requester
+            entry.state = MSIState.MODIFIED
+            entry.sharers = 1 << request.core_id
+            return data
 
+        
+        # lsp mad so i put this here
+        print("this shouldnt have got hit")
+        return axi_request(False, False, False, 0, 0, 0, 0)
 
     async def _bus_upgr(self, request: axi_and_coherence_request) -> axi_request:
+
         """
         Handle BUS_UPGR request (upgrade from SHARED to MODIFIED).
         

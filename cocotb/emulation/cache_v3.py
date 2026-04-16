@@ -130,7 +130,6 @@ class CacheController:
         if cache_line.state == MSIState.INVALID:
             return
 
-
         # isolate tag
         bit_mask_to_isolate_tag: int = (1 << TAG_WIDTH) - 1
         request_addr_tag: int = (request_addr) >> (OFFSET_WIDTH + INDEX_WIDTH) & bit_mask_to_isolate_tag
@@ -205,7 +204,6 @@ class CacheController:
             ie mem_ready and valid are both high         
 
         """
-
 
         if request.mem_valid == False:
             print("invalid request")
@@ -417,8 +415,6 @@ class CacheController:
     def flush_all(self) -> None:
         for line in self.lines:
             line.state = MSIState.INVALID
-
-
 
 
 

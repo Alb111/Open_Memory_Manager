@@ -26,7 +26,7 @@ class MemoryController:
 
     async def write(self, address: int, data: int, write_strobe: int) -> None:
 
-        self.log.debug(f"write addr={address:#010x} with {data:#010x}")
+        self.log.debug(f"write addr={address} with {data}")
         # address not in physical address spcae
         if address > self.max_address:
             self.log.error("write err: address out of range, wrote nothing")

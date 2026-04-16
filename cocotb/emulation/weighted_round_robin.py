@@ -48,6 +48,7 @@ class WeightedRoundRobinArbiter:
         self.lock_to_wait_for_all_cores = asyncio.Lock()
         self.all_arrived = asyncio.Event()
         self.arbitation_done = asyncio.Event()
+        self.no_request: bool = False
 
         # request flags
         self.request_id: int = -1         
@@ -78,6 +79,7 @@ class WeightedRoundRobinArbiter:
         # will be done by a verilog module
         async with self.lock_to_wait_for_all_cores:
             if request_axi.core_id == 0:
+                self.no_request = False
                 # build requests arr from axi_arr
                 requests_in: List[int] = [] 
                 for axi_request in self.cores_axi_requsts:
@@ -91,10 +93,17 @@ class WeightedRoundRobinArbiter:
                 requests_out: List[int] = self.arbitrate(requests_in)
 
                 # find core to let through
-                self.request_id = requests_out.index(1)
+                try:
+                    self.request_id = requests_out.index(1)
+                except ValueError:
+                    self.no_request = True
+
                 self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
+
+        if self.no_request:
+            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(request_axi) 
 
         # let each core through one by one to check if it got its turn
         curr_core_axi_packet_temp: Optional[axi_and_coherence_request] = self.cores_axi_requsts[request_axi.core_id]
