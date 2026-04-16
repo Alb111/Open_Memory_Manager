@@ -13,7 +13,7 @@ module tserializer #(
 
     // data interface
     input  logic                   valid_i, 
-    input  logic [int'($ceil(real'(MAX_MSG_LEN) / int'(NUM_PINS)) * int'(NUM_PINS)) - 1:0] data_in,
+    input  logic [int'($ceil(real'(MAX_MSG_LEN) / NUM_PINS) * NUM_PINS) - 1:0] data_in,
     input  logic [1:0]             msg_type,
     output logic                   ready_o,
 
