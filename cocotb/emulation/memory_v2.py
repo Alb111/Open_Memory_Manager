@@ -44,7 +44,6 @@ class MemoryController:
     
     async def axi_handler(self, request: axi_request) -> axi_request:
 
-        
         print("=== Directory to Memory ===")
         print(request)
 

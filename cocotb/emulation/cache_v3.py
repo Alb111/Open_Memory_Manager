@@ -183,6 +183,7 @@ class CacheController:
 
         # we have data in cache so just pipe it straight through
         else:
+            await self._send_dir_cmd_invalid() # need something to send to arbiter
             request.mem_rdata = line.data
             request.mem_ready = True
             return request
@@ -226,22 +227,27 @@ class CacheController:
         # print("right before dir_resp")
         # print(request)
 
+        cache_rsp: axi_request = request
         # If we need exclusive access or need to fetch data
         if tr.issue_cmd is not None:
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
             if dir_resp.mem_ready:
-                line.state = tr.next_state        
+                line.state = tr.next_state
+                # 1. Fill the line with data from memory
+                if dir_resp.mem_rdata is not None:
+                    line.data = dir_resp.mem_rdata        
+                # 2. Apply the CPU's specific byte updates
                 line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
+                cache_rsp.mem_ready = dir_resp.mem_ready
         else:
             # cahce hit
             await self._send_dir_cmd_invalid() # need something to send to arbiter
-            dir_resp: axi_request = request
-            dir_resp.mem_ready = True
+            line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
+            cache_rsp.mem_ready = True
 
-        
         # Return updated data
         # request.mem_ready = True
-        return dir_resp
+        return cache_rsp
 
     
     def _handle_snoop(self, request: axi_and_coherence_request) -> axi_and_coherence_request:

@@ -71,7 +71,7 @@ class CPU:
         if valid_testcase:
             return await self.cores[core_id].read(test_case_in.data_addr)
         else:
-            return await self.cores[core_id].read_nothing()
+            return await self.cores[core_id].write_nothing()
               
     def print_caches(self)->None:
         print("=" * 70)
@@ -88,8 +88,61 @@ class CPU:
         for i in range(self.num_cores):
             self.caches[i].flush_all()
 
-    
+
+
     async def start_sim(self):
+
+        print("=" * 70)
+        print("Starting CPU Simulation")
+        print("=" * 70)
+
+    
+        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        while any(core_workloads_copy):
+
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+                else:
+                    valid_testcase: bool = False
+                    core_testcase: test_case = test_case(-1, -1, 0)           
+                    
+
+                if core_testcase.wstb == 0:    
+                    print("hello bert")
+                    tasks.append(
+                        asyncio.create_task(
+                            self.core_worker_read(core_id, core_testcase, valid_testcase),
+                            name=f"Core-{core_id}"
+                        )
+                    )
+                else:
+                    tasks.append(
+                        asyncio.create_task(
+                            self.core_worker_write(core_id, core_testcase, valid_testcase),
+                            name=f"Core-{core_id}"
+                        )
+                    )
+
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+
+
+            print(cur_cycle_results)
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready and result.mem_valid:
+                    # print(core_workloads_copy)
+                    if result.mem_wstrb == 0:
+                        print(f"READ: data at {result.mem_addr} is {result.mem_rdata}")
+                    core_workloads_copy[index].pop() # <- im pop from empty list err here any idea                        
+
+
+
+    
+    async def start_sim_simple(self):
 
         print("=" * 70)
         print("Starting CPU Simulation")
@@ -139,7 +192,7 @@ class CPU:
                 if result.mem_ready and result.mem_valid:
                     print(cur_cycle_results)
                     print(core_workloads_copy)
-                    core_workloads_copy[index].pop() # <- im pop from empty list err here any idea                        
+                    core_workloads_copy[index].pop()                         
 
 
 
