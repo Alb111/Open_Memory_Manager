@@ -3,15 +3,16 @@ import logging
 
 # types
 from axi_request_types import axi_request
+from config import MAIN_MEM_SIZE_IN_WORDS
 
 BYTE_MASKS = [0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000]
 
 class MemoryController:
 
-    def __init__(self, num_srams: int) -> None:
+    def __init__(self) -> None:
         self.sram: dict[int, int] = {}
         self.log = logging.getLogger(__name__)
-        self.max_address: int = (1 << num_srams) - 1
+        self.max_address: int = MAIN_MEM_SIZE_IN_WORDS        
 
     # read address, if not in address spcae return 0        
     async def read(self, address: int) -> int:
@@ -29,7 +30,7 @@ class MemoryController:
         self.log.debug(f"write addr={address} with {data}")
         # address not in physical address spcae
         if address > self.max_address:
-            self.log.error("write err: address out of range, wrote nothing")
+            self.log.error(f"write err: address out of range, wrote nothing max address is {self.max_address}")
             return
 
         # assemble word to write based on bit mask
@@ -66,3 +67,10 @@ class MemoryController:
         print("=== Memory to Directory ===")
         print(request)
         return request 
+
+    def direct_memory_acess(self, addr: int) -> int:
+        found_val: int = self.sram.get(addr, 0)
+        print("=== DMA ACESS ===")
+        print(f"found val {found_val} at addr {addr}")
+        return found_val
+        

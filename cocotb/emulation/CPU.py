@@ -26,7 +26,7 @@ class CPU:
     def __init__(self, size: int, test_cases: List[test_case]) -> None:
 
         # setup memory 
-        self.memory: MemoryController = MemoryController(4)
+        self.memory: MemoryController = MemoryController()
 
         # setup directory
         self.directory: DirectoryController = DirectoryController(size, self.memory.axi_handler)
@@ -89,6 +89,8 @@ class CPU:
             self.caches[i].flush_all()
 
 
+    def dma(self, addr: int) -> int:
+        return self.memory.direct_memory_acess(addr)
 
     async def start_sim(self):
 
@@ -112,7 +114,6 @@ class CPU:
                     
 
                 if core_testcase.wstb == 0:    
-                    print("hello bert")
                     tasks.append(
                         asyncio.create_task(
                             self.core_worker_read(core_id, core_testcase, valid_testcase),
@@ -131,13 +132,15 @@ class CPU:
             cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
 
 
-            print(cur_cycle_results)
+            # print(cur_cycle_results)
             for index, result in enumerate(cur_cycle_results):
                 if result.mem_ready and result.mem_valid:
-                    # print(core_workloads_copy)
+                    print(core_workloads_copy)
                     if result.mem_wstrb == 0:
                         print(f"READ: data at {result.mem_addr} is {result.mem_rdata}")
                     core_workloads_copy[index].pop() # <- im pop from empty list err here any idea                        
+
+        # self.print_caches()
 
 
 
