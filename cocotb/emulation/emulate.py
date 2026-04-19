@@ -80,11 +80,44 @@ async def simple(): # write and then read
     # await the async method
     x = await to_the_moon.start_sim()
 
+async def false_sharing():  # two cores write different addrs mapping to same cache index
+    testcases = [
+        test_case(0x00, 0xAAAA, 0b1111),  # Core 0: Write addr 0
+        test_case(0x10, 0xBBBB, 0b1111),  # Core 1: Write addr 16
+        test_case(0x10, 0x0000, 0b0000),  # Core 0: Read addr 16 (different addr, same index)
+        test_case(0x00, 0x0000, 0b0000),  # Core 1: Read addr 0
+    ]
+    to_the_moon: CPU = CPU(2, testcases)
+    x = await to_the_moon.start_sim()
+
+async def upgrade_contention():  # both cores try to upgrade from SHARED simultaneously
+    testcases = [
+        test_case(0x10, 0x0000, 0b0000),  # Core 0: Read (SHARED)
+        test_case(0x10, 0x0000, 0b0000),  # Core 1: Read (SHARED)
+        test_case(0x10, 0xAAAA, 0b1111),  # Core 0: Write (BUS_UPGR)
+        test_case(0x10, 0xBBBB, 0b1111),  # Core 1: Write (BUS_UPGR - only one can win)
+    ]
+    to_the_moon: CPU = CPU(2, testcases)
+    x = await to_the_moon.start_sim()
+
+async def read_your_own_write():  # write then immediately read from same core
+    testcases = [
+        test_case(0x10, 0x0000, 0b0000),  # Core 1: Idle
+        test_case(0x10, 0xDEAD, 0b1111),  # Core 0: Write
+        test_case(0x10, 0x0000, 0b0000),  # Core 1: Idle
+        test_case(0x10, 0x0000, 0b0000),  # Core 0: Read (should get 0xDEAD)
+    ]
+    to_the_moon: CPU = CPU(2, testcases)
+    x = await to_the_moon.start_sim()
+
 async def main():
     # await simple()
     # await contention()
     # await dirty_snooping()
-    await write_after_read_test()
+    # await write_after_read_test()
+    # await false_sharing()
+    # await upgrade_contention()
+    await read_your_own_write()
 
 # run the async main
 asyncio.run(main())
