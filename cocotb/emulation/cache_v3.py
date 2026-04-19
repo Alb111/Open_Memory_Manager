@@ -294,7 +294,9 @@ class CacheController:
         request.mem_wdata_or_msi_payload = line.data if tr.flush else 0
         
         # Update state (may invalidate or downgrade to SHARED)
+        print(f" line state before snoop is {line.state}")
         line.state = tr.next_state
+        print(f" line state after snoop is {line.state}")
         
         # Return flush data to directory
         request.mem_ready = True

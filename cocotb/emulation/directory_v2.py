@@ -203,7 +203,8 @@ class DirectoryController:
         if owner is not None and owner != request.core_id:
 
             # Snoop owner to get dirty data
-            flushed = (await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RD, request.core_id)).mem_rdata
+            # flushed = (await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RD, request.core_id)).mem_rdata
+            flushed = (await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RD, request.core_id)).mem_wdata_or_msi_payload
             
             # Update memory with flushed data
             write_request: axi_request = axi_request(
@@ -273,6 +274,7 @@ class DirectoryController:
 
         """
         entry = self._entry(request.mem_addr)
+        print(f"entry state is {entry.state} owner is {entry.owner} shares are {entry.sharers}")
 
         # read data from address
         read_request: axi_request = axi_request(
@@ -289,7 +291,7 @@ class DirectoryController:
         # Case 1: INVALID - no cache has it
         if entry.state == MSIState.INVALID:
             # Grant exclusive access
-            data: axi_request = await self.memory_axi_handler(read_request)
+            data: axi_request = await self.memory_axi_handler(read_request) # Bug here maybe, why am i reading shouldnt i write
             entry.state = MSIState.MODIFIED
             entry.sharers = 1 << request.core_id
             return data 
@@ -301,7 +303,7 @@ class DirectoryController:
                 if c != request.core_id and ((entry.sharers >> c) & 1):
                     # Send invalidation
                     _ = await self._send_snoop(c, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)
-            data: axi_request = await self.memory_axi_handler(read_request)
+            data: axi_request = await self.memory_axi_handler(read_request) # bug here maybe, why am i reading should i wirte
             
             # Grant exclusive access
             entry.state = MSIState.MODIFIED
@@ -311,6 +313,7 @@ class DirectoryController:
         # Case 3: MODIFIED - transfer ownership
         owner = entry.owner()
         if owner is not None and owner != request.core_id:
+            print("is snoop called")
             # Get dirty data from owner
             flushed = await self._send_snoop(owner, request.mem_addr, CoherenceCmd.SNOOP_BUS_RDX, request.core_id)
             

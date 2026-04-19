@@ -11,12 +11,11 @@ from CPU import CPU
 
 async def write_after_read_test(): # invalid to shared to modified
     testcases = [
+        test_case(0x10, 0x0000, 0b0000), # Core 1: Read
+        test_case(0x10, 0x0000, 0b0000), # Core 0: Read
 
         test_case(0x10, 0x0000, 0b0000), # Core 1: Read (Must fetch C0's new data)
         test_case(0x10, 0xAAAA, 0b1111), # Core 0: Write (Forces C1 to Invalid)
-
-        test_case(0x10, 0x0000, 0b0000), # Core 1: Read
-        test_case(0x10, 0x0000, 0b0000), # Core 0: Read
     ]
 
     # create CPU
@@ -26,19 +25,21 @@ async def write_after_read_test(): # invalid to shared to modified
     x = await to_the_moon.start_sim()
 
 
-# async def dirty_snooping(): # modified to shared
-#     testcases = [
-#         test_case(0x20, 0xDEAD, 0b1111), # Core 0: Write (Modified)
-#         test_case(0x00, 0x0000, 0b0000), # Core 1: Idle
+async def dirty_snooping(): # modified to shared
+    testcases = [
 
-#         test_case(0x20, 0x0000, 0b0000)  # Core 1: Read (Forces C0: M -> S)
-#     ]
+        test_case(0x20, 0x0000, 0b0000),  # Core 1: Read (Forces C0: M -> S)
+        test_case(0x00, 0x0000, 0b0000), # Core 0: Idle
 
-#     # create CPU
-#     to_the_moon: CPU = CPU(2, testcases)
+        test_case(0x20, 0xDEAD, 0b1111), # Core 0: Write (Modified)
+        test_case(0x00, 0x0000, 0b0000), # Core 1: Idle
+    ]
 
-#     # await the async method
-#     x = await to_the_moon.start_sim()
+    # create CPU
+    to_the_moon: CPU = CPU(2, testcases)
+
+    # await the async method
+    x = await to_the_moon.start_sim()
 
 async def contention(): # two core fight for same memory addr
     testcases = [
@@ -54,6 +55,7 @@ async def contention(): # two core fight for same memory addr
 
     ]
 
+    
     # create CPU
     to_the_moon: CPU = CPU(2, testcases)
 
@@ -62,7 +64,7 @@ async def contention(): # two core fight for same memory addr
     
     # print("hello are u here")
     # print(to_the_moon.dma(0x20))
-    to_the_moon.dma(0x20)
+    to_the_moon.dma(30)
 
 
 async def simple(): # write and then read
@@ -79,10 +81,10 @@ async def simple(): # write and then read
     x = await to_the_moon.start_sim()
 
 async def main():
-    await simple()
+    # await simple()
     # await contention()
     # await dirty_snooping()
-    # await write_after_read_test()
+    await write_after_read_test()
 
 # run the async main
 asyncio.run(main())

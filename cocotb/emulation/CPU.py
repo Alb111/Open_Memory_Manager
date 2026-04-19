@@ -132,13 +132,18 @@ class CPU:
             cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
 
 
-            # print(cur_cycle_results)
+
+            print("=== Current Cycle Copy ===")
+            print(cur_cycle_results)
+
             for index, result in enumerate(cur_cycle_results):
                 if result.mem_ready and result.mem_valid:
-                    print(core_workloads_copy)
                     if result.mem_wstrb == 0:
                         print(f"READ: data at {result.mem_addr} is {result.mem_rdata}")
                     core_workloads_copy[index].pop() # <- im pop from empty list err here any idea                        
+
+            print("=== Workload Copy ===")
+            print(core_workloads_copy)
 
         # self.print_caches()
 
