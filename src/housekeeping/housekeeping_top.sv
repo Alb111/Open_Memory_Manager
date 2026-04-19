@@ -1,9 +1,11 @@
+`timescale 1ns/1ps
+
 module housekeeping_top #(
    parameter BOOT_SIZE = 32,
    parameter SRAM_BASE_ADDR = 32'h0000_0000
 )(
    input logic clk_i,
-   input logic reset_i,
+   input logic reset_ni,
     
    // spi Flash pins
    output logic spi_sck_o,
@@ -38,7 +40,7 @@ module housekeeping_top #(
    // spi Engine
    spi_engine spi_master (
       .clk_i(clk_i),
-      .reset_i(reset_i || pass_thru_en_i),   //keep spi idle during pass thur
+      .reset_ni(reset_ni && !pass_thru_en_i),   //keep spi idle during pass thur
       .start_i(spi_start),
       .data_in_i(spi_data_out),
       .data_out_o(spi_data_in),
@@ -55,7 +57,7 @@ module housekeeping_top #(
       .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
    ) boot_controller (
       .clk_i(clk_i),
-      .reset_i(reset_i || pass_thru_en_i),   //fsm idle during pass thru
+      .reset_ni(reset_ni && !pass_thru_en_i),   //fsm idle during pass thru
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),

@@ -55,48 +55,45 @@ async def thorough_mmio_test(dut):
     val = await cpu_read(dut, 0x8000_0000)
     assert val == expected_id, f"ERROR: WHOAMI expected {hex(expected_id)}, got {hex(val)}"
 
-    #2. test data regs write & ouput pins
-    #write 0xA5 (10100101)
-    test_data = 0xA5
-    await cpu_write(dut, 0x8000_0010, test_data)
-    await RisingEdge(dut.clk_i)
-    assert dut.gpio_pins_o.value == test_data, f"ERROR: Pins expected {hex(test_data)}, got {hex(dut.gpio_pins_o.value)}"
-    dut._log.info(f"SUCCESS: Physical pins match data register: {hex(int(dut.gpio_pins_o.value))}")
-
-    #3.test data regs read back
-    # can cpu read back what it just wrote
-    val = await cpu_read(dut, 0x8000_0010)
-    assert val == test_data, f"ERROR: Readback failed. Wrote {hex(test_data)}, Read {hex(val)}"
-
-    #4.test CSR/ dir regs
-    # set alt pins as input/ouput (0x3C = 00111100)
-    test_dir = 0x3C
+    # 2.config dir (csr)
+    # set pin 0 and pin 7 as outputs (1) others as inputs (0)-> 0b10000001 = 0x81
+    test_dir = 0x81
     await cpu_write(dut, 0x8000_0018, test_dir)
-    val = await cpu_read(dut, 0x8000_0018)
-    assert val == test_dir, f"ERROR: CSR Readback failed. Expected {hex(test_dir)}, got {hex(val)}"
-    assert dut.gpio_dir_o.value == test_dir, "ERROR: Physical direction wires not updating"
+    await RisingEdge(dut.clk_i)
+    assert int(dut.gpio_dir_o.value) == test_dir, f"CSR Update failed: got {hex(int(dut.gpio_dir_o.value))}"
+    dut._log.info(f"SUCCESS: CSR set to {hex(test_dir)}")
 
-    #5. test input pins (outside world talking to the cpu)
-    # simulate a sensor pulling a pin high externally
-    dut.gpio_pins_i.value = 0xDB # 11011011
-    await Timer(10, unit="ns") 
-    val = await cpu_read(dut, 0x8000_0010)
+    # 3.test indiv pin writes (ouput mode)
+    # write 1 to pin 0 (addr 0x8000_0010)
+    await cpu_write(dut, 0x8000_0010, 1)
+    # write 1 to pin 7 (addr 0x8000_0017)
+    await cpu_write(dut, 0x8000_0017, 1)
+    await RisingEdge(dut.clk_i) # Allow settling
+    assert int(dut.gpio_pins_o.value) == 0x81, f"Expected 0x81, got {hex(int(dut.gpio_pins_o.value))}"
+    dut._log.info("SUCCESS: Individual pin writes (0 and 7) verified.")
 
+    # 4.test write protection (input mode)
+    #try to write 1 to pin 1 (addr 0x8000_0011), which is input
+    await cpu_write(dut, 0x8000_0011, 1)
+    await RisingEdge(dut.clk_i)
+    assert (int(dut.gpio_pins_o.value) & 0x02) == 0, "ERROR: Wrote to an INPUT pin!"
+    dut._log.info("SUCCESS: Input pin correctly rejected write request.")
 
-    #mmio currently returns the internal register
-    #if we wants to read the actual pin state,adjust RTL
+    # 5.test redaing external inputs
+    # sim external world pulling pin 1 high
+    dut.gpio_pins_i.value = 0x02 # Pin 1 is high
+    await Timer(1, unit="ns")
+    val = await cpu_read(dut, 0x8000_0011) # Read Pin 1 address
+    assert val == 1, f"ERROR: Failed to read external input on Pin 1. Got {val}"
+    dut._log.info("SUCCESS: Verified reading external data from input pin.")
 
-    dut._log.info(f"INPUT TEST: External pins set to {hex(0xDB)}")
-
-    #6.test passthru
-    # access memory addr that shouldnt trigger mmio
+    # 6.test passthru
     mem_addr = 0x1234_5678
     dut.addr_i.value = mem_addr
     dut.wr_en_i.value = 0
     await FallingEdge(dut.clk_i)
-    assert dut.ack_o.value == 0, "ERROR: ACK went high for a non-special address!"
-    assert dut.passthru_addr_o.value == mem_addr, "ERROR: Passthrough address corrupted"
-    dut._log.info(f"SUCCESS: Address {hex(mem_addr)} correctly passed through.")
+    assert dut.ack_o.value == 0, "ERROR: ACK active for non-special address!"
+    assert dut.passthru_addr_o.value == mem_addr, "Address passthrough corrupted"
 
     dut._log.info("--- ALL MMIO AND HANDLER TESTS PASSED!!!! ---")
 
