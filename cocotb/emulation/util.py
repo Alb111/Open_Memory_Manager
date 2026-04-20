@@ -1,4 +1,4 @@
-from axi_request_types import (axi_request, axi_and_coherence_request)
+from .axi_request_types import (axi_request, axi_and_coherence_request)
 
 def apply_wstrb(old_value: int, new_value: int, wstrb: int) -> int:
     """

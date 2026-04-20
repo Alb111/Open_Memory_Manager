@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from msi_v2 import CoherenceCmd
+from .msi_v2 import CoherenceCmd
 
 @dataclass
 class axi_request:
@@ -22,7 +22,7 @@ class axi_request:
     mem_ready: bool
 
     mem_addr: int
-    mem_wdata: int 
+    mem_wdata: int
     mem_wstrb: int
     mem_rdata: int
 
@@ -37,10 +37,7 @@ class axi_and_coherence_request:
     --------------------------------------------------------------------------------------
 
     Used for the following communications:
-        - cache controolers -> directory system    
-
-
-    
+        - cache controolers -> directory system
     """
 
     # basic axi stuff
@@ -49,7 +46,7 @@ class axi_and_coherence_request:
     mem_ready: bool
 
     mem_addr: int
-    mem_wdata_or_msi_payload: int 
+    mem_wdata_or_msi_payload: int
     mem_wstrb: int
     mem_rdata: int
 

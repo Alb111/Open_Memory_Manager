@@ -3,13 +3,13 @@ from dataclasses import dataclass
 
 # Data Types & Consts
 from typing import (Callable, Awaitable, Dict, List)
-from axi_request_types import (axi_and_coherence_request, axi_request)
-from msi_v2 import (MSIState, ProcessorEvent, SnoopEvent, CoherenceCmd, TransitionResult) 
-from config import ( OFFSET_WIDTH, INDEX_WIDTH, TAG_WIDTH, NUM_CACHE_LINES)
+from .axi_request_types import (axi_and_coherence_request, axi_request)
+from .msi_v2 import (MSIState, ProcessorEvent, SnoopEvent, CoherenceCmd, TransitionResult) 
+from .config import ( OFFSET_WIDTH, INDEX_WIDTH, TAG_WIDTH, NUM_CACHE_LINES)
 
 # Functions
-from msi_v2 import (on_processor_event, on_snoop_event)
-from util import (apply_wstrb)
+from .msi_v2 import (on_processor_event, on_snoop_event)
+from .util import (apply_wstrb)
 
 
 @dataclass
