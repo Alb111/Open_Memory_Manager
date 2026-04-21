@@ -2,7 +2,7 @@
 import asyncio
 
 # types
-from axi_request import (axi_request, axi_and_coherence_request)
+from axi_request_types import (axi_request, axi_and_coherence_request)
 from typing import List, Callable, Optional, Awaitable
 
 # functions
@@ -48,12 +48,16 @@ class WeightedRoundRobinArbiter:
         self.lock_to_wait_for_all_cores = asyncio.Lock()
         self.all_arrived = asyncio.Event()
         self.arbitation_done = asyncio.Event()
+        self.no_request: bool = False
 
         # request flags
         self.request_id: int = -1         
 
 
     async def axi_handler_arbiter(self, request_axi: axi_and_coherence_request) ->  axi_request:
+
+        print("=== cache to arbiter ===")
+        print(request_axi)
 
         # Wait all cores to sumbit something
         async with self.lock_to_wait_for_all_cores:          
@@ -75,6 +79,7 @@ class WeightedRoundRobinArbiter:
         # will be done by a verilog module
         async with self.lock_to_wait_for_all_cores:
             if request_axi.core_id == 0:
+                self.no_request = False
                 # build requests arr from axi_arr
                 requests_in: List[int] = [] 
                 for axi_request in self.cores_axi_requsts:
@@ -88,15 +93,20 @@ class WeightedRoundRobinArbiter:
                 requests_out: List[int] = self.arbitrate(requests_in)
 
                 # find core to let through
-                self.request_id = requests_out.index(1)
-                print(f"let {self.request_id} core through")
+                try:
+                    self.request_id = requests_out.index(1)
+                except ValueError:
+                    self.no_request = True
+
                 self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
 
+        if self.no_request:
+            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(request_axi) 
+
         # let each core through one by one to check if it got its turn
         curr_core_axi_packet_temp: Optional[axi_and_coherence_request] = self.cores_axi_requsts[request_axi.core_id]
-
 
         ## i need to spin here not send back invalid packet !!
         if curr_core_axi_packet_temp is not None:
@@ -104,11 +114,16 @@ class WeightedRoundRobinArbiter:
         else:
             raise TypeError("curr_core_axi_packet is None")
 
+
         # see if core was chosen by arbiter
         if request_axi.core_id == self.request_id:
+            # print(f"let {request_axi.core_id} core through")
             to_return: axi_request = await self.axi_send_and_recieve(curr_core_axi_packet)
         else:
-            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(curr_core_axi_packet) 
+            # print(f"didnt let {request_axi.core_id} core through")
+            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(request_axi) 
+            # print(to_return)
+
 
         # clean up
         async with self.lock_to_wait_for_all_cores:        
@@ -117,6 +132,12 @@ class WeightedRoundRobinArbiter:
                 self.all_arrived.clear()
                 self.arbitation_done.clear()
 
+
+        print("=== arbiter to cache ===")
+        print(to_return)
+
+        
+        # print(to_return)
         return to_return
 
         

@@ -1,3 +1,231 @@
+
+================================================================================
+# FILE: CPU.py
+================================================================================
+
+# external 
+import copy
+import asyncio
+
+# hardware emulators
+from core import Core
+from memory_v2 import MemoryController
+from weighted_round_robin import WeightedRoundRobinArbiter
+from cache_v3 import CacheController
+from directory_v2 import DirectoryController
+
+# types
+from axi_request_types import axi_request
+from testcase import test_case
+from typing import List, Optional
+
+
+class CPU: 
+    def __init__(self, size: int, test_cases: List[test_case]) -> None:
+
+        # setup memory 
+        self.memory: MemoryController = MemoryController(4)
+
+        # setup directory
+        self.directory: DirectoryController = DirectoryController(size, self.memory.axi_handler)
+
+        # setup arbiter
+        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1] * size, self.directory.axi_handler_for_arbiter)
+        
+        # setup caches
+        self.caches: List[CacheController] = [] 
+        for i in range(size):
+            cache_to_add: CacheController = CacheController(i, self.arbiter.axi_handler_arbiter)
+            self.caches.append(cache_to_add)
+            self.directory.register_cache(i, cache_to_add.axi_and_coherence_handler)
+
+        # num cores
+        self.num_cores: int = size
+        # state of those cores
+        self.finsihed_cores: int = 0
+
+        # arr of those cores
+        self.cores: List[Core] = []
+        for i in range(size):
+            self.cores.append(Core(i, self.caches[i].axi_handler_for_core))
+
+        # build work load for each of those cores
+        self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
+        for i in range(0, len(test_cases), size):
+            for k in range(size):
+                self.core_workloads[k].append(test_cases[i+k])
+
+
+    async def core_worker_write(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
+        # print(f"tryin to write {test_case_in.data} with core {core_id}")
+        if valid_testcase:
+            return await self.cores[core_id].write(test_case_in.data_addr, test_case_in.data, test_case_in.wstb)
+        else:
+            return await self.cores[core_id].write_nothing()
+
+              
+
+    async def core_worker_read(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
+        if valid_testcase:
+            return await self.cores[core_id].read(test_case_in.data_addr)
+        else:
+            return await self.cores[core_id].read_nothing()
+              
+    def print_caches(self)->None:
+        print("=" * 70)
+        print("Cache States")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].dump_cache()
+
+
+    def empty_caches(self)->None:
+        print("=" * 70)
+        print("invalidate all of cache")
+        print("=" * 70)
+        for i in range(self.num_cores):
+            self.caches[i].flush_all()
+
+    
+    async def start_sim(self):
+
+        print("=" * 70)
+        print("Starting CPU Simulation")
+        print("=" * 70)
+        
+
+        print("=" * 70)
+        print("Writing Stuff")
+        print("=" * 70)
+        
+
+        # to keep workloads intact for later use
+        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        i: int = 1
+        
+        while any(core_workloads_copy):
+            print(f"=== {i} R/V Cycle ===")
+            print(core_workloads_copy)
+            i += 1
+
+
+            tasks: List[asyncio.Task[axi_request]] = []        
+            for core_id in range(self.num_cores):
+                # check if test_case exists
+                if len(core_workloads_copy[core_id]) > 0:
+                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
+                    valid_testcase = True
+                else:
+                    valid_testcase: bool = False
+                    core_testcase: test_case = test_case(-1, -1, -1)           
+                    
+             
+            
+                tasks.append(
+                    asyncio.create_task(
+                        self.core_worker_write(core_id, core_testcase, valid_testcase),
+                        name=f"Core-{core_id}"
+                    )
+                
+                )
+
+            # wait for all them and pop ones that are done
+            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+
+
+            for index, result in enumerate(cur_cycle_results):
+                if result.mem_ready and result.mem_valid:
+                    print("bert")
+                    print(cur_cycle_results)
+                    print(core_workloads_copy)
+                    core_workloads_copy[index].pop() # <- im pop from empty list err here any idea                        
+
+
+
+        # self.print_caches()  
+        # self.empty_caches()
+
+        # print("=" * 70)
+        # print("Reading Stuff Out")
+        # print("=" * 70)
+        
+
+        # # to keep workloads intact for later use
+        # core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        # while any(core_workloads_copy):
+        #     tasks: List[asyncio.Task[axi_request]] = []        
+        #     for core_id in range(self.num_cores):
+        #         # check if test_case exists
+        #         valid_testcase: bool = False
+        #         core_testcase: test_case = test_case(-1, -1, -1)           
+        #         if len(core_workloads_copy[core_id]) > 0:
+        #             core_testcase: test_case = core_workloads_copy[core_id][-1]           
+        #             valid_testcase = True
+             
+            
+        #         tasks.append(
+        #             asyncio.create_task(
+        #                 self.core_worker_read(core_id, core_testcase, valid_testcase),
+        #                 name=f"Core-{core_id}"
+        #             )
+                
+        #         )
+
+        #     # wait for all them and pop ones that are done
+        #     cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+        #     for index, result in enumerate(cur_cycle_results):
+        #         if result.mem_ready:
+        #             print(f" data at {result.mem_addr} is {result.mem_rdata}")
+        #             core_workloads_copy[index].pop()                        
+
+            
+        # print("=" * 70)
+        # print("Reading Stuff Out again but from other core")
+        # print("=" * 70)
+        
+
+        # # to keep workloads intact for later use
+        # core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
+        
+        # while any(core_workloads_copy):
+        #     tasks: List[asyncio.Task[axi_request]] = []        
+        #     for core_id in range(self.num_cores):
+        #         # check if test_case exists
+        #         valid_testcase: bool = False
+        #         core_testcase: test_case = test_case(-1, -1, -1)           
+        #         if len(core_workloads_copy[core_id]) > 0:
+        #             core_testcase: test_case = core_workloads_copy[core_id][-1]           
+        #             valid_testcase = True
+             
+            
+        #         tasks.append(
+        #             asyncio.create_task(
+        #                 self.core_worker_read(core_id, core_testcase, valid_testcase),
+        #                 name=f"Core-{core_id}"
+        #             )
+                
+        #         )
+
+        #     # wait for all them and pop ones that are done
+        #     cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
+        #     for index, result in enumerate(cur_cycle_results):
+        #         if result.mem_ready:
+        #             print(f" data at {result.mem_addr} is {result.mem_rdata}")
+        #             core_workloads_copy[index].pop()                        
+
+        # print("=" * 70)
+        # print("We Did it")
+        # print("=" * 70)
+        
+
+
+
+
+================================================================================
+# FILE: axi_request_types.py
+================================================================================
+
 from dataclasses import dataclass
 from msi_v2 import CoherenceCmd
 
@@ -62,35 +290,50 @@ class axi_and_coherence_request:
 
 
 
+
+
+
+================================================================================
+# FILE: cache_v3.py
+================================================================================
+
 # External 
 from dataclasses import dataclass
 
-# Data Types
-from typing import (Callable, Awaitable, Dict)
-from axi_request import (axi_and_coherence_request, axi_request)
+# Data Types & Consts
+from typing import (Callable, Awaitable, Dict, List)
+from axi_request_types import (axi_and_coherence_request, axi_request)
 from msi_v2 import (MSIState, ProcessorEvent, SnoopEvent, CoherenceCmd, TransitionResult) 
+from config import ( OFFSET_WIDTH, INDEX_WIDTH, TAG_WIDTH, NUM_CACHE_LINES)
 
 # Functions
 from msi_v2 import (on_processor_event, on_snoop_event)
 from util import (apply_wstrb)
 
+
 @dataclass
 class CacheLine:
     """
-    Represents a single cache line with MSI state and data.
-    
-    Fields:
-        state: Current MSI state (INVALID, SHARED, or MODIFIED)
-        data: Cached data value (32-bit word)
-    
-    Notes:
-        - In a real cache, this would also include tag, valid bit, etc.
-        - This simplified version uses the address as an implicit tag
-        - Each address maps to its own CacheLine entry
+    Represents a single cache line with tag, state, and data:
+        - 32 bits long
+        - tag, index, and offset size are determined by memory sizes in config
+        - Structure: [ Tag | Index | Offset ]
+        - For simplicity Offset will be 0 bits as wide cache line dont provide value
+          due 2 pin constraits
     """
-    state: MSIState = MSIState.INVALID  # Default: line is invalid
-    data: int = 0                       # Default: data is zero
 
+    tag: int = 0
+    index: int = 0
+    state: MSIState = MSIState.INVALID
+    data: int = 0
+
+    def __post_init__(self):
+        # Calculate maximum values based on bit widths
+        # A width of 10 bits means a max value of (2^10) - 1
+        max_tag = (1 << TAG_WIDTH) - 1
+
+        if not (0 <= self.tag <= max_tag):
+            raise ValueError(f"Tag {self.tag} exceeds {TAG_WIDTH}-bit limit ({max_tag})")
 
 
 class CacheController:
@@ -99,7 +342,7 @@ class CacheController:
     Handles processor requests and directory snoops.
     Fully associative for simulation simplicity.
     """
-
+        
     def __init__(self, core_id: int, directory_axi_handler: Callable[[axi_and_coherence_request], Awaitable[axi_request]]) -> None:
         """
         Create a cache controller for a single core.
@@ -110,22 +353,13 @@ class CacheController:
         """
 
         self.core_id: int = core_id
-        self.directory_port: Callable[[axi_and_coherence_request], Awaitable[axi_request]] = directory_axi_handler       
+        self.arbiter_port: Callable[[axi_and_coherence_request], Awaitable[axi_request]] = directory_axi_handler       
+        self.lines: List[CacheLine] = []
+        for i in range(NUM_CACHE_LINES):
+            tag = (i >> INDEX_WIDTH) & ((1 << TAG_WIDTH) - 1)
+            index = i & ((1 << INDEX_WIDTH) - 1)
+            self.lines.append(CacheLine(tag=tag, index=index))
 
-        self.lines: Dict[int, CacheLine] = {}
-        # self.lines is a simplication in hadware the addr wont be directly mapped to Cache line it will more like this:  
-         
-        #        index
-        #          ↓
-        # +------------------+
-        # |   TAG SRAM       |
-        # | tag | state | V  |
-        # +------------------+
-        #          ↓ compare
-        # +------------------+
-        # |   DATA SRAM      |
-        # |   64B line       |
-        # +------------------+
 
     def _line(self, addr: int) -> CacheLine:
         """
@@ -135,11 +369,10 @@ class CacheController:
             addr (int): address.
         """
 
-        if addr not in self.lines:
-            self.lines[addr] = CacheLine()
-        return self.lines[addr]
+        bit_mask_to_isolate_index: int = (1 << INDEX_WIDTH) - 1
+        cache_line_addr: int = (addr >> OFFSET_WIDTH) & bit_mask_to_isolate_index
+        return self.lines[cache_line_addr]
 
-    
     async def _send_dir_cmd(self, cmd: CoherenceCmd, addr: int, payload: int = 0) -> axi_request:
         """
         Send a coherence command to the directory and returns its response.
@@ -169,16 +402,49 @@ class CacheController:
 
         # print(req)
         # Send request to directory and get response
-        resp: axi_request = await self.directory_port(req)
-        # print(resp)
-        
-        # Verify directory acknowledged
-        # if not resp.mem_ready:
-            # raise RuntimeError(f"directory did not acknowledge core {self.core_id}")
-        
+        resp: axi_request = await self.arbiter_port(req)
+                
         # Return data from directory (relevant for BUS_RD, BUS_RDX)
         return resp
 
+    async def _send_dir_cmd_invalid(self) -> axi_request:
+
+        req = axi_and_coherence_request(
+            mem_valid=False,  # invalid = just a dummy to satisfy arbiter
+            mem_ready=False,
+            mem_instr=False,
+            mem_addr=0,
+            mem_wdata_or_msi_payload=0,
+            mem_wstrb=0,
+            mem_rdata=0,
+            coherence_cmd=CoherenceCmd.BUS_RD,
+            core_id=self.core_id
+        )
+
+        return await self.arbiter_port(req)
+
+    async def _handle_tag_mismatch(self, cache_line: CacheLine, request_addr: int) -> None:
+
+        # skip if cacheline invalid
+        if cache_line.state == MSIState.INVALID:
+            return
+
+
+        # isolate tag
+        bit_mask_to_isolate_tag: int = (1 << TAG_WIDTH) - 1
+        request_addr_tag: int = (request_addr) >> (OFFSET_WIDTH + INDEX_WIDTH) & bit_mask_to_isolate_tag
+
+        # combine tag and index to make mem_addr
+        shifted_tag: int = (cache_line.tag << TAG_WIDTH) 
+        tag_addr: int = shifted_tag | cache_line.index
+
+        if cache_line.tag != request_addr_tag:
+            if cache_line.state == MSIState.SHARED:
+                await self._send_dir_cmd(CoherenceCmd.EVICT_CLEAN, tag_addr, cache_line.data)
+            elif cache_line.state == MSIState.MODIFIED:
+                await self._send_dir_cmd(CoherenceCmd.EVICT_DIRTY, tag_addr, cache_line.data)
+        
+            cache_line.state = MSIState.INVALID
 
     async def _handle_cpu_read(self, request: axi_request) -> axi_request:
         """
@@ -192,30 +458,37 @@ class CacheController:
         """
 
         line: CacheLine = self._line(request.mem_addr)
-        
+        print("this cache line for read")
+        print(line)
+
+        # check if tags match
+        await self._handle_tag_mismatch(line, request.mem_addr)
+
         # Ask state machine: what do we do for a read in current state?
         tr: TransitionResult = on_processor_event(line.state, ProcessorEvent.PR_RD)
-
 
         # If cache miss (or other condition requiring coherence transaction)
         if tr.issue_cmd is not None:
             # Fetch data from directory/memory and update cache line
             print("cache read miss")
-            line.data = (await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)).mem_rdata
-            request.mem_rdata = line.data            
+            dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
+            line.data = dir_resp.mem_rdata
 
         # we have data in cache so just pipe it straight through
         else:
             print("cache read hit")
             request.mem_rdata = line.data
+            request.mem_ready = True
+            return request
         
-        request.mem_ready = True
+        # TODO: infinite loop when this commented
+        # request.mem_ready = True
             
         # Update cache line state based on state machine result
         line.state = tr.next_state
         
         # Return data to CPU
-        return request 
+        return dir_resp
 
 
     async def _handle_cpu_write(self, request: axi_request) -> axi_request:
@@ -232,29 +505,40 @@ class CacheController:
 
         """
 
+
+        if request.mem_valid == False:
+            print("invalid request")
+            await self._send_dir_cmd_invalid() # need something to send to arbiter
+            return request
+
         line: CacheLine = self._line(request.mem_addr)
+
+        # check if tags match
+        await self._handle_tag_mismatch(line, request.mem_addr)
     
         # Ask state machine: what do we do for a write in current state?
         tr: TransitionResult = on_processor_event(line.state, ProcessorEvent.PR_WR)
 
+        print("right before dir_resp")
+        print(request)
+
         # If we need exclusive access or need to fetch data
         if tr.issue_cmd is not None:
             dir_resp: axi_request = await self._send_dir_cmd(tr.issue_cmd, request.mem_addr)
+            line.state = tr.next_state        
+            line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
+        else:
+            # cahce hit
+            await self._send_dir_cmd_invalid() # need something to send to arbiter
+            dir_resp: axi_request = request
+            dir_resp.mem_ready = True
 
-            # if dir_resp.mem_ready != True:
-            #     raise ValueError("directory response not right after read")
-
-        # Update state (will be MODIFIED after any write)
-        line.state = tr.next_state
-        
-        # Apply byte-level write to existing data
-        # This allows partial word updates (e.g., writing only 1 byte)
-        line.data = apply_wstrb(line.data, request.mem_wdata, request.mem_wstrb)
         
         # Return updated data
-        request.mem_ready = True
-        return request
+        # request.mem_ready = True
+        return dir_resp
 
+    
     def _handle_snoop(self, request: axi_and_coherence_request) -> axi_and_coherence_request:
 
         """
@@ -275,8 +559,6 @@ class CacheController:
         """
 
         line: CacheLine = self._line(request.mem_addr)
-
-
         cmd: CoherenceCmd = request.coherence_cmd
 
         # Note: requester and payload are currently unused but may be useful later
@@ -306,42 +588,6 @@ class CacheController:
         # Return flush data to directory
         request.mem_ready = True
         return request
-
-
-    def evict(self, addr: int) -> None:
-
-        """
-        Currently not used (our emualted cache has no limit)
-        
-        Evict a cache line (e.g., due to capacity miss in a real cache).
-
-        
-        When evicting a line, we must inform the directory and write back
-        dirty data if the line is MODIFIED.
-        
-        Args:
-            addr: Address to evict
-        
-        """
-
-        # Check if line exists in cache
-        if addr not in self.lines:
-            return
-
-        line = self.lines[addr]
-        
-        # Handle eviction based on state
-        if line.state == MSIState.MODIFIED:
-            # Dirty data must be written back
-            _ = self._send_dir_cmd(CoherenceCmd.EVICT_DIRTY, addr, line.data)
-        elif line.state == MSIState.SHARED:
-            # Clean data, just notify directory
-            _ = self._send_dir_cmd(CoherenceCmd.EVICT_CLEAN, addr)
-        # INVALID state: no action needed
-
-        # Mark line as invalid after eviction
-        line.state = MSIState.INVALID
-
 
     async def handle_request(self, request):
         """
@@ -409,10 +655,9 @@ class CacheController:
 
         """
         
-        # Ignore invalid requests
-        if not request.mem_valid:
-            request.mem_ready = False
-            return request
+        print("=== core to cache ===")
+
+        print(request)
 
         # CPU memory traffic: read or write
         if request.mem_wstrb == 0:
@@ -422,8 +667,12 @@ class CacheController:
             # CPU write (write strobe != 0)
             request = await self._handle_cpu_write(request)
 
+
+        print("=== cache to core ===")
+        print(request)
+        
         # Mark response as ready
-        request.mem_ready = True
+        # request.mem_ready = True
         return request
 
 
@@ -455,116 +704,87 @@ class CacheController:
 
 
     def dump_cache(self) -> None:
-        if not self.lines:
-            print(f"  Cache{self.core_id}:  (empty)")
-            return
 
-        for addr, line in sorted(self.lines.items()):
+        for index, line in enumerate(self.lines):
             print(
-                f"  Cache{self.core_id}:  addr=0x{addr:08X}| "
+                f"  Cache{self.core_id} addr:{index}"
                 f" state={line.state.name:<8}|"
-                f" data=0x{line.data:08X}"
+                f" data=0x{line.data}"
             )
 
     def flush_all(self) -> None:
-        for line in self.lines.values():
+        for line in self.lines:
             line.state = MSIState.INVALID
 
 
-    
-
-    # async def axi_handler(self, request: axi_request ) -> axi_request:
-
-    #     """
-    #     Core's AXI request handler - routes requests to appropriate handlers.
-    #     This is the primary entry point for all communication with the cache and core.
-        
-    #     1. CPU Memory Traffic (axi_request):
-    #        - Read: mem_wstrb == 0
-    #        - Write: mem_wstrb != 0
-    #        Routes to: _cpu_read() or _cpu_write()
-        
-    #     Args:
-    #         request:
-    #         AXI request from CPU
-        
-    #     Returns:
-    #         AXI response with mem_ready=True and appropriate data to the core        
-
-    #     """
-        
-    #     # Ignore invalid requests
-    #     if not request.mem_valid:
-    #         request.mem_ready = False
-    #         return request
-
-    #     # CPU memory traffic: read or write
-    #     if request.mem_wstrb == 0:
-    #         # CPU read (write strobe = 0)
-    #         request = await self._handle_cpu_read(request)
-    #     else:
-    #         # CPU write (write strobe != 0)
-    #         request = await self._handle_cpu_write(request)
-
-    #     # Mark response as ready
-    #     request.mem_ready = True
-    #     return request
 
 
 
 
-    # def axi_and_coherence_handler(self, request: axi_and_coherence_request ) -> axi_and_coherence_request:
 
-    #     """
-    #     Core's axi+coherence request handler - routes requests to appropriate handlers.
+# CPU Address
+#      ↓
+# [ Tag | Index | Offset ]
 
-    #     This is the primary entry point for all communication with the directory mainly just used for snoop requests.
+#      ↓
+# Select Set (Index)
+#      ↓
+# Compare Tags (parallel)
+#      ↓
+#  ┌───────────────┐
+#  │ Hit?          │
+#  └──────┬────────┘
+#         │Yes
+#         ↓
+#    Use Offset → DONE
 
-    #     Args:
-    #         AXI + Cohrence Cmd from directory
-
-    #     Returns:
-    #         AXI + Cohrence Cmd with mem_ready=True and appropriate data to the core        
-    #     """
-
-    #     # Coherence traffic: snoop from directory
-        
-    #     # Error Handling 
-    #     if not request.mem_valid:
-    #         request.mem_ready = False
-    #         return request
-
-    #     request = self._handle_snoop(request)
-    #     # request.mem_ready = True  We shouldnt need this
-    #     return request
+#         │No
+#         ↓
+#   Randomly pick a way
+#         ↓
+#   If M → write back
+#         ↓
+#   Load from memory
+#         ↓
+#   Update [Tag | State | Data]
+#         ↓
+#   Use Offset → DONE
 
 
-    # def axi_and_coherence_handler(self, request: axi_and_coherence_request ) -> axi_and_coherence_request:
 
-    #     """
-    #     Core's axi+coherence request handler - routes requests to appropriate handlers.
+================================================================================
+# FILE: config.py
+================================================================================
 
-    #     This is the primary entry point for all communication with the directory mainly just used for snoop requests.
+# External
+import math
 
-    #     Args:
-    #         AXI + Cohrence Cmd from directory
+# Types
+from typing import Final
 
-    #     Returns:
-    #         AXI + Cohrence Cmd with mem_ready=True and appropriate data to the core        
-    #     """
+# Configrable
+## memory sizes in btyes
+MAIN_MEM_SIZE_IN_WORDS: Final = 4096
+## cache configs
+CACHE_LINE_SIZE_IN_WORDS: Final = 1
+CACHE_MEM_SIZE_IN_WORDS: Final = 1024
 
-    #     # Coherence traffic: snoop from directory
-        
-    #     # Error Handling 
-    #     if not request.mem_valid:
-    #         request.mem_ready = False
-    #         return request
 
-    #     request = self._handle_snoop(request)
-    #     # request.mem_ready = True  We shouldnt need this
-    #     return request
+# Calcs based on config
+## cache line widths
+OFFSET_WIDTH: int = int(math.log2(CACHE_LINE_SIZE_IN_WORDS))
+NUM_CACHE_LINES: int = int(CACHE_MEM_SIZE_IN_WORDS/CACHE_LINE_SIZE_IN_WORDS)
+INDEX_WIDTH: int = int(math.log2(NUM_CACHE_LINES))
+TAG_WIDTH: int = 32 - (INDEX_WIDTH + OFFSET_WIDTH)
+
+
+
+================================================================================
+# FILE: core.py
+================================================================================
+
 from typing import Callable, Optional, Awaitable
-from axi_request import axi_request
+from axi_request_types import axi_request
 
 class Core:
 
@@ -602,6 +822,7 @@ class Core:
     
     # write functions
     async def write(self, addr_in: int, data_in: int, wstb_in: int) -> axi_request:
+
         write_request: axi_request = axi_request(
             mem_valid= True,
             mem_instr=False,
@@ -618,286 +839,35 @@ class Core:
     
     async def write_nothing(self) -> axi_request:
         write_request: axi_request = axi_request(
-            mem_valid= False,
+            mem_valid=False,
             mem_instr=False,
             mem_ready=False,
             mem_addr=0,
-            mem_wdata=0,
-            mem_wstrb=0,
-            mem_rdata=0
+            mem_wdata= 0,
+            mem_wstrb= 0b1111,
+            mem_rdata= 0
         ) 
       
         return await self.axi_send_and_recieve(write_request)
            
-# external 
-import copy
-import asyncio
-
-# hardware emulators
-from core import Core
-from memory import MemoryController
-from weighted_round_robin import WeightedRoundRobinArbiter
-from cache_v2 import CacheController
-from directory_v2 import DirectoryController
-
-# types
-from axi_request import axi_request
-from testcase import test_case
-from typing import List, Optional
-
-
-class CPU: 
-    def __init__(self, size: int, test_cases: List[test_case]) -> None:
-
-        # setup memory 
-        self.memory: MemoryController = MemoryController()
-
-        # setup directory
-        self.directory: DirectoryController = DirectoryController(size, self.memory.axi_handler)
-
-        # setup arbiter
-        self.arbiter: WeightedRoundRobinArbiter = WeightedRoundRobinArbiter(size, [1] * size, self.directory.axi_handler_for_arbiter)
-        
-        # setup caches
-        self.caches: List[CacheController] = [] 
-        for i in range(size):
-            cache_to_add: CacheController = CacheController(i, self.arbiter.axi_handler_arbiter)
-            self.caches.append(cache_to_add)
-            self.directory.register_cache(i, cache_to_add.axi_and_coherence_handler)
-
-        # num cores
-        self.num_cores: int = size
-        # state of those cores
-        self.finsihed_cores: int = 0
-
-        # arr of those cores
-        self.cores: List[Core] = []
-        for i in range(size):
-            self.cores.append(Core(i, self.caches[i].axi_handler_for_core))
-
-        # build work load for each of those cores
-        self.core_workloads: List[List[test_case]] = [[] for i in range(size)]
-        for i in range(0, len(test_cases), size):
-            for k in range(size):
-                self.core_workloads[k].append(test_cases[i+k])
-
-
-    async def core_worker_write(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
-        if valid_testcase:
-            return await self.cores[core_id].write(test_case_in.data_addr, test_case_in.data, test_case_in.wstb)
-        else:
-            return await self.cores[core_id].write_nothing()
-              
-
-    async def core_worker_read(self, core_id: int, test_case_in: test_case, valid_testcase: bool) -> axi_request:  # try to write data
-        if valid_testcase:
-            return await self.cores[core_id].read(test_case_in.data_addr)
-        else:
-            return await self.cores[core_id].read_nothing()
-              
-    def print_caches(self)->None:
-        print("=" * 70)
-        print("Cache States")
-        print("=" * 70)
-        for i in range(self.num_cores):
-            self.caches[i].dump_cache()
-
-
-    def empty_caches(self)->None:
-        print("=" * 70)
-        print("invalidate all of cache")
-        print("=" * 70)
-        for i in range(self.num_cores):
-            self.caches[i].flush_all()
-
-    
-    async def start_sim(self):
-
-        print("=" * 70)
-        print("Starting CPU Simulation")
-        print("=" * 70)
-        
-
-        print("=" * 70)
-        print("Writing Stuff")
-        print("=" * 70)
-        
-
-        # to keep workloads intact for later use
-        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
-        
-        while any(core_workloads_copy):
-            tasks: List[asyncio.Task[axi_request]] = []        
-            for core_id in range(self.num_cores):
-                # check if test_case exists
-                valid_testcase: bool = False
-                core_testcase: test_case = test_case(-1, -1, -1)           
-                if len(core_workloads_copy[core_id]) > 0:
-                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
-                    valid_testcase = True
-             
-            
-                tasks.append(
-                    asyncio.create_task(
-                        self.core_worker_write(core_id, core_testcase, valid_testcase),
-                        name=f"Core-{core_id}"
-                    )
-                
-                )
-
-            # wait for all them and pop ones that are done
-            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
-            for index, result in enumerate(cur_cycle_results):
-                if result.mem_ready:
-                    core_workloads_copy[index].pop()                        
-
-
-        self.print_caches()  
-        self.empty_caches()
-
-        print("=" * 70)
-        print("Reading Stuff Out")
-        print("=" * 70)
-        
-
-        # to keep workloads intact for later use
-        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
-        
-        while any(core_workloads_copy):
-            tasks: List[asyncio.Task[axi_request]] = []        
-            for core_id in range(self.num_cores):
-                # check if test_case exists
-                valid_testcase: bool = False
-                core_testcase: test_case = test_case(-1, -1, -1)           
-                if len(core_workloads_copy[core_id]) > 0:
-                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
-                    valid_testcase = True
-             
-            
-                tasks.append(
-                    asyncio.create_task(
-                        self.core_worker_read(core_id, core_testcase, valid_testcase),
-                        name=f"Core-{core_id}"
-                    )
-                
-                )
-
-            # wait for all them and pop ones that are done
-            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
-            for index, result in enumerate(cur_cycle_results):
-                if result.mem_ready:
-                    print(f" data at {result.mem_addr} is {result.mem_rdata}")
-                    core_workloads_copy[index].pop()                        
-
-            
-        print("=" * 70)
-        print("Reading Stuff Out again but from other core")
-        print("=" * 70)
-        
-
-        # to keep workloads intact for later use
-        core_workloads_copy: List[List[test_case]] = copy.deepcopy(self.core_workloads)
-        
-        while any(core_workloads_copy):
-            tasks: List[asyncio.Task[axi_request]] = []        
-            for core_id in range(self.num_cores):
-                # check if test_case exists
-                valid_testcase: bool = False
-                core_testcase: test_case = test_case(-1, -1, -1)           
-                if len(core_workloads_copy[core_id]) > 0:
-                    core_testcase: test_case = core_workloads_copy[core_id][-1]           
-                    valid_testcase = True
-             
-            
-                tasks.append(
-                    asyncio.create_task(
-                        self.core_worker_read(core_id, core_testcase, valid_testcase),
-                        name=f"Core-{core_id}"
-                    )
-                
-                )
-
-            # wait for all them and pop ones that are done
-            cur_cycle_results: List[axi_request] = await asyncio.gather(*tasks)
-            for index, result in enumerate(cur_cycle_results):
-                if result.mem_ready:
-                    print(f" data at {result.mem_addr} is {result.mem_rdata}")
-                    core_workloads_copy[index].pop()                        
-
-        print("=" * 70)
-        print("We Did it")
-        print("=" * 70)
-        
-
-        # loop until all worloads stack are empty
-        # while any(core_workloads_copy):
-        #     print("while loop start")
-        #     for index, coreworkload in enumerate(core_workloads_copy):
-        #         print(f"curr corr is {index}")
-        #         # if more tasks exist
-        #         if coreworkload: 
-        #             test_case: test_case = coreworkload[-1] # top of list
-
-        #             # try to write data
-        #             result_axi: axi_request = await self.cores[index].write(test_case.data_addr, test_case.data, test_case.wstb)
-
-
-        #             if result_axi is None:
-        #                 raise TypeError("results_axi is none")
-
-        #             # arbitrate gave core turn
-        #             if result_axi.mem_ready:
-        #                 core_workloads_copy.pop()                        
-
-        #             # arbitrate didnt give core turn yet, so keep task in stack
-
-        # print("all wrtie tasks done")
-                    
-                   
 
 
 
+================================================================================
+# FILE: directory_v2.py
+================================================================================
 
-
-        
-
-
-        # # atempt_num: int = 0
-
-        # # idle_request: axi_request = axi_request(False, False, False, 0, 0, 0, 0)
-        
-        # while True:
-        #     if workload:
-        #         test_case: test_case = workload[-1] # top of list
-
-        #         if result_axi is None:
-        #             raise TypeError("results_axi is none")
-
-        #         if result_axi.mem_ready:
-        #             workload.pop()                        
-        #         else:
-        #             # print(f"  Core {core_id}: ✗ Denied, will retry, currently on Attempt {atempt_num} ")
-        #             atempt_num += 1
-
-                    
-        #     else:
-        #         # print(f"Core {core_id}: Finished all tasks")
-        #         self.finsihed_cores += 1 
-
-        #         # while self.finsihed_cores != self.num_cores:
-        #             # result_axi = await self.arbiter.axi_handler_arbiter(idle_request, core_id)
-
-        #         # print(f"  Core {core_id}: All cores done, exiting")
-        #         break
-                               
 # External
 from dataclasses import dataclass
 
 # types
 from typing import (Optional, Dict, Callable, Awaitable)
 from msi_v2 import (MSIState, CoherenceCmd)
-from axi_request import (axi_and_coherence_request, axi_request)
+from axi_request_types import (axi_and_coherence_request, axi_request)
 from util import (axi_and_cohrenece_cmd_to_axi)
+
+# helper functions
+from util import axi_and_cohrenece_cmd_to_axi
 
 @dataclass
 class DirectoryEntry:
@@ -1164,17 +1134,18 @@ class DirectoryController:
         entry = self._entry(request.mem_addr)
 
         # read data from address
-        read_request: axi_request = axi_request(
-            mem_valid= True,
-            mem_instr= False,
-            mem_ready= False,
-            mem_addr= request.mem_addr,
-            mem_wdata= 0,
-            mem_wstrb= 0x00,
-            mem_rdata= 0
-        ) 
+        # write_request: axi_request = axi_request(
+        #     mem_valid= True,
+        #     mem_instr= False,
+        #     mem_ready= False,
+        #     mem_addr= request.mem_addr,
+        #     mem_wdata= 0,
+        #     mem_wstrb= 0x00,
+        #     mem_rdata= 0
+        # ) 
+        write_request: axi_request = axi_and_cohrenece_cmd_to_axi(request)
 
-        data: axi_request = await self.memory_axi_handler(read_request)
+        data: axi_request = await self.memory_axi_handler(write_request)
 
         # Case 1: INVALID - no cache has it
         if entry.state == MSIState.INVALID:
@@ -1411,20 +1382,24 @@ class DirectoryController:
             AXI response with data and mem_ready=True
         
        """
-        # Ignore invalid requests
+        # Ignore invalid requests         
+        print("=== Arbiter to Directory ===")
+        print(request)
+
         if not request.mem_valid:
             request.mem_ready = False
             return axi_and_cohrenece_cmd_to_axi(request)
 
-
-        return await self._handle_coherence(request)
+        x = await self._handle_coherence(request)
+        print("=== Directory to Arbiter ===")
+        print(x)
+        return x
 
         # # Route based on traffic type
         # if request.mem_instr:
         #     # Coherence command from cache
             
             
-
         # # Direct memory access (non-coherent)
         # if request.mem_wstrb == 0:
         #     # Memory read
@@ -1443,6 +1418,13 @@ class DirectoryController:
         # return request
     
 
+
+
+
+================================================================================
+# FILE: emulate.py
+================================================================================
+
 # external
 import asyncio
 
@@ -1456,15 +1438,19 @@ from CPU import CPU
 async def main():
     # prepare test cases
     testcases: List[test_case] = []
-    for i in range(10):
-        testcases.append(test_case(i, i, 0b1111))
+    # for i in range(10):
+    #     testcases.append(test_case(i, i, 0b1111))
+
+    testcases.append(test_case(1, 1, 0b1111))
+    testcases.append(test_case(0, 2, 0b1111))
+
 
     # create CPU
     to_the_moon: CPU = CPU(2, testcases)
 
     # await the async method
     x = await to_the_moon.start_sim()
-    print(x)
+    # print(x)
 
 # run the async main
 asyncio.run(main())
@@ -1507,8 +1493,137 @@ asyncio.run(main())
 
 
 
+
+
+
+================================================================================
+# FILE: emulation_unit_test/memory_test.py
+================================================================================
+
+import asyncio
+import logging
+from axi_request_types import axi_request
+from memory_v2 import MemoryController
+
+logging.basicConfig(level=logging.DEBUG, format='%(name)s [%(levelname)s] %(message)s')
+
+async def test_memory_controller():
+    mem = MemoryController(num_srams=8)  # max address = 255
+
+    # --- test 1: write all bytes then read back ---
+    write_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                            mem_addr=0x10, mem_wdata=0xDEADBEEF, mem_wstrb=0b1111, mem_rdata=0)
+    await mem.axi_handler(write_req)
+
+    read_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                           mem_addr=0x10, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
+    result = await mem.axi_handler(read_req)
+    assert result.mem_ready == True
+    assert result.mem_rdata == 0xDEADBEEF, f"expected 0xDEADBEEF got {result.mem_rdata:#010x}"
+    print("PASS: test 1 - write all bytes, read back")
+
+    # --- test 2: write only low byte ---
+    write_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                            mem_addr=0x20, mem_wdata=0xDEADBEEF, mem_wstrb=0b0001, mem_rdata=0)
+    await mem.axi_handler(write_req)
+
+    read_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                           mem_addr=0x20, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
+    result = await mem.axi_handler(read_req)
+    assert result.mem_rdata == 0x000000EF, f"expected 0x000000EF got {result.mem_rdata:#010x}"
+    print("PASS: test 2 - write low byte only")
+
+    # --- test 3: read from unwritten address returns 0 ---
+    read_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                           mem_addr=0x50, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
+    result = await mem.axi_handler(read_req)
+    assert result.mem_rdata == 0, f"expected 0 got {result.mem_rdata:#010x}"
+    print("PASS: test 3 - unwritten address returns 0")
+
+    # --- test 4: out of range write is ignored ---
+    write_req = axi_request(mem_valid=True, mem_instr=False, mem_ready=False,
+                            mem_addr=0x100, mem_wdata=0x12345678, mem_wstrb=0b1111, mem_rdata=0)
+    await mem.axi_handler(write_req)
+    assert 0x100 not in mem.sram, "out of range write should not touch sram"
+    print("PASS: test 4 - out of range write ignored")
+
+    # --- test 5: mem_valid=False does nothing ---
+    write_req = axi_request(mem_valid=False, mem_instr=False, mem_ready=False,
+                            mem_addr=0x10, mem_wdata=0x0, mem_wstrb=0b1111, mem_rdata=0)
+    result = await mem.axi_handler(write_req)
+    assert result.mem_ready == False, "mem_valid=False should not set mem_ready"
+    print("PASS: test 5 - mem_valid=False does nothing")
+
+    print("\nAll tests passed!")
+
+asyncio.run(test_memory_controller())
+
+
+
+================================================================================
+# FILE: lol.py
+================================================================================
+
+import os
+from pathlib import Path
+
+def combine_python_files(input_dir, output_file="combined_context.txt"):
+    input_path = Path(input_dir)
+
+    if not input_path.exists() or not input_path.is_dir():
+        raise ValueError(f"Invalid directory: {input_dir}")
+
+    # Get all .py files recursively and sort for consistency
+    py_files = sorted(input_path.rglob("*.py"))
+
+    if not py_files:
+        print("No Python files found.")
+        return
+
+    with open(output_file, "w", encoding="utf-8") as outfile:
+        for file_path in py_files:
+            try:
+                with open(file_path, "r", encoding="utf-8") as infile:
+                    content = infile.read()
+
+                # Write structured separator for LLM clarity
+                outfile.write(f"\n{'='*80}\n")
+                outfile.write(f"# FILE: {file_path.relative_to(input_path)}\n")
+                outfile.write(f"{'='*80}\n\n")
+                outfile.write(content)
+                outfile.write("\n\n")
+
+            except Exception as e:
+                print(f"Skipping {file_path}: {e}")
+
+    print(f"Combined {len(py_files)} files into '{output_file}'")
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Combine all Python files in a directory into one file for LLM context"
+    )
+    parser.add_argument("input_dir", help="Directory containing Python files")
+    parser.add_argument(
+        "-o", "--output",
+        default="combined_context.txt",
+        help="Output file (default: combined_context.txt)"
+    )
+
+    args = parser.parse_args()
+
+    combine_python_files(args.input_dir, args.output)
+
+
+
+================================================================================
+# FILE: memory.py
+================================================================================
+
 # types
-from axi_request import axi_request
+from axi_request_types import axi_request
 
 class MemoryController:
     def __init__(self):
@@ -1572,6 +1687,90 @@ class MemoryController:
                 request.mem_ready = True        
              
         return request 
+
+
+
+================================================================================
+# FILE: memory_v2.py
+================================================================================
+
+# external libs
+import logging
+
+# types
+from axi_request_types import axi_request
+
+BYTE_MASKS = [0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000]
+
+class MemoryController:
+
+    def __init__(self, num_srams: int) -> None:
+        self.sram: dict[int, int] = {}
+        self.log = logging.getLogger(__name__)
+        self.max_address: int = (1 << num_srams) - 1
+
+    # read address, if not in address spcae return 0        
+    async def read(self, address: int) -> int:
+
+        if address > self.max_address:
+            self.log.error("read err: address out of range, cant read")
+            return 0
+
+        found_val: int = self.sram.get(address, 0)
+        self.log.debug(f"read addr={address:#010x} got={found_val:#010x}")
+        return found_val
+
+    async def write(self, address: int, data: int, write_strobe: int) -> None:
+
+        self.log.debug(f"write addr={address:#010x} with {data:#010x}")
+        # address not in physical address spcae
+        if address > self.max_address:
+            self.log.error("write err: address out of range, wrote nothing")
+            return
+
+        # assemble word to write based on bit mask
+        data_to_write: int = 0
+        for index, bit_mask in enumerate(BYTE_MASKS):
+            byte: int = data & bit_mask
+            if (write_strobe >> index) & 1: # shift and isolate last bit
+                data_to_write |= byte        
+
+        self.sram[address] = data_to_write
+        return
+    
+    async def axi_handler(self, request: axi_request) -> axi_request:
+
+        
+        print("=== Directory to Memory ===")
+        print(request)
+
+        self.log.debug(f"memory axi handler started")        
+        # we get a valid mem request and handshake
+        if request.mem_valid:
+        
+            # read
+            if request.mem_wstrb == 0:
+                request.mem_rdata = await self.read(request.mem_addr)
+
+            # write 
+            else:
+                print("did we even write")
+                await self.write(request.mem_addr, request.mem_wdata, request.mem_wstrb)
+
+            # mark request as done
+            request.mem_ready = True        
+             
+        self.log.debug(f"memory axi handler ended")        
+        print("=== Memory to Directory ===")
+        print(request)
+        return request 
+
+
+
+================================================================================
+# FILE: msi_v2.py
+================================================================================
+
 """
 MSI Cache Coherence Protocol - State Machine Core Module
 
@@ -1881,6 +2080,13 @@ def on_snoop_event(state: MSIState, event: SnoopEvent) -> TransitionResult:
     raise ValueError("invalid MSI state")
 
 
+
+
+
+================================================================================
+# FILE: testcase.py
+================================================================================
+
 from dataclasses import dataclass
 
 @dataclass
@@ -1889,7 +2095,14 @@ class test_case:
     data: int
     wstb: int
 
-from axi_request import (axi_request, axi_and_coherence_request)
+
+
+
+================================================================================
+# FILE: util.py
+================================================================================
+
+from axi_request_types import (axi_request, axi_and_coherence_request)
 
 def apply_wstrb(old_value: int, new_value: int, wstrb: int) -> int:
     """
@@ -1931,11 +2144,18 @@ def axi_and_cohrenece_cmd_to_axi(to_cast: axi_and_coherence_request) -> axi_requ
 
     return to_return
         
+
+
+
+================================================================================
+# FILE: weighted_round_robin.py
+================================================================================
+
 # external modules
 import asyncio
 
 # types
-from axi_request import (axi_request, axi_and_coherence_request)
+from axi_request_types import (axi_request, axi_and_coherence_request)
 from typing import List, Callable, Optional, Awaitable
 
 # functions
@@ -1988,6 +2208,9 @@ class WeightedRoundRobinArbiter:
 
     async def axi_handler_arbiter(self, request_axi: axi_and_coherence_request) ->  axi_request:
 
+        print("=== cache to arbiter ===")
+        print(request_axi)
+
         # Wait all cores to sumbit something
         async with self.lock_to_wait_for_all_cores:          
 
@@ -2022,7 +2245,6 @@ class WeightedRoundRobinArbiter:
 
                 # find core to let through
                 self.request_id = requests_out.index(1)
-                print(f"let {self.request_id} core through")
                 self.arbitation_done.set()
 
         await self.arbitation_done.wait() 
@@ -2030,18 +2252,22 @@ class WeightedRoundRobinArbiter:
         # let each core through one by one to check if it got its turn
         curr_core_axi_packet_temp: Optional[axi_and_coherence_request] = self.cores_axi_requsts[request_axi.core_id]
 
-
         ## i need to spin here not send back invalid packet !!
         if curr_core_axi_packet_temp is not None:
             curr_core_axi_packet: axi_and_coherence_request = curr_core_axi_packet_temp;
         else:
             raise TypeError("curr_core_axi_packet is None")
 
+
         # see if core was chosen by arbiter
         if request_axi.core_id == self.request_id:
+            # print(f"let {request_axi.core_id} core through")
             to_return: axi_request = await self.axi_send_and_recieve(curr_core_axi_packet)
         else:
-            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(curr_core_axi_packet) 
+            # print(f"didnt let {request_axi.core_id} core through")
+            to_return: axi_request = axi_and_cohrenece_cmd_to_axi(request_axi) 
+            # print(to_return)
+
 
         # clean up
         async with self.lock_to_wait_for_all_cores:        
@@ -2050,6 +2276,12 @@ class WeightedRoundRobinArbiter:
                 self.all_arrived.clear()
                 self.arbitation_done.clear()
 
+
+        print("=== arbiter to cache ===")
+        print(to_return)
+
+        
+        # print(to_return)
         return to_return
 
         
@@ -2095,3 +2327,5 @@ class WeightedRoundRobinArbiter:
         # Fallback (should never reach here with valid inputs)
         print("error ")
         raise Exception("abritation hit timeout")
+
+
