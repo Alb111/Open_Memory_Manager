@@ -99,7 +99,6 @@ module cache_interface #(
         endcase
     end
 
-    localparam int empty = (int'($ceil(real'(68) / NUM_TPINS)) * NUM_TPINS)-68;
     assign tbusy_o = req_o;
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
