@@ -21,8 +21,12 @@ module cache_interface #(
     input  logic [6:0]          cache_cmd,
     output logic [5:0]          directory_cmd,
 
+    // busy
+    output logic                tbusy_o,
+    output logic                rbusy_o,
+
     // other signals
-    output logic [7:0]          cpu_id,
+    output logic [7:0]          cpu_id_o,
 
 
     // wrapped serializer IO
@@ -84,19 +88,19 @@ module cache_interface #(
     logic [69:0] t_packet;
     always_comb begin : build_packet
          case (cache_cmd)
-            BusRD_1h            : t_packet = {MEDIUM,  32'b0,     mem_addr, BusRD};
-            BusRDX_1h           : t_packet = {MEDIUM,  32'b0,     mem_addr, BusRDX};
-            BusUPGR_1h          : t_packet = {MEDIUM,  32'b0,     mem_addr, BusUPGR};
-            EvictClean_1h       : t_packet = {MEDIUM,  32'b0,     mem_addr, EvictClean};
-            EvictDirty_1h       : t_packet = {LARGE,   mem_wdata, mem_addr, EvictDirty};
+            BusRD_1h            : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusRD};
+            BusRDX_1h           : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusRDX};
+            BusUPGR_1h          : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusUPGR};
+            EvictClean_1h       : t_packet = {MEDIUM,  32'b0,     mem_addr,  EvictClean};
+            EvictDirty_1h       : t_packet = {LARGE,   mem_wdata, mem_addr,  EvictDirty};
             SnoopBusRD_Ack_1h   : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRD_Ack};
-            ResetDone_1h        : t_packet = {CMDONLY, 32'b0,     32'b0,    ResetDone};
+            ResetDone_1h        : t_packet = {CMDONLY, 32'b0,     32'b0,     ResetDone};
             default             : t_packet = '0;
         endcase
     end
 
     localparam int empty = (int'($ceil(real'(68) / NUM_TPINS)) * NUM_TPINS)-68;
-    wire tready_o;
+    assign tbusy_o = req_o;
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
         .MAX_MSG_LEN (68),
@@ -113,13 +117,13 @@ module cache_interface #(
 
         .valid_i  (mem_valid),
         .data_in  (t_packet[67:0]),
-        .msg_type (t_packet[69:68]),
-        .ready_o  (tready_o)
+        .msg_type (t_packet[69:68])
     );
 
     // RECEIVING
     wire [(int'($ceil(real'(36) / NUM_RPINS)) * NUM_RPINS)-1:0] rpacket_full;
     wire rvalid_o;
+    assign rbusy_o = req_i;
     rserializer #(
         .NUM_PINS    (NUM_RPINS),
         .MAX_MSG_LEN (36)
@@ -186,6 +190,6 @@ always_comb begin : decode_packet
             cpu_id_r <= rpacket_full[11:4];
         end
     end
-    assign cpu_id = cpu_id_r;
+    assign cpu_id_o = cpu_id_r;
 
 endmodule
