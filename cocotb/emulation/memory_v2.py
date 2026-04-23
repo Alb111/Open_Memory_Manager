@@ -2,8 +2,8 @@
 import logging
 
 # types
-from axi_request_types import axi_request
-from config import MAIN_MEM_SIZE_IN_WORDS
+from emulation.axi_request_types import axi_request
+from emulation.config import MAIN_MEM_SIZE_IN_WORDS
 
 BYTE_MASKS = [0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000]
 
