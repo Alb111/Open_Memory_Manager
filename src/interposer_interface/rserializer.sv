@@ -68,9 +68,9 @@ module rserializer #(
             valid_o <= '1;
         end else if ((current_state == IDLE) & (next_state == RECEIVE)) begin
             valid_o <= '0;
-        end else if (valid_o & ready_i) begin
+        end else if (ready_i) begin
             valid_o <= '0;
-        end else valid_o <= valid_o;
+        end
     end
 
     // flatten shift array for output

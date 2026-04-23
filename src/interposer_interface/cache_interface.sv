@@ -8,32 +8,42 @@ module cache_interface #(
     input  logic                clk_i,
     input  logic                rst_ni,
 
+    // UPSTREAM --------------------------------------
     // axi packet
     input  logic                mem_valid,
-    output logic                mem_ready,
-
     input  logic [31:0]         mem_addr,
     input  logic [31:0]         mem_wdata,
     input  logic [31:0]         mem_wstrb,
-    output logic [31:0]         mem_rdata,
 
-    // coherence commands
-    input  logic [6:0]          cache_cmd,
-    output logic [5:0]          directory_cmd,
+    input  logic [8:0]          cache_cmd,
+
+    // Bus_Ack ports
+    output logic                rdata_valid_o,
+    output logic [31:0]         mem_rdata,
+    output logic [2:0]          rdata_dircmd_o,
+    input  logic                rdata_ready_i,
+
+    // Snoop Req ports
+    output logic                snoop_valid_o,
+    output logic [31:0]         snoop_data_o,
+    output logic [2:0]          snoop_dircmd_o,
+    input  logic                snoop_ready_i,
 
     // busy
     output logic                tbusy_o,
     output logic                rbusy_o,
 
-    // other signals
+    // other
     output logic [7:0]          cpu_id_o,
+    // -----------------------------------------------
 
-
+    // DOWNSTREAM ------------------------------------
     // wrapped serializer IO
     input  logic                 req_i,
     input  logic [NUM_RPINS-1:0] serial_i,
     output logic                 req_o,
     output logic [NUM_TPINS-1:0] serial_o
+    // -----------------------------------------------
 );
 
     typedef enum logic [3:0] { 
@@ -41,39 +51,44 @@ module cache_interface #(
         BusRD           = 4'b0001,
         BusRDX          = 4'b0010,
         BusUPGR         = 4'b0011,
-        EvictClean      = 4'b0100,
-        BusRD_Ack       = 4'b0101,
-        BusRDX_Ack      = 4'b0110,
-        BusUPGR_Ack     = 4'b0111,
-        EvictDirty      = 4'b1000,
+
+        EvictClean      = 4'b0101,
+        EvictDirty      = 4'b0110,
+
+
         SnoopBusRD      = 4'b1001,
         SnoopBusRDX     = 4'b1010,
         SnoopBusUPGR    = 4'b1011,
 
-        SnoopBusRD_Ack  = 4'b1101,
+        
         WhoAmI          = 4'b1110,
         ResetDone       = 4'b1111
     } metadata;
 
-    typedef enum logic [6:0] { 
-        NULLcc1h            = 7'b0,
-        BusRD_1h            = 7'b1,
-        BusRDX_1h           = 7'b10,
-        BusUPGR_1h          = 7'b100,
-        EvictClean_1h       = 7'b1000,
-        EvictDirty_1h       = 7'b10000,
-        SnoopBusRD_Ack_1h   = 7'b100000,
-        ResetDone_1h        = 7'b1000000
+    typedef enum logic [8:0] { 
+        NULLcc1h            = 9'b0,
+        BusRD_1h            = 9'b1,
+        BusRDX_1h           = 9'b10,
+        BusUPGR_1h          = 9'b100,
+        EvictClean_1h       = 9'b1000,
+        EvictDirty_1h       = 9'b10000,
+        SnoopBusRD_Ack_1h   = 9'b100000,
+        SnoopBusRDX_Ack_1h  = 9'b1000000,
+        SnoopBusUPGR_Ack_1h = 9'b10000000,
+        ResetDone_1h        = 9'b100000000
     } ccmd_1hot;
 
     typedef enum logic [6:0] { 
         NULLdc1h            = 7'b0,
+
         BusRD_Ack_1h        = 7'b1,
         BusRDX_Ack_1h       = 7'b10,
         BusUPGR_Ack_1h      = 7'b100,
+        
         SnoopBusRD_1h       = 7'b1000,
         SnoopBusRDX_1h      = 7'b10000,
         SnoopBusUPGR_1h     = 7'b100000,
+        
         WhoAmI_1h           = 7'b1000000
     } dcmd_1hot;
 
@@ -93,7 +108,9 @@ module cache_interface #(
             BusUPGR_1h          : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusUPGR};
             EvictClean_1h       : t_packet = {MEDIUM,  32'b0,     mem_addr,  EvictClean};
             EvictDirty_1h       : t_packet = {LARGE,   mem_wdata, mem_addr,  EvictDirty};
-            SnoopBusRD_Ack_1h   : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRD_Ack};
+            SnoopBusRD_Ack_1h   : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRD};
+            SnoopBusRDX_Ack_1h  : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRDX};
+            SnoopBusUPGR_Ack_1h : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusUPGR};
             ResetDone_1h        : t_packet = {CMDONLY, 32'b0,     32'b0,     ResetDone};
             default             : t_packet = '0;
         endcase
@@ -138,50 +155,93 @@ module cache_interface #(
         .ready_i  (1'b1)
     );
 
-    logic [3:0] rmetadata;
-    dcmd_1hot dcmd_1h;
+    logic [3:0]     rmetadata;
+    logic [31:0]    receive_data_r;
     assign rmetadata = rpacket_full[3:0];
-    assign mem_rdata = rpacket_full[35:4];
-    assign directory_cmd = dcmd_1h[5:0];
+    assign receive_data_r = rpacket_full[35:4];
+
+    logic           rdata_valid_d;
+    logic           snoop_valid_d;
+    
+    dcmd_1hot   full_dircmd_1h;
 
 always_comb begin : decode_packet
+        rdata_valid_d = 1'b0;
+        snoop_valid_d = 1'b0;
+
         case (rmetadata)
-            BusRD_Ack    : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = BusRD_Ack_1h;
+            BusRD           : begin
+                full_dircmd_1h = BusRD_Ack_1h;
+                rdata_valid_d = rvalid_o;
             end
-            BusRDX_Ack   : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = BusRDX_Ack_1h;
+            BusRDX          : begin
+                full_dircmd_1h = BusRDX_Ack_1h;
+                rdata_valid_d = rvalid_o;
             end
-            BusUPGR_Ack  : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = BusUPGR_Ack_1h;
+            BusUPGR         : begin
+                full_dircmd_1h = BusUPGR_Ack_1h;
+                rdata_valid_d = rvalid_o;
             end
-            SnoopBusRD   : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = SnoopBusRD_1h;
+            SnoopBusRD      : begin
+                full_dircmd_1h = SnoopBusRD_1h;
+                snoop_valid_d = rvalid_o;
             end
-            SnoopBusRDX  : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = SnoopBusRDX_1h;
+            SnoopBusRDX     : begin
+                full_dircmd_1h = SnoopBusRDX_1h;
+                snoop_valid_d = rvalid_o;
             end
-            SnoopBusUPGR : begin
-                mem_ready = rvalid_o;
-                dcmd_1h = SnoopBusUPGR_1h;
+            SnoopBusUPGR    : begin
+                full_dircmd_1h = SnoopBusUPGR_1h;
+                snoop_valid_d = rvalid_o;
             end
-            WhoAmI       : begin
-                mem_ready = '0;
-                dcmd_1h = WhoAmI_1h;
-            end
-            default      : begin
-                mem_ready = '0;
-                dcmd_1h = NULLdc1h;
+            default         : begin
+                full_dircmd_1h = NULLdc1h;
             end
         endcase
     end
-    
+
+    // bus ack data interface
+    wire bus_ack_rready_i;
+    lossy_pipe_stage #(
+        .WIDTH()
+    ) bus_ack_pipe (
+        .clk_i   (clk_i),
+        .rst_ni  (rst_ni),
+
+        // Upstream Interface
+        .valid_i (rdata_valid_d),
+        .data_i  ({full_dircmd_1h[2:0], receive_data_r}),
+        .ready_o (bus_ack_rready_i),    // tied to one because it's lossy 
+
+        // Downstream Interface
+        .valid_o (rdata_valid_o),
+        .data_o  ({rdata_dircmd_o, mem_rdata}),
+        .ready_i (rdata_ready_i)
+    );
+
+    // snoop data interface
+    wire snoop_rready_i;
+    lossy_pipe_stage #(
+        .WIDTH()
+    ) snoop_pipe (
+        .clk_i   (clk_i),
+        .rst_ni  (rst_ni),
+
+        // Upstream Interface
+        .valid_i (snoop_valid_d),
+        .data_i  ({full_dircmd_1h[5:3], receive_data_r}),
+        .ready_o (snoop_rready_i),    // tied to one because it's lossy 
+
+        // Downstream Interface
+        .valid_o (snoop_valid_o),
+        .data_o  ({snoop_dircmd_o, snoop_data_o}),
+        .ready_i (snoop_ready_i)
+    );
+
+    // hold cpu_id
     logic [7:0] cpu_id_r;
+    assign cpu_id = cpu_id_r;
+
     always_ff @( posedge clk_i or negedge rst_ni ) begin : cpuid_reg
         if (!rst_ni) begin
             cpu_id_r <= '0;
@@ -189,6 +249,5 @@ always_comb begin : decode_packet
             cpu_id_r <= rpacket_full[11:4];
         end
     end
-    assign cpu_id_o = cpu_id_r;
 
 endmodule
