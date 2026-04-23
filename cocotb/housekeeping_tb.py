@@ -13,7 +13,7 @@ scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
-hdl_toplevel = "housekeeping_top.sv"
+hdl_toplevel = "housekeeping_top"
 
 FLASH_DATA = [
     0xEF, 0xBE, 0xAD, 0xDE,   # word 0
@@ -34,12 +34,12 @@ def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def apply_reset(dut, cycles=5):
-    dut.reset_i.value = 1
+    dut.reset_ni.value = 0      # Pull low to reset
     dut.pass_thru_en_i.value = 0
     dut.spi_miso_i.value = 0
     await ClockCycles(dut.clk_i, cycles)
-    dut.reset_i.value = 0
-    await Timer(1, unit="ns")   # let combinational outputs settle
+    dut.reset_ni.value = 1      # Pull high to run
+    await Timer(1, unit="ns")
 
 
 async def wait_for_boot_done(dut, timeout_cycles=50_000):
@@ -95,7 +95,7 @@ async def test_reset(dut):
 
     start_clock(dut)
     
-    dut.reset_i.value = 1
+    dut.reset_ni.value = 0
     dut.pass_thru_en_i.value = 0    # top_pass_thru_en = 0
     dut.spi_miso_i.value = 0
 
@@ -258,7 +258,7 @@ async def test_boot_after_passthrough(dut):
 
     # chip_top asserts top_pass_thru_en (programmer connected)
     print(" 1: chip_top asserts top_pass_thru_en = 1 (programmer connected)...")
-    dut.reset_i.value = 0
+    dut.reset_ni.value = 1
     dut.pass_thru_en_i.value = 1   # top_pass_thru_en = 1
     dut.spi_miso_i.value = 0
     await ClockCycles(dut.clk_i, 20)

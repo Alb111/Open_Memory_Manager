@@ -5,7 +5,7 @@ module boot_fsm #(
     parameter SRAM_BASE_ADDR = 32'h0000_0000
 )(
     input logic clk_i,
-    input logic reset_i,
+    input logic reset_ni,
     output logic spi_start_o,
     output logic [7:0] spi_out_o,
     input logic [7:0] spi_in_i,
@@ -42,7 +42,7 @@ module boot_fsm #(
 
     //state register
     always_ff @(posedge clk_i) begin
-        if (reset_i) begin
+        if (!reset_ni) begin
             curr_state <= IDLE;
         end else begin
             curr_state <= next_state;
@@ -51,7 +51,7 @@ module boot_fsm #(
 
     // data path
     always_ff @(posedge clk_i) begin
-        if(reset_i) begin
+        if(!reset_ni) begin
             word_buffer <= 32'h0;
             byte_in_word <= 2'd0;
             byte_cntr <= 32'h0;

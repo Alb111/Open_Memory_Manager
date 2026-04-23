@@ -2,7 +2,7 @@
 
 module spi_engine (
     input logic clk_i,
-    input logic reset_i,
+    input logic reset_ni,
     input logic start_i,
     input logic [7:0] data_in_i,
     output logic [7:0] data_out_o,
@@ -24,7 +24,7 @@ module spi_engine (
     logic [3:0] sck_div;
 
     always_ff @(posedge clk_i) begin
-        if(reset_i) begin
+        if(!reset_ni) begin
             curr_state <= IDLE;
             bit_cnt <= 3'd0;
             shift_out <= 8'h00;
