@@ -7,21 +7,19 @@ module cache_interface #(
 (
     input  logic                clk_i,
     input  logic                rst_ni,
-
     // UPSTREAM --------------------------------------
-    // axi packet
-    input  logic                mem_valid,
-    input  logic [31:0]         mem_addr,
-    input  logic [31:0]         mem_wdata,
-    input  logic [31:0]         mem_wstrb,
+    // Cache Send Ports
+    input  logic                cache_valid_i,
+    input  logic [31:0]         cache_addr_i,
+    input  logic [31:0]         cache_data_i,
+    input  logic [8:0]          cache_cmd_i,
+    output logic                cache_ready_o,
 
-    input  logic [8:0]          cache_cmd,
-
-    // Bus_Ack ports
-    output logic                rdata_valid_o,
-    output logic [31:0]         mem_rdata,
-    output logic [2:0]          rdata_dircmd_o,
-    input  logic                rdata_ready_i,
+    // Bus Ack ports
+    output logic                bus_valid_o,
+    output logic [31:0]         bus_data_o,
+    output logic [2:0]          bus_dircmd_o,
+    input  logic                bus_ready_i,
 
     // Snoop Req ports
     output logic                snoop_valid_o,
@@ -30,7 +28,6 @@ module cache_interface #(
     input  logic                snoop_ready_i,
 
     // busy
-    output logic                tbusy_o,
     output logic                rbusy_o,
 
     // other
@@ -102,21 +99,20 @@ module cache_interface #(
     // TRANSMISSION
     logic [69:0] t_packet;
     always_comb begin : build_packet
-         case (cache_cmd)
-            BusRD_1h            : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusRD};
-            BusRDX_1h           : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusRDX};
-            BusUPGR_1h          : t_packet = {MEDIUM,  32'b0,     mem_addr,  BusUPGR};
-            EvictClean_1h       : t_packet = {MEDIUM,  32'b0,     mem_addr,  EvictClean};
-            EvictDirty_1h       : t_packet = {LARGE,   mem_wdata, mem_addr,  EvictDirty};
-            SnoopBusRD_Ack_1h   : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRD};
-            SnoopBusRDX_Ack_1h  : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusRDX};
-            SnoopBusUPGR_Ack_1h : t_packet = {MEDIUM,  32'b0,     mem_wdata, SnoopBusUPGR};
-            ResetDone_1h        : t_packet = {CMDONLY, 32'b0,     32'b0,     ResetDone};
+        case (cache_cmd_i)
+            BusRD_1h            : t_packet = {MEDIUM,  32'b0,        cache_addr_i, BusRD};
+            BusRDX_1h           : t_packet = {MEDIUM,  32'b0,        cache_addr_i, BusRDX};
+            BusUPGR_1h          : t_packet = {MEDIUM,  32'b0,        cache_addr_i, BusUPGR};
+            EvictClean_1h       : t_packet = {MEDIUM,  32'b0,        cache_addr_i, EvictClean};
+            EvictDirty_1h       : t_packet = {LARGE,   cache_data_i, cache_addr_i, EvictDirty};
+            SnoopBusRD_Ack_1h   : t_packet = {MEDIUM,  32'b0,        cache_data_i, SnoopBusRD};
+            SnoopBusRDX_Ack_1h  : t_packet = {MEDIUM,  32'b0,        cache_data_i, SnoopBusRDX};
+            SnoopBusUPGR_Ack_1h : t_packet = {MEDIUM,  32'b0,        cache_data_i, SnoopBusUPGR};
+            ResetDone_1h        : t_packet = {CMDONLY, 32'b0,        32'b0,        ResetDone};
             default             : t_packet = '0;
         endcase
     end
 
-    assign tbusy_o = req_o;
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
         .MAX_MSG_LEN (68),
@@ -131,9 +127,10 @@ module cache_interface #(
         .req_o    (req_o),
         .serial_o (serial_o),
 
-        .valid_i  (mem_valid),
+        .valid_i  (cache_valid_i),
         .data_in  (t_packet[67:0]),
-        .msg_type (t_packet[69:68])
+        .msg_type (t_packet[69:68]),
+        .ready_o  (cache_ready_o)
     );
 
     // RECEIVING
@@ -155,32 +152,30 @@ module cache_interface #(
         .ready_i  (1'b1)
     );
 
-    logic [3:0]     rmetadata;
-    logic [31:0]    receive_data_r;
+    logic [3:0] rmetadata;
     assign rmetadata = rpacket_full[3:0];
-    assign receive_data_r = rpacket_full[35:4];
 
-    logic           rdata_valid_d;
+    logic           bus_valid_d;
     logic           snoop_valid_d;
     
     dcmd_1hot   full_dircmd_1h;
 
-always_comb begin : decode_packet
-        rdata_valid_d = 1'b0;
+    always_comb begin : decode_packet
+        bus_valid_d = 1'b0;
         snoop_valid_d = 1'b0;
 
         case (rmetadata)
             BusRD           : begin
                 full_dircmd_1h = BusRD_Ack_1h;
-                rdata_valid_d = rvalid_o;
+                bus_valid_d = rvalid_o;
             end
             BusRDX          : begin
                 full_dircmd_1h = BusRDX_Ack_1h;
-                rdata_valid_d = rvalid_o;
+                bus_valid_d = rvalid_o;
             end
             BusUPGR         : begin
                 full_dircmd_1h = BusUPGR_Ack_1h;
-                rdata_valid_d = rvalid_o;
+                bus_valid_d = rvalid_o;
             end
             SnoopBusRD      : begin
                 full_dircmd_1h = SnoopBusRD_1h;
@@ -200,36 +195,39 @@ always_comb begin : decode_packet
         endcase
     end
 
+    logic [31:0]    receive_data_d;
+    assign receive_data_d = rpacket_full[35:4];
+
     // bus ack data interface
     wire bus_ack_rready_i;
     lossy_pipe_stage #(
-        .WIDTH()
+        .WIDTH(35)
     ) bus_ack_pipe (
         .clk_i   (clk_i),
         .rst_ni  (rst_ni),
 
         // Upstream Interface
-        .valid_i (rdata_valid_d),
-        .data_i  ({full_dircmd_1h[2:0], receive_data_r}),
+        .valid_i (bus_valid_d),
+        .data_i  ({full_dircmd_1h[2:0], receive_data_d}),
         .ready_o (bus_ack_rready_i),    // tied to one because it's lossy 
 
         // Downstream Interface
-        .valid_o (rdata_valid_o),
-        .data_o  ({rdata_dircmd_o, mem_rdata}),
-        .ready_i (rdata_ready_i)
+        .valid_o (bus_valid_o),
+        .data_o  ({bus_dircmd_o, bus_data_o}),
+        .ready_i (bus_ready_i)
     );
 
     // snoop data interface
     wire snoop_rready_i;
     lossy_pipe_stage #(
-        .WIDTH()
+        .WIDTH(35)
     ) snoop_pipe (
         .clk_i   (clk_i),
         .rst_ni  (rst_ni),
 
         // Upstream Interface
         .valid_i (snoop_valid_d),
-        .data_i  ({full_dircmd_1h[5:3], receive_data_r}),
+        .data_i  ({full_dircmd_1h[5:3], receive_data_d}),
         .ready_o (snoop_rready_i),    // tied to one because it's lossy 
 
         // Downstream Interface
@@ -240,7 +238,7 @@ always_comb begin : decode_packet
 
     // hold cpu_id
     logic [7:0] cpu_id_r;
-    assign cpu_id = cpu_id_r;
+    assign cpu_id_o = cpu_id_r;
 
     always_ff @( posedge clk_i or negedge rst_ni ) begin : cpuid_reg
         if (!rst_ni) begin
