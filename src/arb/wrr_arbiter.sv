@@ -46,7 +46,7 @@ always_comb begin
             next_credit_cnt = credit_cnt - 1;
         end
         else begin
-            next_ptr = (curr_ptr + 1) & PTR_MASK;
+            next_ptr = curr_ptr + 1;
 
             if (next_ptr == 0)
                 next_credit_cnt = weight0;
@@ -56,7 +56,7 @@ always_comb begin
 
     end
     else begin
-        next_ptr = (curr_ptr + 1) & PTR_MASK;
+        next_ptr = curr_ptr + 1;
 
         if (next_ptr == 0)
             next_credit_cnt = weight0;
