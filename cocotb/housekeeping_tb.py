@@ -13,7 +13,7 @@ scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
-hdl_toplevel = "housekeeping_top"
+hdl_toplevel = "boot_wrapper"
 
 FLASH_DATA = [
     0xEF, 0xBE, 0xAD, 0xDE,   # word 0
@@ -291,25 +291,29 @@ def boot_ctrl_runner():
     sources = [
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
-        proj_path / "../src/housekeeping/housekeeping_top.sv"
+        proj_path / "../src/housekeeping/housekeeping_top.sv",
+        proj_path / "../src/housekeeping/cypress_model/s25fl128l.v", # The Cypress Model [cite: 790]
+        proj_path / "../src/housekeeping/boot_wrapper.sv"   # New Wrapper
     ]
 
     build_args = []
     if sim == "icarus":
-        pass
+        build_args = ["-g2012"]   # s25fl128l.v uses specify blocks; -g2012 helps
     if sim == "verilator":
-        build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
+        raise RuntimeError("Use icarus for flash model integration tests. "
+                           "Verilator does not support specify blocks in s25fl128l.v.")
+
         
     runner = get_runner(sim)
     runner.build(
         sources=sources,
-        hdl_toplevel="housekeeping_top",
+        hdl_toplevel="boot_wrapper",
         always=True,
         build_args=build_args,
         waves=True
     )
     runner.test(
-        hdl_toplevel="housekeeping_top",
+        hdl_toplevel="boot_wrapper",
         test_module="housekeeping_tb",
         waves=True
     )
