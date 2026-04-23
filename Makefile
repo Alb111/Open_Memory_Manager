@@ -105,6 +105,10 @@ test-msi-protocol: ## Run cocotb tests on standalone msi_protocol
 	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_protocol_test.py
 .PHONY: test-msi-protocol
 
+test-cache-controller: ## Run cocotb tests for cache_controller_core
+	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_controller_test.py
+.PHONY: test-cache-controller
+
 test-arb: ## Run all cocotb tests on msi
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
 .PHONY: test-arb
