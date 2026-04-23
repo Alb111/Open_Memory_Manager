@@ -230,7 +230,6 @@ async def test_page_boundary_crossing(dut):
             break
     else:
         timed_out = True
- 
     n_words = len(sram_writes)
  
     #write count check
@@ -283,8 +282,88 @@ async def test_page_boundary_crossing(dut):
  
         print("  Page boundary crossed correctly — no address wrap detected")
     print(f"\n  *** PASS — {n_words} words verified, page boundary transparent")
+
+
+@cocotb.test()
+async def test_reset_mid_transaction(dut):
+    print("\n=== TEST 5: reset mid-transaction — FSM must recover cleanly ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
  
+    #let boot run until 10 words have been written
+    print("  Phase 1: booting normally, waiting for 10 SRAM writes...")
+    writes_before_reset = 0
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        if dut.sram_wr_en_o.value == 1:
+            writes_before_reset += 1
+            if writes_before_reset >= 10:
+                break
  
+    assert writes_before_reset == 10, \
+        f"Did not reach 10 writes before interrupt (got {writes_before_reset})"
+    print(f"  10 words written — asserting reset_ni=0 mid-transaction")
+ 
+    #assert reset mid transaction
+    dut.reset_ni.value = 0
+    await ClockCycles(dut.clk_i, 5_000)
+ 
+    #while in reset, nothing should be happening
+    await Timer(1, unit="ns")
+    assert dut.sram_wr_en_o.value == 0, \
+        "sram_wr_en_o still high during reset — FSM did not stop"
+    assert dut.cores_en_o.value == 0, \
+        "cores_en_o still high during reset"
+    assert dut.boot_done_o.value == 0, \
+        "boot_done_o still high during reset"
+    print("  Reset held for 5000 cycles — outputs correctly inactive")
+ 
+    #release reset, wait for full clean boot
+    print("  Releasing reset — FSM should restart from the beginning...")
+    dut.reset_ni.value = 1
+    await Timer(1, unit="ns")
+    sram_writes = []
+    timed_out   = False
+ 
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        if dut.sram_wr_en_o.value == 1:
+            addr = dut.sram_addr_o.value
+            data = dut.sram_data_o.value
+            if addr.is_resolvable and data.is_resolvable:
+                sram_writes.append((int(addr), int(data)))
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+    assert not timed_out, \
+        "boot_done never asserted after reset release — FSM got stuck"
+ 
+    #check the post reset boot is complete and correct
+    print(f"\n  Post-reset SRAM writes: {len(sram_writes)}  (expected 128)")
+    assert len(sram_writes) == 128, \
+        (f"Expected 128 writes after clean reboot, got {len(sram_writes)}. "
+         f"FSM may have resumed mid-stream instead of restarting.")
+ 
+    print(f"\n  Verifying all 128 words are correct after reboot...")
+    for i, (addr, data) in enumerate(sram_writes):
+        exp_addr = i * 4
+        exp_data = expected_word(i)
+        assert addr == exp_addr, \
+            f"Post-reset word {i}: wrong address — got {hex(addr)}, expected {hex(exp_addr)}"
+        assert data == exp_data, \
+            f"Post-reset word {i}: wrong data — got {hex(data)}, expected {hex(exp_data)}"
+ 
+    print(f"  All 128 words correct")
+    print(f"\n  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
+    print(f"  cores_en_o  = {int(dut.cores_en_o.value)}   (expected 1)")
+    assert dut.boot_done_o.value == 1, "boot_done must be high after reboot"
+    assert dut.cores_en_o.value  == 1, "cores_en must be high after reboot"
+ 
+    print("\n  *** PASS — FSM recovered cleanly from mid-transaction reset")
+
  
 # runner
 def boot_ctrl_runner():
@@ -321,7 +400,6 @@ def boot_ctrl_runner():
         test_module="boot_flash_test",
         waves=True,
     )
- 
  
 if __name__ == "__main__":
     boot_ctrl_runner()
