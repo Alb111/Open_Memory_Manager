@@ -109,7 +109,7 @@ module directory_interface #(
     logic [37:0] t_packet;
     always_comb begin : build_packet
         if (send_WhoAmI_i) begin
-            t_packet = {SHORT, 20'b0, cpu_id_i, WhoAmI};
+            t_packet = {SHORT, 24'b0, cpu_id_i, WhoAmI};
         end else begin
             case (dir_cmd_i)
                 BusRD_Ack_1h    : t_packet = {MEDIUM,  dir_data_i, BusRD};
@@ -122,6 +122,9 @@ module directory_interface #(
             endcase
         end
     end
+
+    logic tserial_valid;
+    assign tserial_valid = dir_valid_i | send_WhoAmI_i;
 
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
@@ -137,7 +140,7 @@ module directory_interface #(
         .req_o    (req_o),
         .serial_o (serial_o),
 
-        .valid_i  (dir_valid_i),
+        .valid_i  (tserial_valid),
         .data_in  (t_packet[35:0]),
         .msg_type (t_packet[37:36]),
         .ready_o  (dir_ready_o)

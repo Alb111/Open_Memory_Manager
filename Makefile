@@ -116,6 +116,10 @@ test-rserializer: ## Run all cocotb tests on rserializer
 test-cache-interface: ## Run all cocotb tests on cache_interface
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_cache_interface.py
 .PHONY: test-cache-interface
+
+test-directory-interface: ## Run all cocotb tests on directory_interface
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_directory_interface.py
+.PHONY: test-directory-interface
 	
 arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
