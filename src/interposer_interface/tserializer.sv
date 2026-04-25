@@ -13,7 +13,7 @@ module tserializer #(
 
     // data interface
     input  logic                   valid_i, 
-    input  logic [67:0]            data_in,
+    input  logic [int'($ceil(real'(MAX_MSG_LEN) / int'(NUM_PINS)) * int'(NUM_PINS)) - 1:0] data_in,
     input  logic [1:0]             msg_type,
     output logic                   ready_o,
 
@@ -73,18 +73,16 @@ module tserializer #(
         end else curr_msg_len <= curr_msg_len;
     end
 
-// message counter
+    // message counter
     logic [depth_cnt_width-1:0] count;
 
-    always_ff @(posedge clk_i or negedge rst_n) begin : msg_cntr
-        if (!rst_n) begin
-            count <= '0;
-        end else if (current_state != SEND) begin
+    always_ff @( posedge clk_i or negedge rst_n ) begin : msg_cntr
+        if (!rst_n | (current_state != SEND)) begin
             count <= '0;
         end else begin
             count <= count + 1;
         end
-    end
+    end    
 
     assign cnt_done = (count + 1 == curr_msg_len);
 

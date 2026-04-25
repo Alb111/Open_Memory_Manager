@@ -12,7 +12,7 @@ module rserializer #(
     input  logic                  req_i,
 
     output logic                  valid_o,
-    output logic [67:0]           data_o,
+    output logic [int'($ceil(real'(MAX_MSG_LEN) / int'(NUM_PINS)) * int'(NUM_PINS)) - 1:0] data_o,
     input  logic                  ready_i        
 
 );
