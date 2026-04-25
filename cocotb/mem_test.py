@@ -12,7 +12,7 @@ from cocotb_tools.runner import get_runner
 from emulation.memory import MemoryController
 
 sim = os.getenv("SIM", "icarus")
-pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+pdk_root = Path("../gf180mcu")
 pdk = os.getenv("PDK", "gf180mcuD")
 scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
