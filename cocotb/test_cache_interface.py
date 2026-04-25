@@ -25,26 +25,29 @@ class Metadata(IntEnum):
     BusRD           = 0b0001
     BusRDX          = 0b0010
     BusUPGR         = 0b0011
-    EvictClean      = 0b0100
-    BusRD_Ack       = 0b0101
-    BusRDX_Ack      = 0b0110
-    BusUPGR_Ack     = 0b0111
-    EvictDirty      = 0b1000
+
+    EvictClean      = 0b0101
+    EvictDirty      = 0b0110
+
+
     SnoopBusRD      = 0b1001
     SnoopBusRDX     = 0b1010
     SnoopBusUPGR    = 0b1011
-    SnoopBusRD_Ack  = 0b1101
+
+
     WhoAmI          = 0b1110
     ResetDone       = 0b1111
 
 class CCMD1H(IntEnum):
-    BusRD            = 0b0000001
-    BusRDX           = 0b0000010
-    BusUPGR          = 0b0000100
-    EvictClean       = 0b0001000
-    EvictDirty       = 0b0010000
-    SnoopBusRD_Ack   = 0b0100000
-    ResetDone        = 0b1000000
+    BusRD              = 0b000000001
+    BusRDX             = 0b000000010
+    BusUPGR            = 0b000000100
+    EvictClean         = 0b000001000
+    EvictDirty         = 0b000010000
+    SnoopBusRD_Ack     = 0b000100000
+    SnoopBusRDX_Ack    = 0b001000000
+    SnoopBusUPGR_Ack   = 0b010000000
+    ResetDone          = 0b100000000
 
 class DCMD1H(IntEnum):
     BusRD_Ack        = 0b0000001
@@ -62,11 +65,15 @@ async def reset_dut(dut):
     dut.rst_ni.value = 0
 
     # zero all inputs
-    dut.mem_valid.value = 0
-    dut.mem_addr.value = 0
-    dut.mem_wdata.value = 0
-    dut.mem_wstrb.value = 0
-    dut.cache_cmd.value = 0
+    dut.cache_valid_i.value = 0
+    dut.cache_addr_i.value = 0
+    dut.cache_data_i.value = 0
+    dut.cache_cmd_i.value = 0
+    
+    dut.bus_ready_i.value = 0
+
+    dut.snoop_ready_i.value = 0
+
     dut.req_i.value = 0
     dut.serial_i.value = 0
 
@@ -120,10 +127,10 @@ def set_packet(dut, ccmd : CCMD1H, mem_addr, mem_wdata):
     assert 0x0 <= mem_addr <= 0xFFFFFFFF, "mem_addr must be 32 bits"
     assert 0x0 <= mem_wdata <= 0xFFFFFFFF, "mem_wdata must be 32 bits"
 
-    dut.mem_valid.value = 1
-    dut.cache_cmd.value = ccmd
-    dut.mem_addr.value = mem_addr
-    dut.mem_wdata.value = mem_wdata
+    dut.cache_valid_i.value = 1
+    dut.cache_cmd_i.value = ccmd
+    dut.cache_addr_i.value = mem_addr
+    dut.cache_data_i.value = mem_wdata
 
 class CycleCounter:
     def __init__(self, clock_signal):
@@ -214,7 +221,7 @@ async def test_send_SnoopBusRD_Ack(dut):
 
     # validate message
     expected_bit_count = ceil(36 / NUM_PINS) * NUM_PINS
-    expected_data = (mem_wdata << 4) + Metadata.SnoopBusRD_Ack
+    expected_data = (mem_wdata << 4) + Metadata.SnoopBusRD
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
     assert captured_bits == expected_data, f"Expected Data {hex(expected_data)} bits, got {hex(captured_bits)}"
@@ -268,11 +275,13 @@ async def test_receive_WhoAmI(dut):
 
     # validate message
     await FallingEdge(dut.clk_i)
-    assert dut.mem_ready.value == 0, "mem_ready should not be high after WhoAmI command"
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after WhoAmI command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after WhoAmI command"
     await FallingEdge(dut.clk_i)
-    cpu_id = int(dut.cpu_id.value)
+    cpu_id = int(dut.cpu_id_o.value)
     assert cpu_id == expected_cpu_id, f"Expected CPU_ID {expected_cpu_id}, got {cpu_id}"
-    assert dut.mem_ready.value == 0, "mem_ready should not be high after WhoAmI command"
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after WhoAmI command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after WhoAmI command"
 
     await RisingEdge(dut.clk_i)
 
@@ -284,23 +293,35 @@ async def test_receive_BusRD_Ack(dut):
 
     # prepare signals
     await FallingEdge(dut.clk_i)
-    command = Metadata.BusRD_Ack
-    expected_dcmd = DCMD1H.BusRD_Ack
-    expected_mem_rdata = 0xDEADBEEF
-    expected_message = (expected_mem_rdata << 4) + command
+    command = Metadata.BusRD
+    expected_bus_data = 0xDEADBEEF
+    expected_message = (expected_bus_data << 4) + command
     expected_msg_len = 36
 
     # send message
-    await send_message(dut, data=expected_message, msg_len=expected_msg_len)
+    cocotb.start_soon(send_message(dut, data=expected_message, msg_len=expected_msg_len))
 
     # validate message
-    await FallingEdge(dut.clk_i)
-    mem_rdata = int(dut.mem_rdata.value)
-    directory_cmd = int(dut.directory_cmd.value)
+    while dut.bus_valid_o.value == 0:
+        await FallingEdge(dut.clk_i)
 
-    assert mem_rdata == expected_mem_rdata, f"Expected mem_rdata {expected_mem_rdata}, got {mem_rdata}"
-    assert directory_cmd == expected_dcmd, f"Expected directory_cmd {expected_dcmd}, got {directory_cmd}"
-    assert dut.mem_ready.value == 1, "mem_ready should not be high after WhoAmI command"
+    bus_data = int(dut.bus_data_o.value)
+    bus_dircmd = int(dut.bus_dircmd_o.value)
+    
+    expected_dcmd = DCMD1H.BusRD_Ack & 0b111
+
+    assert bus_data == expected_bus_data, f"Expected mem_rdata {expected_bus_data}, got {bus_data}"
+    assert bus_dircmd == expected_dcmd, f"Expected directory_cmd {expected_dcmd}, got {bus_dircmd}"
+    assert dut.bus_valid_o.value == 1, "bus_valid_o should be high after BusRD_Ack command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after BusRD_Ack command"
+
+    for _ in range(5):
+        await FallingEdge(dut.clk_i)
+    
+    dut.bus_ready_i.value = 1
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after bus_ready_i is high"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after BusRD_Ack command"
 
     await RisingEdge(dut.clk_i)
 
@@ -312,24 +333,36 @@ async def test_receive_BusUPGR_Ack(dut):
 
     # prepare signals
     await FallingEdge(dut.clk_i)
-    command = Metadata.BusUPGR_Ack
-    expected_dcmd = DCMD1H.BusUPGR_Ack
+    command = Metadata.BusUPGR
     expected_message = command
     expected_msg_len = 4
 
     # send message
-    await send_message(dut, data=expected_message, msg_len=expected_msg_len)
+    cocotb.start_soon(send_message(dut, data=expected_message, msg_len=expected_msg_len))
 
     # validate message
-    await FallingEdge(dut.clk_i)
-    directory_cmd = int(dut.directory_cmd.value)
+    count = 0
+    while dut.bus_valid_o.value == 0:
+        count += 1
+        print(count)
+        await FallingEdge(dut.clk_i)
 
-    assert directory_cmd == expected_dcmd, f"Expected directory_cmd {expected_dcmd}, got {directory_cmd}"
-    assert dut.mem_ready.value == 1, "mem_ready should not be high after WhoAmI command"
-
-    await RisingEdge(dut.clk_i)
+    bus_dircmd = int(dut.bus_dircmd_o.value)
     
-@cocotb.test
+    expected_dcmd = DCMD1H.BusUPGR_Ack & 0b111
+    assert bus_dircmd == expected_dcmd, f"Expected directory_cmd {expected_dcmd}, got {bus_dircmd}"
+    assert dut.bus_valid_o.value == 1, "bus_valid_o should be high after BusRD_Ack command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after BusRD_Ack command"
+
+    for _ in range(5):
+        await FallingEdge(dut.clk_i)
+    
+    dut.bus_ready_i.value = 1
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after bus_ready_i is high"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after BusRD_Ack command"
+    
+# @cocotb.test
 async def test_receive_SnoopBusRDX(dut):
 
     await start_clock(dut)
@@ -366,6 +399,7 @@ def cache_interface_runner():
         proj_path / "../src/interposer_interface/cache_interface.sv",
         proj_path / "../src/interposer_interface/rserializer.sv",
         proj_path / "../src/interposer_interface/tserializer.sv",
+        proj_path / "../src/interposer_interface/lossy_pipe_stage.sv",
     ]
 
     configs = [

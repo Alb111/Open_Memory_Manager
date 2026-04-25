@@ -77,7 +77,9 @@ module tserializer #(
     logic [depth_cnt_width-1:0] count;
 
     always_ff @( posedge clk_i or negedge rst_ni ) begin : msg_cntr
-        if (!rst_ni | (current_state != SEND)) begin
+        if (!rst_ni) begin
+            count <= '0;
+        end else if (current_state != SEND) begin
             count <= '0;
         end else begin
             count <= count + 1;

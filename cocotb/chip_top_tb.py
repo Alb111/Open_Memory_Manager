@@ -116,6 +116,7 @@ def chip_top_runner():
         sources.append(proj_path / "../src/interposer_interface/rserializer.sv")
         sources.append(proj_path / "../src/interposer_interface/directory_interface.sv")
         sources.append(proj_path / "../src/interposer_interface/cache_interface.sv")
+        sources.append(proj_path / "../src/interposer_interface/lossy_pipe_stage.sv")
     sources += [
         # IO pad models
         Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_io/verilog/gf180mcu_fd_io.v",

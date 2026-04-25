@@ -5,8 +5,8 @@ module directory_interface #(
     parameter int NUM_RPINS = 1
 )
 (
-    input  logic                clk_i
-    input  logic                rst_ni
+    input  logic                clk_i,
+    input  logic                rst_ni,
 
     // DOWNSTREAM ------------------------------------
     // Bus Req Ports
@@ -26,7 +26,7 @@ module directory_interface #(
     input  logic                dir_valid_i,
     input  logic [31:0]         dir_data_i,
     input  logic [31:0]         dir_addr_i,
-    input  logic [5:0]          directory_cmd,  // does not include WhoAmI command
+    input  logic [5:0]          dir_cmd_i,  // does not include WhoAmI command
     output logic                dir_ready_o,
 
     // busy
@@ -43,9 +43,9 @@ module directory_interface #(
     // UPSTREAM --------------------------------------
     // wrapped serializer IO
     input  logic                req_i,
-    input  logic [NUM_PINS-1:0] serial_i,
+    input  logic [NUM_RPINS-1:0] serial_i,
     output logic                req_o,
-    output logic [NUM_PINS-1:0] serial_o
+    output logic [NUM_TPINS-1:0] serial_o
     // -----------------------------------------------
 );
 
@@ -111,7 +111,7 @@ module directory_interface #(
         if (send_WhoAmI_i) begin
             t_packet = {SHORT, 20'b0, cpu_id_i, WhoAmI};
         end else begin
-            case (cache_cmd_i)
+            case (dir_cmd_i)
                 BusRD_Ack_1h    : t_packet = {MEDIUM,  dir_data_i, BusRD};
                 BusRDX_Ack_1h   : t_packet = {MEDIUM,  dir_data_i, BusRDX};
                 BusUPGR_Ack_1h  : t_packet = {CMDONLY, 32'b0,      BusUPGR};
@@ -123,7 +123,6 @@ module directory_interface #(
         end
     end
 
-    assign tbusy_o = req_o;
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
         .MAX_MSG_LEN (36),
@@ -138,10 +137,10 @@ module directory_interface #(
         .req_o    (req_o),
         .serial_o (serial_o),
 
-        .valid_i  (cache_valid_i),
+        .valid_i  (dir_valid_i),
         .data_in  (t_packet[35:0]),
         .msg_type (t_packet[37:36]),
-        .ready_o  (dir_ready_o),
+        .ready_o  (dir_ready_o)
 
     );
     // -----------------------------------------------
@@ -176,6 +175,7 @@ module directory_interface #(
     always_comb begin : decode_packet
         bus_valid_d = 1'b0;
         snoop_valid_d = 1'b0;
+        reset_done_o = 1'b0;
 
         case (rmetadata)
             BusRD           : begin
@@ -215,13 +215,13 @@ module directory_interface #(
                 reset_done_o = rvalid_o;
             end
             default         : begin
-                full_ccmd_1h = NULLdc1h;
+                full_ccmd_1h = NULLcc1h;
             end
         endcase
     end
 
     logic [31:0]    receive_data0_d;
-    logic [31:0]    receive_data1_d
+    logic [31:0]    receive_data1_d;
     assign receive_data0_d = rpacket_full[35:4];
     assign receive_data1_d = rpacket_full[67:36];
 
@@ -259,7 +259,7 @@ module directory_interface #(
 
         // Downstream Interface
         .valid_o (snoop_valid_o),
-        .data_o  ({snoop_dircmd_o, snoop_data_o}),
+        .data_o  ({snoop_cache_cmd_o, snoop_data_o}),
         .ready_i (snoop_ready_i)
     );
     // -----------------------------------------------
