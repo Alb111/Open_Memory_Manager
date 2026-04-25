@@ -18,11 +18,11 @@ hdl_toplevel = "sp_addr_handler"
 # helper funcs
 async def setup_reset(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    dut.rst_in.value = 0
+    dut.rst_ni.value = 0
     dut.gpio_pins_i.value = 0
     dut.ser_tx_ready_i.value = 0
     await Timer(20, unit="ns")
-    dut.rst_in.value = 1
+    dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
 
 async def cpu_write(dut, addr, data):
@@ -91,9 +91,9 @@ async def full_mmio_test(dut):
 
     # test 5: random reset
     await cpu_write(dut, 0x8000_0018, 0xFF) # All outputs
-    dut.rst_in.value = 0
+    dut.rst_ni.value = 0
     await Timer(5, unit="ns")
-    dut.rst_in.value = 1
+    dut.rst_ni.value = 1
     val = await cpu_read(dut, 0x8000_0018)
     assert val == 0x00, "Registers did not clear on reset"
 
