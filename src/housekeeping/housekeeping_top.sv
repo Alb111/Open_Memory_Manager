@@ -16,9 +16,11 @@ module housekeeping_top #(
    input logic pass_thru_en_i,   // switch: 0 = boot, 1 = pass thru
     
    // output writing
-   output logic sram_wr_en_o,
-   output logic [31:0] sram_addr_o,
-   output logic [31:0] sram_data_o,
+   output logic        mem_valid_o,
+   output logic [31:0] mem_addr_o,
+   output logic [31:0] mem_wdata_o,
+   output logic [3:0]  mem_wstrb_o,
+   output logic        mem_instr_o,
     
    // Core control
    output logic cores_en_o,
@@ -31,11 +33,17 @@ module housekeeping_top #(
    logic [7:0] spi_data_out;
    logic [7:0] spi_data_in;
 
-   //pass thru mux logic
-   // chip top logic
-   // assign flash_sck = (pass_thru_en_i) ? 1'bz : spi_sck_o;
-   // assign flash_mosi = (pass_thru_en_i) ? 1'bz : spi_mosi_o;
-   // assign flash_csb = (pass_thru_en_i) ? 1'bz  : flash_csb_o;
+   // internal wires from boot_fsm to mem controller adapter
+    logic boot_wr_en;
+    logic [31:0] boot_addr;
+    logic [31:0] boot_data;
+
+    //boot_fsm signals to memory controller interface
+    assign mem_valid_o = boot_wr_en;
+    assign mem_addr_o = boot_addr;
+    assign mem_wdata_o = boot_data;
+    assign mem_wstrb_o = boot_wr_en ? 4'b1111 : 4'b0000;
+    assign mem_instr_o = 1'b0;
       
    // spi Engine
    spi_engine spi_master (
@@ -64,9 +72,9 @@ module housekeeping_top #(
       .spi_done_i(spi_done),
       .spi_busy_i(spi_busy),
       .flash_csb_o(flash_csb_o),
-      .sram_wr_en_o(sram_wr_en_o),
-      .sram_addr_o(sram_addr_o),
-      .sram_data_o(sram_data_o),
+      .sram_wr_en_o(boot_wr_en),
+      .sram_addr_o(boot_addr),
+      .sram_data_o(boot_data),
       .cores_en_o(cores_en_o),
       .boot_done_o(boot_done_o)
    );
