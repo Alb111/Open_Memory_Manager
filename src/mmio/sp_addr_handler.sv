@@ -4,7 +4,7 @@ module sp_addr_handler #(
     parameter int WHOAMI_ID = 32'hA1B2_C3D4 // ID
 )(
     input logic clk_i,
-    input logic rst_in,
+    input logic rst_ni,
 
     //interface from cpu /system bus
     input logic [31:0] addr_i,
@@ -62,7 +62,7 @@ module sp_addr_handler #(
 
     mmio mmio_inst (
         .clk_i(clk_i),
-        .rst_in(rst_in),
+        .rst_ni(rst_ni),
         .addr_i(addr_i),
         .wr_data_i(wr_data_i),
         .wr_en_i(wr_en_i && is_special_addr), //only write if its a special addr
