@@ -110,6 +110,36 @@ async def test_boot_writes_reach_sram(dut):
     print(f"\n  All {num_words} words read back correctly from physical SRAM.")
     print("\n  *** PASS — full chain verified: flash -> bootloader -> "
           "memory controller -> SRAM")
+    
+
+@cocotb.test()
+async def test_wstrb_correct_during_boot(dut):
+    print("\n=== INTEGRATION TEST 2: wstrb is 0xF for every boot write ===")
+    start_clock(dut)
+    await apply_reset(dut)
+    bad_wstrb_count = 0
+    timed_out = False
+ 
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        if dut.u_housekeeping.mem_valid_o.value == 1:
+            wstrb = dut.u_housekeeping.mem_wstrb_o.value
+            if wstrb.is_resolvable:
+                wstrb_int = int(wstrb)
+                if wstrb_int != 0xF:
+                    bad_wstrb_count += 1
+                    print(f"  BAD wstrb={hex(wstrb_int)} detected during boot write!")
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+    assert not timed_out, "boot_done never asserted"
+    assert bad_wstrb_count == 0, \
+        (f"{bad_wstrb_count} writes had incorrect wstrb. "
+         f"All boot writes must use wstrb=0xF to write all 4 byte lanes.")
+    print(f"  All boot writes had wstrb=0xF")
+    print("  *** PASS — byte lane enables are correct for all boot writes")
 
 
 #runner
