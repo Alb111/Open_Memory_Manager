@@ -22,34 +22,41 @@ module sp_addr_handler #(
     //pin connections
     output logic [7:0] gpio_pins_o,
     input logic [7:0] gpio_pins_i,
-    output logic [7:0] gpio_dir_o,
-
-    output logic ser_tx_valid_o,
-    input logic ser_tx_ready_i
+    output logic [7:0] gpio_dir_o
 );
 
     //internal signals to talk to mmio block
-    logic [31:0] mmio_rd_data; //data from gpio/csr regs
-    logic is_special_addr;  // high is cpu taregting 0x8000_xxxx range
+    logic [31:0] mmio_rd_data;
+    logic is_special_addr;
 
-    //detect addr starting w/ 0x8000
-    assign is_special_addr = (addr_i & 32'hFFFF_0000) == 32'h8000_0000;
+    //addr decoding
+    //check if addr starts with 0x8000
+    always_comb begin
+        if((addr_i & 32'hFFFF_0000) == 32'h8000_0000) begin
+            is_special_addr = 1'b1;
+        end else begin
+            is_special_addr = 1'b0;
+        end
+    end
 
-    // if special addr/mmio then block it from going to rest of chip
+    //routing
+    // if special addr then block it from going to rest of chip
     assign passthru_addr_o = (is_special_addr) ? 32'h0 : addr_i;
     assign passthru_wr_en_o = (is_special_addr) ? 1'b0 : wr_en_i;
     assign passthru_wr_data_o = wr_data_i;
 
-    //which data cpu recieves
+    //handling whoami and mmio reads
     always_comb begin
         if(is_special_addr) begin
-            ack_o = 1'b1;   //acknowledge bus request for mmio range
-            //0x8000_0000 returns whoami, any other 0x8000_xxxx addr returns data from mmio/gpio block
-            rd_data_o = (addr_i == 32'h8000_0000) ? WHOAMI_ID : mmio_rd_data;
+            ack_o = 1'b1; //claim this address
+            if(addr_i == 32'h8000_0000) begin
+                rd_data_o = WHOAMI_ID; // return chips unique ID
+            end else begin
+                rd_data_o = mmio_rd_data; //return data from the mmio regs
+            end
         end else begin
-            ack_o = 1'b0;     //let exteneral system handle ack
-            //pass thru data from external system bus
-            rd_data_o = passthru_rd_data_i;
+            ack_o = 1'b0;
+            rd_data_o = passthru_rd_data_i; // passhtru data from memory
         end
     end
 
@@ -62,9 +69,7 @@ module sp_addr_handler #(
         .rd_data_o(mmio_rd_data),
         .gpio_pins_o(gpio_pins_o),
         .gpio_pins_i(gpio_pins_i),
-        .gpio_dir_o(gpio_dir_o),
-        .ser_tx_valid_o(ser_tx_valid_o),
-        .ser_tx_ready_i(ser_tx_ready_i)
+        .gpio_dir_o(gpio_dir_o)
     );
 
 endmodule
