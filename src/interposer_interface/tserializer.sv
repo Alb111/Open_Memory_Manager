@@ -9,11 +9,11 @@ module tserializer #(
     parameter int MSG_LEN_3 = 68
 )(
     input  logic                   clk_i,    
-    input  logic                   rst_n, 
+    input  logic                   rst_ni, 
 
     // data interface
     input  logic                   valid_i, 
-    input  logic [int'($ceil(real'(MAX_MSG_LEN) / int'(NUM_PINS)) * int'(NUM_PINS)) - 1:0] data_in,
+    input  logic [int'($ceil(real'(MAX_MSG_LEN) / NUM_PINS) * NUM_PINS) - 1:0] data_in,
     input  logic [1:0]             msg_type,
     output logic                   ready_o,
 
@@ -42,8 +42,8 @@ module tserializer #(
 
     state current_state, next_state;
 
-    always_ff @( posedge clk_i or negedge rst_n ) begin : state_reg
-        if (!rst_n)
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : state_reg
+        if (!rst_ni)
             current_state <= IDLE;
         else
             current_state <= next_state;
@@ -60,8 +60,8 @@ module tserializer #(
 
     // message length
     logic [depth_cnt_width-1:0] curr_msg_len;
-    always_ff @( posedge clk_i or negedge rst_n ) begin : msg_length_reg
-        if (!rst_n) curr_msg_len <= '0;
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : msg_length_reg
+        if (!rst_ni) curr_msg_len <= '0;
         else if (current_state != SEND) begin
             case (msg_type)
                 2'b00: curr_msg_len <= type0_depth;
@@ -76,8 +76,10 @@ module tserializer #(
     // message counter
     logic [depth_cnt_width-1:0] count;
 
-    always_ff @( posedge clk_i or negedge rst_n ) begin : msg_cntr
-        if (!rst_n | (current_state != SEND)) begin
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : msg_cntr
+        if (!rst_ni) begin
+            count <= '0;
+        end else if (current_state != SEND) begin
             count <= '0;
         end else begin
             count <= count + 1;
@@ -88,8 +90,8 @@ module tserializer #(
 
     // shift reg
     logic [shift_depth-1:0][shift_width-1:0] shift_arr;
-    always_ff @( posedge clk_i or negedge rst_n ) begin : shifter
-        if (!rst_n) begin
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : shifter
+        if (!rst_ni) begin
             for (int i = 0; i < shift_depth; i++) begin : rst_shift
                 shift_arr[i] <= '0;
             end
