@@ -5,27 +5,32 @@ module sp_addr_handler #()(
     input         rst_ni,
 
     //interface from cpu (native picorv32)
-    input         mem_valid
-    output        mem_ready
+    input         mem_valid,
+    output        mem_ready,
 
-    input  [31:0] mem_addr
-    input  [31:0] mem_wdata
-    input  [ 3:0] mem_wstrb
-    output [31:0] mem_rdata
+    input  [31:0] mem_addr,
+    input  [31:0] mem_wdata,
+    input  [ 3:0] mem_wstrb,
+    output [31:0] mem_rdata,
 
     //downstream passthrough interface
-    output        pass_mem_valid
-    input         pass_mem_ready
+    output        pass_mem_valid,
+    input         pass_mem_ready,
 
-    output [31:0] pass_mem_addr
-    output [31:0] pass_mem_wdata
-    output [ 3:0] pass_mem_wstrb
-    input  [31:0] pass_mem_rdata
+    output [31:0] pass_mem_addr,
+    output [31:0] pass_mem_wdata,
+    output [ 3:0] pass_mem_wstrb,
+    input  [31:0] pass_mem_rdata,
+
+    // flush special instruction
+    input         flush_ready_i,
+    output        flush_addr_o,
+    output        flush_valid_o,
 
     //gpio pin connections
     output [ 7:0] gpio_pins_o,
     input  [ 7:0] gpio_pins_i,
-    output [ 7:0] gpio_dir_o
+    output [ 7:0] gpio_dir_o,
 
     //cpu_id
     input  [ 7:0] cpu_id_i
@@ -33,31 +38,33 @@ module sp_addr_handler #()(
 
     //addr decoding
     //check if addr starts with 0x8000
+    logic is_mmio;
+    logic is_flush;
+    logic is_whoami;
     logic is_special_addr;
     always_comb begin
-        if((addr_i & 32'hFFFF_0000) == 32'h8000_0000) begin
-            is_special_addr = 1'b1;
-        end else begin
-            is_special_addr = 1'b0;
-        end
+        is_mmio = ((mem_addr & 32'hFFFF_FFF0) == 32'h8000_0010);
+        is_flush = (mem_addr == 32'h8000_0020);
+        is_whoami = (mem_addr == 32'h8000_0000);
+        is_special_addr = is_mmio | is_flush | is_whoami;
     end
 
-    //handling whoami and mmio reads
+    //rdata logic
     logic [31:0] mmio_rd_data;
     always_comb begin
-        if(is_special_addr) begin
-            if(addr_i == 32'h8000_0000) begin
-                mem_rdata = {24'b0, cpu_id_i}; // return chips unique ID
-            end else begin
-                mem_rdata = mmio_rd_data; //return data from the mmio regs
-            end
+        if(is_whoami) begin
+            mem_rdata = {24'b0, cpu_id_i}; // return chips unique ID
+        end else if (is_flush) begin
+            mem_rdata = '0;
+        end else if (is_mmio) begin
+            mem_rdata = mmio_rd_data; //return data from the mmio regs
         end else begin
-            mem_rdata = pass_mem_rdata; // passhtru data from memory
+            mem_rdata = pass_mem_rdata;
         end
     end
 
     logic mmio_wr_en;
-    assign mmio_wr_en = |mem_wstrb & is_special_addr & mem_valid;
+    assign mmio_wr_en = |mem_wstrb & is_mmio & mem_valid;
 
     mmio mmio_inst (
         .clk_i(clk_i),
@@ -70,6 +77,26 @@ module sp_addr_handler #()(
         .gpio_pins_i(gpio_pins_i),
         .gpio_dir_o(gpio_dir_o)
     );
+
+    // flush logic
+    logic [31:0] flush_addr_r;
+    logic        flush_valid_r;
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : flush_reg
+        if (!rst_ni) begin
+            flush_addr_r <= '0;
+            flush_vaild_r <= '0;
+        end else if (is_flush & mem_valid) begin
+            flush_addr_r <= mem_addr;
+            flush_vaild_r <= '1;
+        end else if (flush_ready_i) begin
+                flush_valid_r <= '0;
+        end else begin
+            flush_valid_r <= flush_valid_r;
+            flush_addr_r <= flush_addr_r;
+        end
+    end
+    assign flush_valid_o = flush_valid_r;
+    assign flush_addr_o = flush_addr_r;
 
     // passthrough but only validate if not sp addr
     assign pass_mem_addr = mem_addr;
