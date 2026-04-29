@@ -2,7 +2,7 @@
 
 module mmio (
     input logic clk_i,
-    input logic rst_in,
+    input logic rst_ni,
 
     // interface from the addr decoder
     input logic [31:0] addr_i,
@@ -30,8 +30,8 @@ module mmio (
     assign pin_sel = addr_i[2:0];
 
     // write
-    always_ff @(posedge clk_i or negedge rst_in) begin
-        if(!rst_in) begin
+    always_ff @(posedge clk_i or negedge rst_ni) begin
+        if(!rst_ni) begin
             data_reg <= 8'h00;
             csr_reg <= 8'h00; // default all to inputs
         end else if(wr_en_i) begin

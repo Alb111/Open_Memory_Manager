@@ -25,13 +25,13 @@ async def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def reset_dut(dut):
-    dut.rst_n.value = 0
+    dut.rst_ni.value = 0
     dut.valid_i.value = 0
     dut.data_in.value = 0
     dut.msg_type.value = 0
     await Timer(50, unit="ns")
     await FallingEdge(dut.clk_i)
-    dut.rst_n.value = 1
+    dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
 
 async def collect_message(dut):

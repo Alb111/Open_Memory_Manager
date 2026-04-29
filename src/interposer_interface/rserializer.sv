@@ -6,13 +6,13 @@ module rserializer #(
 )(
 
     input  logic                  clk_i,
-    input  logic                  rst_n,
+    input  logic                  rst_ni,
 
     input  logic [NUM_PINS-1 : 0] serial_i,
     input  logic                  req_i,
 
     output logic                  valid_o,
-    output logic [int'($ceil(real'(MAX_MSG_LEN) / int'(NUM_PINS)) * int'(NUM_PINS)) - 1:0] data_o,
+    output logic [int'($ceil(real'(MAX_MSG_LEN) / NUM_PINS) * NUM_PINS) - 1:0] data_o,
     input  logic                  ready_i        
 
 );
@@ -27,8 +27,8 @@ module rserializer #(
 
     state current_state, next_state;
 
-    always_ff @( posedge clk_i or negedge rst_n ) begin : state_reg
-        if (!rst_n)
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : state_reg
+        if (!rst_ni)
             current_state <= IDLE;
         else
             current_state <= next_state;
@@ -45,8 +45,8 @@ module rserializer #(
 
     // shift arr
     logic [shift_depth-1:0][shift_width-1:0] shift_arr;
-    always_ff @( posedge clk_i or negedge rst_n ) begin : shifter
-        if (!rst_n) begin
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : shifter
+        if (!rst_ni) begin
             for (int i = 0; i < shift_depth; i++) begin : rst_shift
                 shift_arr[i] <= '0;
             end
@@ -61,16 +61,16 @@ module rserializer #(
     end
 
     // valid_o logic
-    always_ff @( posedge clk_i or negedge rst_n ) begin : valid_reg
-        if (!rst_n) begin
+    always_ff @( posedge clk_i or negedge rst_ni ) begin : valid_reg
+        if (!rst_ni) begin
             valid_o <= '0;
         end else if ((current_state == RECEIVE) & (next_state == IDLE)) begin
             valid_o <= '1;
         end else if ((current_state == IDLE) & (next_state == RECEIVE)) begin
             valid_o <= '0;
-        end else if (valid_o & ready_i) begin
+        end else if (ready_i) begin
             valid_o <= '0;
-        end else valid_o <= valid_o;
+        end
     end
 
     // flatten shift array for output

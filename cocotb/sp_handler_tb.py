@@ -18,9 +18,9 @@ hdl_toplevel = "sp_addr_handler"
 # helper funcs
 async def setup_reset(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    dut.rst_in.value = 0
+    dut.rst_ni.value = 0
     await Timer(20, unit="ns")
-    dut.rst_in.value = 1
+    dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
 
 async def cpu_write(dut, addr, data):

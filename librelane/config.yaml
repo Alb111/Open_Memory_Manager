@@ -38,6 +38,7 @@ VERILOG_FILES:
 - dir::../src/msi_protocol/msi_v2.sv
 - dir::../src/interposer_interface/cache_interface.sv
 - dir::../src/interposer_interface/directory_interface.sv
+- dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv
 - dir::../src/interposer_interface/tserializer.sv
 - dir::../src/mmio/mmio.sv
