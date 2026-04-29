@@ -1,0 +1,466 @@
+import os
+import logging
+from pathlib import Path
+from math import ceil
+from enum import IntEnum
+
+import cocotb
+from cocotb.triggers import RisingEdge, FallingEdge, Timer
+from cocotb_tools.runner import get_runner
+from cocotb.clock import Clock
+import random
+
+
+sim = os.getenv("SIM", "icarus")
+pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+pdk = os.getenv("PDK", "gf180mcuD")
+scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
+gl = os.getenv("GL", False)
+slot = os.getenv("SLOT", "1x1")
+
+hdl_toplevel = "directory_interface"
+
+class Metadata(IntEnum):
+    NULL            = 0b0000
+    BusRD           = 0b0001
+    BusRDX          = 0b0010
+    BusUPGR         = 0b0011
+
+    EvictClean      = 0b0101
+    EvictDirty      = 0b0110
+
+
+    SnoopBusRD      = 0b1001
+    SnoopBusRDX     = 0b1010
+    SnoopBusUPGR    = 0b1011
+
+
+    WhoAmI          = 0b1110
+    ResetDone       = 0b1111
+
+class CCMD1H(IntEnum):
+    BusRD              = 0b000000001
+    BusRDX             = 0b000000010
+    BusUPGR            = 0b000000100
+    EvictClean         = 0b000001000
+    EvictDirty         = 0b000010000
+    SnoopBusRD_Ack     = 0b000100000
+    SnoopBusRDX_Ack    = 0b001000000
+    SnoopBusUPGR_Ack   = 0b010000000
+    ResetDone          = 0b100000000
+
+class DCMD1H(IntEnum):
+    BusRD_Ack        = 0b0000001
+    BusRDX_Ack       = 0b0000010
+    BusUPGR_Ack      = 0b0000100
+    SnoopBusRD       = 0b0001000
+    SnoopBusRDX      = 0b0010000
+    SnoopBusUPGR     = 0b0100000
+    WhoAmI           = 0b1000000
+
+async def start_clock(dut):
+    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+
+async def reset_dut(dut):
+    dut.rst_ni.value = 0
+
+    # zero all inputs
+    dut.dir_valid_i.value = 0
+    dut.dir_addr_i.value = 0
+    dut.dir_data_i.value = 0
+    dut.dir_cmd_i.value = 0
+    
+    dut.bus_ready_i.value = 0
+
+    dut.snoop_ready_i.value = 0
+
+    dut.req_i.value = 0
+    dut.serial_i.value = 0
+
+    dut.cpu_id_i.value = 0
+    dut.send_WhoAmI_i.value = 0
+
+    await Timer(50, unit="ns")
+    await FallingEdge(dut.clk_i)
+    dut.rst_ni.value = 1
+    await RisingEdge(dut.clk_i)
+
+async def collect_message(dut):
+
+    logger = logging.getLogger("cocotb.test")
+    NUM_PINS = int(dut.NUM_TPINS.value)
+
+    while dut.req_o.value == 0:
+        await RisingEdge(dut.clk_i)
+
+    captured_bits = 0
+    bit_count = 0
+    while dut.req_o.value == 1:
+        bit_count += NUM_PINS
+        captured_bits <<= NUM_PINS
+        captured_bits += int(dut.serial_o.value)
+        await RisingEdge(dut.clk_i)
+
+    logger.info(f"Captured {bit_count} bits: {hex(captured_bits)}")
+
+    return bit_count, captured_bits
+
+async def send_message(dut, data, msg_len):
+
+    logger = logging.getLogger("cocotb.test")
+    NUM_PINS = int(dut.NUM_RPINS.value)
+
+    dut.req_i.value = 1
+
+    t_len = ceil(msg_len / NUM_PINS)
+    mask = (1 << NUM_PINS) - 1
+
+    for i in range (t_len-1, -1, -1):
+        curr_data = (data >> (i*NUM_PINS)) & mask
+        logger.debug(f"Iteration: {i}, Message: {hex(data)}, Sending: {curr_data}")
+
+        dut.serial_i.value = curr_data
+        await FallingEdge(dut.clk_i)
+    
+    dut.req_i.value = 0
+    dut.serial_i.value = 0
+
+def set_packet(dut, dcmd : DCMD1H, mem_addr, mem_wdata):
+
+    assert 0x0 <= mem_addr <= 0xFFFFFFFF, "mem_addr must be 32 bits"
+    assert 0x0 <= mem_wdata <= 0xFFFFFFFF, "mem_wdata must be 32 bits"
+
+    dut.dir_valid_i.value = 1
+    dut.dir_cmd_i.value = dcmd
+    dut.dir_addr_i.value = mem_addr
+    dut.dir_data_i.value = mem_wdata
+
+class CycleCounter:
+    def __init__(self, clock_signal):
+        self.count = 0
+        self.clk = clock_signal
+
+    async def start(self):
+        while True:
+            await cocotb.triggers.RisingEdge(self.clk)
+            self.count += 1
+
+
+# ─── Tests ────────────────────────────────────────────────────────────────────
+@cocotb.test
+async def test_send_SnoopBusRD(dut):
+    NUM_PINS = int(dut.NUM_TPINS.value)
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = DCMD1H.SnoopBusRD
+    mem_addr = 0xDEADBEEF
+    mem_wdata = 0x12345678
+
+    # set signal
+    set_packet(dut,dcmd=command, mem_addr=mem_addr, mem_wdata=mem_wdata)
+
+    # collect message
+    bit_count, captured_bits = await collect_message(dut)
+
+    # validate message
+    expected_bit_count = ceil(36 / NUM_PINS) * NUM_PINS
+    expected_data = (mem_addr << 4) + Metadata.SnoopBusRD
+
+    assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
+    assert captured_bits == expected_data, f"Expected Data {hex(expected_data)} bits, got {hex(captured_bits)}"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_send_BusRDX_Ack(dut):
+    NUM_PINS = int(dut.NUM_TPINS.value)
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = DCMD1H.BusRDX_Ack
+    mem_addr = 0xDEADBEEF
+    mem_wdata = 0x12345678
+
+    # set signal
+    set_packet(dut,dcmd=command, mem_addr=mem_addr, mem_wdata=mem_wdata)
+
+    # collect message
+    bit_count, captured_bits = await collect_message(dut)
+
+    # validate message
+    expected_bit_count = ceil(36 / NUM_PINS) * NUM_PINS
+    expected_data = (mem_wdata << 4) + Metadata.BusRDX
+
+    assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
+    assert captured_bits == expected_data, f"Expected Data {hex(expected_data)} bits, got {hex(captured_bits)}"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_send_BusUPGR_Ack(dut):
+    NUM_PINS = int(dut.NUM_TPINS.value)
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = DCMD1H.BusUPGR_Ack
+    mem_addr = 0xDEADBEEF
+    mem_wdata = 0x12345678
+
+    # set signal
+    set_packet(dut,dcmd=command, mem_addr=mem_addr, mem_wdata=mem_wdata)
+
+    # collect message
+    bit_count, captured_bits = await collect_message(dut)
+
+    # validate message
+    expected_bit_count = ceil(4 / NUM_PINS) * NUM_PINS
+    expected_data = Metadata.BusUPGR
+
+    assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
+    assert captured_bits == expected_data, f"Expected Data {hex(expected_data)} bits, got {hex(captured_bits)}"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_send_WhoAmI(dut):
+    NUM_PINS = int(dut.NUM_TPINS.value)
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = DCMD1H.SnoopBusRDX
+    mem_addr = 0xDEADBEEF
+    mem_wdata = 0x12345678
+    cpu_id = 0x1A
+
+    # set signal
+    set_packet(dut,dcmd=command, mem_addr=mem_addr, mem_wdata=mem_wdata)
+    dut.dir_valid_i.value = 0
+    dut.cpu_id_i.value = cpu_id
+    dut.send_WhoAmI_i.value = 1
+
+    await RisingEdge(dut.clk_i)
+    dut.send_WhoAmI_i.value = 0
+
+    # collect message
+    bit_count, captured_bits = await collect_message(dut)
+
+    # validate message
+    expected_bit_count = ceil(12 / NUM_PINS) * NUM_PINS
+    expected_data = (cpu_id << 4) | Metadata.WhoAmI
+
+    assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
+    assert captured_bits == expected_data, f"Expected Data {hex(expected_data)} bits, got {hex(captured_bits)}"
+    
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_receive_ResetDone(dut):
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = Metadata.ResetDone
+    expected_message = command
+    expected_msg_len = 4
+
+    # send message
+    await FallingEdge(dut.clk_i)
+    await send_message(dut, data=expected_message, msg_len=expected_msg_len)
+
+    # validate message
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after ResetDone command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after ResetDone command"
+    assert dut.reset_done_o.value == 1, "reset_done_o should be high after ResetDone command"
+
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after ResetDone command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after ResetDone command"
+    assert dut.reset_done_o.value == 0, "reset_done_o should pulse after ResetDone command, it stayed high"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_receive_EvictClean(dut):
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = Metadata.EvictClean
+    expected_bus_addr = 0xDEADBEEF
+    expected_message = (expected_bus_addr << 4) + command
+    expected_msg_len = 36
+
+    # send message
+    cocotb.start_soon(send_message(dut, data=expected_message, msg_len=expected_msg_len))
+
+    # validate message
+    while dut.bus_valid_o.value == 0:
+        await FallingEdge(dut.clk_i)
+
+    bus_addr = int(dut.bus_addr_o.value)
+    bus_cache_cmd = int(dut.bus_cache_cmd_o.value)
+    
+    expected_ccmd = CCMD1H.EvictClean & 0b11111
+
+    assert bus_addr == expected_bus_addr, f"Expected bus_addr {expected_bus_addr}, got {bus_addr}"
+    assert bus_cache_cmd == expected_ccmd, f"Expected cache_cmd {expected_ccmd}, got {bus_cache_cmd}"
+    assert dut.bus_valid_o.value == 1, "bus_valid_o should be high after EvictClean command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after EvictClean command"
+
+    for _ in range(5):
+        await FallingEdge(dut.clk_i)
+    
+    dut.bus_ready_i.value = 1
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after bus_ready_i is high"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after EvictClean command"
+
+    await RisingEdge(dut.clk_i)
+
+@cocotb.test
+async def test_receive_EvictDirty(dut):
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = Metadata.EvictDirty
+    mem_addr = 0xDEADBEEF
+    mem_wdata = 0x12345678
+    expected_message = (mem_wdata << 36) | (mem_addr << 4) | command
+    expected_msg_len = 68
+
+    # send message
+    cocotb.start_soon(send_message(dut, data=expected_message, msg_len=expected_msg_len))
+
+    # validate message
+    while dut.bus_valid_o.value == 0:
+        await FallingEdge(dut.clk_i)
+
+    bus_cache_cmd = int(dut.bus_cache_cmd_o.value)
+    bus_data = int(dut.bus_wdata_o.value)
+    bus_addr = int(dut.bus_addr_o.value)
+    
+    expected_ccmd = CCMD1H.EvictDirty & 0b11111
+    assert bus_data == mem_wdata, f"Expected bus_data {mem_wdata}, got {bus_data}"
+    assert bus_addr == mem_addr, f"Expected bus_addr {mem_addr}, got {bus_addr}"
+    assert bus_cache_cmd == expected_ccmd, f"Expected cache_cmd {expected_ccmd}, got {bus_cache_cmd}"
+    assert dut.bus_valid_o.value == 1, "bus_valid_o should be high after EvictDirty command"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after EvictDirty command"
+
+    for _ in range(5):
+        await FallingEdge(dut.clk_i)
+    
+    dut.bus_ready_i.value = 1
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after bus_ready_i is high"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after EvictDirty command"
+
+    await RisingEdge(dut.clk_i)
+    
+@cocotb.test
+async def test_receive_SnoopBusRD_Ack(dut):
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # prepare signals
+    await FallingEdge(dut.clk_i)
+    command = Metadata.SnoopBusRD
+    expected_snoop_data = 0xDEADBEEF
+    expected_message = (expected_snoop_data << 4) + command
+    expected_msg_len = 36
+
+    # send message
+    cocotb.start_soon(send_message(dut, data=expected_message, msg_len=expected_msg_len))
+
+    # validate message
+    while dut.snoop_valid_o.value == 0:
+        await FallingEdge(dut.clk_i)
+
+    snoop_data = int(dut.snoop_data_o.value)
+    snoop_cache_cmd = int(dut.snoop_cache_cmd_o.value)
+    
+    expected_ccmd = (CCMD1H.SnoopBusRD_Ack >> 5) & 0b111
+
+    assert snoop_data == expected_snoop_data, f"Expected snoop_data {expected_snoop_data}, got {snoop_data}"
+    assert snoop_cache_cmd == expected_ccmd, f"Expected directory_cmd {expected_ccmd}, got {snoop_cache_cmd}"
+    assert dut.snoop_valid_o.value == 1, "bus_valid_o should be high after SnoopBusRD_Ack command"
+    assert dut.bus_valid_o.value == 0, "snoop_valid_o should not be high after SnoopBusRD_Ack command"
+
+    for _ in range(5):
+        await FallingEdge(dut.clk_i)
+    
+    dut.snoop_ready_i.value = 1
+    await FallingEdge(dut.clk_i)
+    assert dut.bus_valid_o.value == 0, "bus_valid_o should not be high after bus_ready_i is high"
+    assert dut.snoop_valid_o.value == 0, "snoop_valid_o should not be high after SnoopBusRD_Ack command"
+
+    await RisingEdge(dut.clk_i)
+    
+# ─── Running ──────────────────────────────────────────────────────────────────
+
+def directory_interface_runner():
+    proj_path = Path(__file__).resolve().parent
+
+    sources = [
+        proj_path / "../src/interposer_interface/directory_interface.sv",
+        proj_path / "../src/interposer_interface/rserializer.sv",
+        proj_path / "../src/interposer_interface/tserializer.sv",
+        proj_path / "../src/interposer_interface/lossy_pipe_stage.sv",
+    ]
+
+    configs = [
+        {"NUM_TPINS": 1, "NUM_RPINS": 1},
+        {"NUM_TPINS": 4, "NUM_RPINS": 4},
+        {"NUM_TPINS": 9, "NUM_RPINS": 9},
+    ]
+
+    for config in configs:
+        run_id = f"tp{config['NUM_TPINS']}_rp{config['NUM_RPINS']}"
+
+        build_args = []
+        if sim == "icarus":
+            build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_TPINS={config['NUM_TPINS']}", f"-P{hdl_toplevel}.NUM_RPINS={config['NUM_RPINS']}"]
+        if sim == "verilator":
+            build_args += ["--timing", "--trace", "--trace-fst", "--trace-structs", f"-GNUM_TPINS={config['NUM_TPINS']}", f"-GNUM_RPINS={config['NUM_RPINS']}"]
+        
+        runner = get_runner(sim)
+        runner.build(
+            sources=sources,
+            hdl_toplevel=hdl_toplevel,
+            always=True,
+            build_args=build_args,
+            waves=True,
+            build_dir=f"sim_build_di_{run_id}"
+        )
+
+        runner.test(
+            hdl_toplevel=hdl_toplevel,
+            test_module="test_directory_interface",
+            waves=True,
+            build_dir=f"sim_build_di_{run_id}"
+        )
+
+if __name__ == "__main__":
+    directory_interface_runner()
+
