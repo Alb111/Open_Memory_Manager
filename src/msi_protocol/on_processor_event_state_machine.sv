@@ -1,3 +1,4 @@
+`timescale 1ns/1ps
 `default_nettype none
 
 module on_processor_event_state_machine
@@ -38,11 +39,12 @@ module on_processor_event_state_machine
   msi_state state_q, state_d;
   assign state_q = msi_state'(current_state_i);
   // assign state_q = current_state_i;
-  // assign next_state_o = state_d;
+  assign next_state_o = state_d;
 
   // event handling
-  processor_event event;
-  assign event = (wstrb_i == 4'd0);
+  processor_event proc_event;
+  assign proc_event = processor_event'(wstrb_i == 4'd0);
+  // assign proc_event = (wstrb_i == 4'd0) ? READ : WRITE;
 
   // bus_transactions handling
   bus_transaction cmd_to_directory;
@@ -57,7 +59,8 @@ module on_processor_event_state_machine
   
     case(state_q)
       INVALID: begin
-        if(event == READ) begin
+        // if(event == processor_event::READ) begin
+        if(proc_event == READ) begin
           state_d = SHARED;
           valid_cmd = 1'b1;
           cmd_to_directory = BUS_RD;
@@ -69,7 +72,8 @@ module on_processor_event_state_machine
         end
       end
       SHARED: begin
-        if(event == READ) begin
+        // if(event == processor_event::READ) begin
+        if(proc_event == READ) begin
           state_d = SHARED;
           valid_cmd = 1'b0;
           cmd_to_directory = NONE;
