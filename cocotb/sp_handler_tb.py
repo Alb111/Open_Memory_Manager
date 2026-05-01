@@ -120,12 +120,15 @@ async def thorough_mmio_test(dut):
     dut.mem_addr.value = 0x0000_1000 # Normal memory addr
     dut.mem_valid.value = 1
     await Timer(20, unit="ns")
+    assert dut.pass_mem_valid.value == 1, "Error: mem_valid not passing through with valid address"
     assert dut.mem_ready.value == 0, "Error: mem_ready high when downstream is busy"
     
     await RisingEdge(dut.clk_i)
     dut.pass_mem_ready.value = 1
+    dut.pass_mem_rdata.value = 0xDEADBEEF
     await RisingEdge(dut.clk_i)
     assert dut.mem_ready.value == 1, "Error: mem_ready did not follow pass_mem_ready"
+    assert dut.mem_rdata.value == 0xDEADBEEF, "Error: mem_rdata did not follow pass_mem_rdata"
     dut.mem_valid.value = 0
 
     dut._log.info("--- ALL TESTS PASSED ---")
