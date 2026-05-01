@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-module sp_addr_handler #()(
+module sp_addr_handler (
     input         clk_i,
     input         rst_ni,
 
@@ -24,7 +24,7 @@ module sp_addr_handler #()(
 
     // flush special instruction
     input         flush_ready_i,
-    output        flush_addr_o,
+    output [31:0] flush_addr_o,
     output        flush_valid_o,
 
     //gpio pin connections
@@ -51,15 +51,17 @@ module sp_addr_handler #()(
 
     //rdata logic
     logic [31:0] mmio_rd_data;
+    logic [31:0] mem_rdata_l;
+    assign mem_rdata = mem_rdata_l;
     always_comb begin
-        if(is_whoami) begin
-            mem_rdata = {24'b0, cpu_id_i}; // return chips unique ID
+        if (is_whoami) begin
+            mem_rdata_l = {24'b0, cpu_id_i}; // return chips unique ID
         end else if (is_flush) begin
-            mem_rdata = '0;
+            mem_rdata_l = '0;
         end else if (is_mmio) begin
-            mem_rdata = mmio_rd_data; //return data from the mmio regs
+            mem_rdata_l = mmio_rd_data; //return data from the mmio regs
         end else begin
-            mem_rdata = pass_mem_rdata;
+            mem_rdata_l = pass_mem_rdata;
         end
     end
 
@@ -84,10 +86,10 @@ module sp_addr_handler #()(
     always_ff @( posedge clk_i or negedge rst_ni ) begin : flush_reg
         if (!rst_ni) begin
             flush_addr_r <= '0;
-            flush_vaild_r <= '0;
+            flush_valid_r <= '0;
         end else if (is_flush & mem_valid) begin
             flush_addr_r <= mem_addr;
-            flush_vaild_r <= '1;
+            flush_valid_r <= '1;
         end else if (flush_ready_i) begin
                 flush_valid_r <= '0;
         end else begin
@@ -103,6 +105,6 @@ module sp_addr_handler #()(
     assign pass_mem_wdata = mem_wdata;
     assign pass_mem_wstrb = mem_wstrb;
     assign pass_mem_valid = ~is_special_addr & mem_valid;
-    assign mem_ready = pass_mem_ready | is_special_addr;
+    assign mem_ready = pass_mem_ready & ~is_special_addr | is_special_addr;
 
 endmodule
