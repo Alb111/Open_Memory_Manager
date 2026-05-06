@@ -15,87 +15,123 @@ slot = os.getenv("SLOT", "1x1")
 
 hdl_toplevel = "sp_addr_handler"
 
-# helper funcs
+# Helper funcs
 async def setup_reset(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
     dut.rst_ni.value = 0
+    # Initialize inputs to avoid 'X' propagation
+    dut.mem_valid.value = 0
+    dut.mem_addr.value = 0
+    dut.mem_wdata.value = 0
+    dut.mem_wstrb.value = 0
+    dut.pass_mem_ready.value = 0
+    dut.flush_ready_i.value = 0
+    dut.gpio_pins_i.value = 0
+    dut.cpu_id_i.value = 0xA5    # Set a test ID
+    
     await Timer(20, unit="ns")
     dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
 
-async def cpu_write(dut, addr, data):
-    """Simulates a CPU writing to an address"""
-    dut.addr_i.value = addr
-    dut.wr_data_i.value = data
-    dut.wr_en_i.value = 1
-    await RisingEdge(dut.clk_i) # hardware captures data here
-    # clear enable after edge
-    dut.wr_en_i.value = 0
+async def cpu_write(dut, addr, data, strobe=0xF):
+    """Simulates a PicoRV32 memory write cycle"""
+    dut.mem_addr.value = addr
+    dut.mem_wdata.value = data
+    dut.mem_wstrb.value = strobe
+    dut.mem_valid.value = 1
+    
+    # Wait for ready
+    while not dut.mem_ready.value:
+        await RisingEdge(dut.clk_i)
+    
+    await RisingEdge(dut.clk_i)
+    dut.mem_valid.value = 0
+    dut.mem_wstrb.value = 0
     dut._log.info(f"CPU WRITE: Addr={hex(addr)}, Data={hex(data)}")
 
-
-
 async def cpu_read(dut, addr):
-    """Simulates a CPU reading from an address"""
-    dut.addr_i.value = addr
-    dut.wr_en_i.value = 0
-    await FallingEdge(dut.clk_i) # read on falling edge to ensure stable data
-    val = int(dut.rd_data_o.value)
+    """Simulates a PicoRV32 memory read cycle"""
+    dut.mem_addr.value = addr
+    dut.mem_wstrb.value = 0
+    dut.mem_valid.value = 1
+
+    while not dut.mem_ready.value:
+        print(f"\n\n\n\ncpu_read\n\n\n\n")
+        await RisingEdge(dut.clk_i)
+    
+    val = int(dut.mem_rdata.value)
+    await RisingEdge(dut.clk_i)
+    dut.mem_valid.value = 0
     dut._log.info(f"CPU READ:  Addr={hex(addr)}, Result={hex(val)}")
     return val
 
-# main test
 @cocotb.test()
 async def thorough_mmio_test(dut):
     await setup_reset(dut)
-    dut._log.info("--- Starting MMIO Testbench ---")
+    await RisingEdge(dut.clk_i)
+    dut._log.info("--- Starting Updated MMIO Testbench ---")
 
-    #1.test whoami
-    expected_id = 0xA1B2C3D4
+    # 1. Test WHOAMI (now uses cpu_id_i port)
+    # Expected: {24'b0, 0xA5} = 0x000000A5
+    expected_id = 0xA5
     val = await cpu_read(dut, 0x8000_0000)
-    assert val == expected_id, f"ERROR: WHOAMI expected {hex(expected_id)}, got {hex(val)}"
+    assert val == expected_id, f"WHOAMI failed: expected {hex(expected_id)}, got {hex(val)}"
 
-    # 2.config dir (csr)
-    # set pin 0 and pin 7 as outputs (1) others as inputs (0)-> 0b10000001 = 0x81
+    # 2. Test Flush Logic (New Feature)
+    dut._log.info("Testing Flush Mechanism...")
+    await cpu_write(dut, 0x8000_0020, 0x12345678) # Write to flush addr
+    await RisingEdge(dut.clk_i)
+    # Note: Using the typo 'flush_vaild_o' if you haven't fixed it in RTL yet
+    assert dut.flush_valid_o.value == 1, "Flush valid did not assert"
+    
+    # Pulse flush_ready to clear it
+    dut.flush_ready_i.value = 1
+    await RisingEdge(dut.clk_i)
+    dut.flush_ready_i.value = 0
+    await RisingEdge(dut.clk_i)
+    assert dut.flush_valid_o.value == 0, "Flush valid did not clear after ready"
+
+    # 3. Config GPIO Direction (CSR at 0x8000_0018)
     test_dir = 0x81
     await cpu_write(dut, 0x8000_0018, test_dir)
     await RisingEdge(dut.clk_i)
-    assert int(dut.gpio_dir_o.value) == test_dir, f"CSR Update failed: got {hex(int(dut.gpio_dir_o.value))}"
-    dut._log.info(f"SUCCESS: CSR set to {hex(test_dir)}")
+    assert int(dut.gpio_dir_o.value) == test_dir, "CSR Update failed"
 
-    # 3.test indiv pin writes (ouput mode)
-    # write 1 to pin 0 (addr 0x8000_0010)
-    await cpu_write(dut, 0x8000_0010, 1)
-    # write 1 to pin 7 (addr 0x8000_0017)
-    await cpu_write(dut, 0x8000_0017, 1)
-    await RisingEdge(dut.clk_i) # Allow settling
-    assert int(dut.gpio_pins_o.value) == 0x81, f"Expected 0x81, got {hex(int(dut.gpio_pins_o.value))}"
-    dut._log.info("SUCCESS: Individual pin writes (0 and 7) verified.")
-
-    # 4.test write protection (input mode)
-    #try to write 1 to pin 1 (addr 0x8000_0011), which is input
-    await cpu_write(dut, 0x8000_0011, 1)
+    # write and read output pin
+    await cpu_write(dut, 0x8000_0010, 0x1)
     await RisingEdge(dut.clk_i)
-    assert (int(dut.gpio_pins_o.value) & 0x02) == 0, "ERROR: Wrote to an INPUT pin!"
-    dut._log.info("SUCCESS: Input pin correctly rejected write request.")
+    await cpu_read(dut, 0x8000_0010)
+    assert int(dut.mem_rdata.value) == 1, "GPIO output pin was not successfully set"
 
-    # 5.test redaing external inputs
-    # sim external world pulling pin 1 high
-    dut.gpio_pins_i.value = 0x02 # Pin 1 is high
-    await Timer(1, unit="ns")
-    val = await cpu_read(dut, 0x8000_0011) # Read Pin 1 address
-    assert val == 1, f"ERROR: Failed to read external input on Pin 1. Got {val}"
-    dut._log.info("SUCCESS: Verified reading external data from input pin.")
+    # write and read input pin
+    await cpu_write(dut, 0x8000_0011, 0x1)
+    await RisingEdge(dut.clk_i)
+    await cpu_read(dut, 0x8000_0011)
+    assert int(dut.mem_rdata.value) == 0, "GPIO input pin should not be set by CPU"
+    dut.gpio_pins_i.value = 0x2
+    await RisingEdge(dut.clk_i)
+    await cpu_read(dut, 0x8000_0011)
+    assert int(dut.mem_rdata.value) == 1, "GPIO input pin not successfully read"
 
-    # 6.test passthru
-    mem_addr = 0x1234_5678
-    dut.addr_i.value = mem_addr
-    dut.wr_en_i.value = 0
-    await FallingEdge(dut.clk_i)
-    assert dut.ack_o.value == 0, "ERROR: ACK active for non-special address!"
-    assert dut.passthru_addr_o.value == mem_addr, "Address passthrough corrupted"
 
-    dut._log.info("--- ALL MMIO AND HANDLER TESTS PASSED!!!! ---")
+    # 4. Test Passthrough Logic
+    # For non-special addresses, mem_ready depends on pass_mem_ready
+    dut.pass_mem_ready.value = 0
+    dut.mem_addr.value = 0x0000_1000 # Normal memory addr
+    dut.mem_valid.value = 1
+    await Timer(20, unit="ns")
+    assert dut.pass_mem_valid.value == 1, "Error: mem_valid not passing through with valid address"
+    assert dut.mem_ready.value == 0, "Error: mem_ready high when downstream is busy"
+    
+    await RisingEdge(dut.clk_i)
+    dut.pass_mem_ready.value = 1
+    dut.pass_mem_rdata.value = 0xDEADBEEF
+    await RisingEdge(dut.clk_i)
+    assert dut.mem_ready.value == 1, "Error: mem_ready did not follow pass_mem_ready"
+    assert dut.mem_rdata.value == 0xDEADBEEF, "Error: mem_rdata did not follow pass_mem_rdata"
+    dut.mem_valid.value = 0
+
+    dut._log.info("--- ALL TESTS PASSED ---")
 
     
 def sp_handler_tb_runner():
