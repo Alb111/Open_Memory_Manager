@@ -163,7 +163,7 @@ def mem_ctrl_runner():
 
     runner.test(
         hdl_toplevel="mem_ctrl_128x32",
-        test_module="test_cache_sram",
+        test_module="test_mem_ctrl_128x32",
         waves=True,
     )
 
