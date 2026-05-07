@@ -80,27 +80,6 @@ module chip_core #(
         .req_o     	()
     );
 
-    // Instantiate cache_interface module
-    cache_interface #(
-        .NUM_PINS   (),
-        .MAX_MSG_LEN()
-    ) i_cache_interface (
-        .mem_valid     	(),
-        .mem_ready     	(),
-        .mem_addr      	(),
-        .mem_wdata     	(),
-        .mem_wstrb     	(),
-        .mem_rdata     	(),
-        .cache_cmd     	(),
-        .directory_cmd	(),
-        .rst_done     	(),
-        .cpu_id       	(),
-        .req_i       	(),
-        .serial_i    	(),
-        .req_o       	(),
-        .serial_o    	()
-    );
-
     // Instantiate directory_interface module
     directory_interface #(
         .NUM_PINS   (),
