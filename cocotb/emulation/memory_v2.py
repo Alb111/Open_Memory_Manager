@@ -25,23 +25,37 @@ class MemoryController:
         self.log.debug(f"read addr={address:#010x} got={found_val:#010x}")
         return found_val
 
+    # async def write_n(self, address: int, data: int, write_strobe: int) -> None:
+
+    #     self.log.debug(f"write addr={address} with {data}")
+    #     # address not in physical address spcae
+    #     if address > self.max_address:
+    #         self.log.error(f"write err: address out of range, wrote nothing max address is {self.max_address}")
+    #         return
+
+    #     # assemble word to write based on bit mask
+    #     data_to_write: int = 0
+    #     for index, bit_mask in enumerate(BYTE_MASKS):
+    #         byte: int = data & bit_mask
+    #         if (write_strobe >> index) & 1: # shift and isolate last bit
+    #             data_to_write |= byte        
+
+    #     self.sram[address] = data_to_write
+    #     return
+
     async def write(self, address: int, data: int, write_strobe: int) -> None:
-
-        self.log.debug(f"write addr={address} with {data}")
-        # address not in physical address spcae
         if address > self.max_address:
-            self.log.error(f"write err: address out of range, wrote nothing max address is {self.max_address}")
+            self.log.error(f"write err: address out of range")
             return
-
-        # assemble word to write based on bit mask
-        data_to_write: int = 0
+    
+        existing: int = self.sram.get(address, 0)  # read existing value
+        data_to_write: int = existing               # start from existing
+    
         for index, bit_mask in enumerate(BYTE_MASKS):
-            byte: int = data & bit_mask
-            if (write_strobe >> index) & 1: # shift and isolate last bit
-                data_to_write |= byte        
-
+            if (write_strobe >> index) & 1:
+                data_to_write = (data_to_write & ~bit_mask) | (data & bit_mask)
+    
         self.sram[address] = data_to_write
-        return
     
     async def axi_handler(self, request: axi_request) -> axi_request:
 

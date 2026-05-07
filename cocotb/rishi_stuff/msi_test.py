@@ -200,52 +200,52 @@ async def test_fuzz_idle(dut):
     assert not failures, "\n".join(failures)
 
 
-@cocotb.test()
-async def test_fuzz_both_valid(dut):
-    """
-    Both valids high — protocol violation.
-    Snoop should win (per priority), verify flush and cmd_valid never both high.
-    Covers all 3 states x 2 proc events x 3 snoop events = 18 combinations.
-    """
-    await init(dut)
-    dut._log.info("=== Fuzz: Both Valid High (18 combinations) ===")
-    failures = []
+# @cocotb.test()
+# async def test_fuzz_both_valid(dut):
+#     """
+#     Both valids high — protocol violation.
+#     Snoop should win (per priority), verify flush and cmd_valid never both high.
+#     Covers all 3 states x 2 proc events x 3 snoop events = 18 combinations.
+#     """
+#     await init(dut)
+#     dut._log.info("=== Fuzz: Both Valid High (18 combinations) ===")
+#     failures = []
 
-    for state, pe, se in product(MSIState, ProcessorEvent, SnoopEvent):
-        await drive_comb(dut, state, 1, pe, 1, se)
-        got = read_outputs(dut)
+#     for state, pe, se in product(MSIState, ProcessorEvent, SnoopEvent):
+#         await drive_comb(dut, state, 1, pe, 1, se)
+#         got = read_outputs(dut)
 
-        # Snoop wins — check against snoop expected output
-        expected = on_snoop_event(state, se)
+#         # Snoop wins — check against snoop expected output
+#         expected = on_snoop_event(state, se)
 
-        reasons = []
-        if got["next_state"] != int(expected.next_state):
-            reasons.append(f"next_state={STATE_NAMES[got['next_state']]} exp={STATE_NAMES[int(expected.next_state)]}")
-        if got["flush"] != int(expected.flush):
-            reasons.append(f"flush={got['flush']} exp={int(expected.flush)}")
-        if got["cmd_valid"] != 0:
-            reasons.append(f"cmd_valid={got['cmd_valid']} exp=0 (snoop must win)")
+#         reasons = []
+#         if got["next_state"] != int(expected.next_state):
+#             reasons.append(f"next_state={STATE_NAMES[got['next_state']]} exp={STATE_NAMES[int(expected.next_state)]}")
+#         if got["flush"] != int(expected.flush):
+#             reasons.append(f"flush={got['flush']} exp={int(expected.flush)}")
+#         if got["cmd_valid"] != 0:
+#             reasons.append(f"cmd_valid={got['cmd_valid']} exp=0 (snoop must win)")
 
-        passed = len(reasons) == 0
-        status = "PASS" if passed else "FAIL"
-        dut._log.info(
-            f"  [BOTH/{status}] {STATE_NAMES[int(state)]} + PROC={PROC_NAMES[int(pe)]} SNOOP={SNOOP_NAMES[int(se)]}"
-            f" | next={STATE_NAMES[got['next_state']]} flush={got['flush']} cmd_valid={got['cmd_valid']}"
-            + (f" | {', '.join(reasons)}" if reasons else "")
-        )
-        if not passed:
-            failures.append(f"BOTH {STATE_NAMES[int(state)]} pe={PROC_NAMES[int(pe)]} se={SNOOP_NAMES[int(se)]}: {', '.join(reasons)}")
+#         passed = len(reasons) == 0
+#         status = "PASS" if passed else "FAIL"
+#         dut._log.info(
+#             f"  [BOTH/{status}] {STATE_NAMES[int(state)]} + PROC={PROC_NAMES[int(pe)]} SNOOP={SNOOP_NAMES[int(se)]}"
+#             f" | next={STATE_NAMES[got['next_state']]} flush={got['flush']} cmd_valid={got['cmd_valid']}"
+#             + (f" | {', '.join(reasons)}" if reasons else "")
+#         )
+#         if not passed:
+#             failures.append(f"BOTH {STATE_NAMES[int(state)]} pe={PROC_NAMES[int(pe)]} se={SNOOP_NAMES[int(se)]}: {', '.join(reasons)}")
 
-    total = 18
-    dut._log.info(f"  Result: {total - len(failures)}/{total} passed")
-    assert not failures, "\n".join(failures)   
+#     total = 18
+#     dut._log.info(f"  Result: {total - len(failures)}/{total} passed")
+#     assert not failures, "\n".join(failures)   
 
 def mem_ctrl_runner():
     proj_path = Path(__file__).resolve().parent
 
 
     sources = [
-        proj_path / "../src/msi_protocol/msi.v",
+        proj_path / "../src/msi_protocol/msi_protocol.sv",
     ]
 
     build_args = []

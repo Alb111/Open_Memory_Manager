@@ -97,9 +97,26 @@ mem-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/mem_ctrl_2048x32.fst
 .PHONY: mem-wave
 
+wave: ## TODO: make better name later
+	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
+.PHONY: wave
+
+test: ## Run all cocotb on mem
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_sram_test.py
+.PHONY: test
+
+
 test-msi: ## Run all cocotb tests on msi
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
 .PHONY: test-msi
+
+test-msi-protocol: ## Run cocotb tests on standalone msi_protocol
+	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_protocol_test.py
+.PHONY: test-msi-protocol
+
+test-cache-controller: ## Run cocotb tests for cache_controller_core
+	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_controller_test.py
+.PHONY: test-cache-controller
 
 test-arb: ## Run all cocotb tests on msi
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
