@@ -3,6 +3,8 @@
 
 `default_nettype none
 
+`timescale 1ns/1ps
+
 module chip_core #(
     parameter NUM_INPUT_PADS,
     parameter NUM_BIDIR_PADS,
@@ -50,53 +52,135 @@ module chip_core #(
     logic _unused;
     assign _unused = &bidir_in;
 
-    logic [NUM_BIDIR_PADS-1:0] count;
-
-    always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            count <= '0;
-        end else begin
-            if (&input_in) begin
-                count <= count + 1;
-            end
-        end
-    end
-
-    logic [7:0] sram_0_out;
-
-    gf180mcu_fd_ip_sram__sram512x8m8wm1 sram_0 (
-        `ifdef USE_POWER_PINS
-        .VDD  (VDD),
-        .VSS  (VSS),
-        `endif
-
-        .CLK  (clk),
-        .CEN  (1'b1),
-        .GWEN (1'b0),
-        .WEN  (8'b0),
-        .A    ('0),
-        .D    ('0),
-        .Q    (sram_0_out)
+    // Instantiate mmio module
+    mmio i_mmio (
+        .clk_i     (),
+        .rst_in    (),
+        .addr_i   (),
+        .wr_data_i(),
+        .wr_en_i  (),
+        .rd_data_o(),
+        .gpio_pins_o(),
+        .gpio_pins_i(),
+        .gpio_dir_o()
     );
 
-    logic [7:0] sram_1_out;
-
-    gf180mcu_fd_ip_sram__sram512x8m8wm1 sram_1 (
-        `ifdef USE_POWER_PINS
-        .VDD  (VDD),
-        .VSS  (VSS),
-        `endif
-
-        .CLK  (clk),
-        .CEN  (1'b1),
-        .GWEN (1'b0),
-        .WEN  (8'b0),
-        .A    ('0),
-        .D    ('0),
-        .Q    (sram_1_out)
+    // Instantiate wrr_arbiter module
+    wrr_arbiter #(
+        .NUM_REQ   (),
+        .WEIGHT_W ()
+    ) i_wrr_arbiter (
+        .clk_i       (),
+        .rst_ni     (),
+        .req_i      (),
+        .weights_i  (),
+        .weight_en_i(),
+        .grant_o   (),
+        .req_o     ()
     );
 
-    assign bidir_out = count ^ {24'd0, sram_0_out, sram_1_out};
+    // Instantiate cache_interface module
+    cache_interface #(
+        .NUM_PINS   (),
+        .MAX_MSG_LEN()
+    ) i_cache_interface (
+        .mem_valid      (),
+        .mem_ready     (),
+        .mem_addr      (),
+        .mem_wdata     (),
+        .mem_wstrb     (),
+        .mem_rdata     (),
+        .cache_cmd     (),
+        .directory_cmd(),
+        .rst_done     (),
+        .cpu_id       (),
+        .req_i       (),
+        .serial_i    (),
+        .req_o       (),
+        .serial_o    ()
+    );
+
+    // Instantiate directory_interface module
+    directory_interface #(
+        .NUM_PINS   (),
+        .MAX_MSG_LEN()
+    ) i_directory_interface (
+        .mem_valid      (),
+        .mem_ready     (),
+        .mem_addr      (),
+        .mem_wdata     (),
+        .mem_wstrb     (),
+        .mem_rdata     (),
+        .cache_cmd     (),
+        .directory_cmd(),
+        .rst_done     (),
+        .cpu_id       (),
+        .req_i       (),
+        .serial_i    (),
+        .req_o       (),
+        .serial_o    ()
+    );
+
+    // Instantiate tserializer module
+    tserializer #(
+        .NUM_PINS   (),
+        .MAX_MSG_LEN(),
+        .MSG_LEN_0 (),
+        .MSG_LEN_1 (),
+        .MSG_LEN_2 (),
+        .MSG_LEN_3 ()
+    ) i_tserializer (
+        .clk_i     (),
+        .rst_n    (),
+        .valid_i  (),
+        .data_in  (),
+        .msg_type(),
+        .ready_o (),
+        .req_o   (),
+        .serial_o()
+    );
+
+    // Instantiate rserializer module
+    rserializer #(
+        .NUM_PINS   (),
+        .MAX_MSG_LEN()
+    ) i_rserializer (
+        .clk_i      (),
+        .rst_n     (),
+        .serial_i  (),
+        .req_i     (),
+        .valid_o   (),
+        .data_o    (),
+        .ready_i   ()
+    );
+
+    // Instantiate mem_ctrl_512x32 module
+    mem_ctrl_512x32 i_mem_ctrl_512x32 (
+        .clk_i        (),
+        .rst_ni       (),
+        .mem_valid_i (),
+        .mem_instr_i (),
+        .mem_addr_i  (),
+        .mem_wdata_i (),
+        .mem_wstrb_i (),
+        .mem_rdata_o (),
+        .mem_ready_o ()
+    );
+
+    // Instantiate mem_ctrl_2048x32 module
+    mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
+        .clk_i        (),
+        .rst_ni       (),
+        .mem_valid_i (),
+        .mem_instr_i (),
+        .mem_addr_i  (),
+        .mem_wdata_i (),
+        .mem_wstrb_i (),
+        .mem_rdata_o (),
+        .mem_ready_o ()
+    );
+
+    assign bidir_out = '0;
 
 endmodule
 

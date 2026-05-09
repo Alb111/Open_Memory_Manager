@@ -129,7 +129,19 @@ test-tserializer: ## Run all cocotb tests on tserializer
 test-rserializer: ## Run all cocotb tests on rserializer
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_rserializer.py
 .PHONY: test-rserializer
-	
+
+test-cache-interface: ## Run all cocotb tests on cache_interface
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_cache_interface.py
+.PHONY: test-cache-interface
+
+test-directory-interface: ## Run all cocotb tests on directory_interface
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_directory_interface.py
+.PHONY: test-directory-interface
+
+test-spaddr: ## Run all cocotb tests on sp_addr_handler
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 sp_handler_tb.py
+.PHONY: test-spaddr
+
 arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
 .PHONY: arb-wave
@@ -148,4 +160,4 @@ test-all: ## Run all cocotb testbenches via pytest
 
 clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
-.PHONY: clean-
+.PHONY: clean-sim

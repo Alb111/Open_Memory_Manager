@@ -4,3 +4,6 @@
 [submodule "wiki"]
 	path = wiki
 	url = https://github.com/Alb111/Open_Memory_Manager.wiki.git
+[submodule "ip/OMM_CPU"]
+	path = ip/OMM_CPU
+	url = git@github.com:nsgaither/Open_Memory_Manager_CPU.git
