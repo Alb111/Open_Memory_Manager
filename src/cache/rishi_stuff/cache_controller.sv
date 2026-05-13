@@ -85,23 +85,6 @@ module cache_controller #(
     assign hit0 = valid_q[0][set_idx] && (tag_q[0][set_idx] == tag_in) && (msi_q[0][set_idx] != MSI_I);
     assign hit1 = valid_q[1][set_idx] && (tag_q[1][set_idx] == tag_in) && (msi_q[1][set_idx] != MSI_I);
 
-    cache #(.NUM_SETS(NUM_SETS), .WORDS_PER_LINE(WORDS_PER_LINE), .USE_BEHAVIORAL(USE_BEHAVIORAL_WAYS)) u_way0 (
-        .clk_i(clk_i), .rst_ni(rst_ni),
-        .rd_en_i(rd_en_way[0]), .rd_set_i(set_idx), .rd_word_i(word_off), .rd_data_o(way_rdata[0]),
-        .wr_en_i(wr_en_way[0]), .wr_set_i(wr_set_way[0]), .wr_word_i(wr_word_way[0]), .wr_data_i(wr_data_way[0]), .wr_strb_i(wr_strb_way[0])
-    );
-    cache #(.NUM_SETS(NUM_SETS), .WORDS_PER_LINE(WORDS_PER_LINE), .USE_BEHAVIORAL(USE_BEHAVIORAL_WAYS)) u_way1 (
-        .clk_i(clk_i), .rst_ni(rst_ni),
-        .rd_en_i(rd_en_way[1]), .rd_set_i(set_idx), .rd_word_i(word_off), .rd_data_o(way_rdata[1]),
-        .wr_en_i(wr_en_way[1]), .wr_set_i(wr_set_way[1]), .wr_word_i(wr_word_way[1]), .wr_data_i(wr_data_way[1]), .wr_strb_i(wr_strb_way[1])
-    );
-
-    mem_ctrl_512x32 u_backing_mem (
-        .clk_i(clk_i), .rst_ni(rst_ni),
-        .mem_valid_i(backing_valid_q), .mem_instr_i(1'b0), .mem_addr_i(backing_addr_q), .mem_wdata_i(backing_wdata_q), .mem_wstrb_i(backing_wstrb_q),
-        .mem_rdata_o(backing_rdata), .mem_ready_o(backing_ready)
-    );
-
     logic        backing_valid_q;
     logic [31:0] backing_addr_q;
     logic [31:0] backing_wdata_q;
@@ -122,6 +105,23 @@ module cache_controller #(
     logic [3:0]  pending_meta_q;
     logic [31:0] pending_addr_q;
     logic [31:0] pending_wdata_q;
+
+    cache #(.NUM_SETS(NUM_SETS), .WORDS_PER_LINE(WORDS_PER_LINE), .USE_BEHAVIORAL(USE_BEHAVIORAL_WAYS)) u_way0 (
+        .clk_i(clk_i), .rst_ni(rst_ni),
+        .rd_en_i(rd_en_way[0]), .rd_set_i(set_idx), .rd_word_i(word_off), .rd_data_o(way_rdata[0]),
+        .wr_en_i(wr_en_way[0]), .wr_set_i(wr_set_way[0]), .wr_word_i(wr_word_way[0]), .wr_data_i(wr_data_way[0]), .wr_strb_i(wr_strb_way[0])
+    );
+    cache #(.NUM_SETS(NUM_SETS), .WORDS_PER_LINE(WORDS_PER_LINE), .USE_BEHAVIORAL(USE_BEHAVIORAL_WAYS)) u_way1 (
+        .clk_i(clk_i), .rst_ni(rst_ni),
+        .rd_en_i(rd_en_way[1]), .rd_set_i(set_idx), .rd_word_i(word_off), .rd_data_o(way_rdata[1]),
+        .wr_en_i(wr_en_way[1]), .wr_set_i(wr_set_way[1]), .wr_word_i(wr_word_way[1]), .wr_data_i(wr_data_way[1]), .wr_strb_i(wr_strb_way[1])
+    );
+
+    mem_ctrl_512x32 u_backing_mem (
+        .clk_i(clk_i), .rst_ni(rst_ni),
+        .mem_valid_i(backing_valid_q), .mem_instr_i(1'b0), .mem_addr_i(backing_addr_q), .mem_wdata_i(backing_wdata_q), .mem_wstrb_i(backing_wstrb_q),
+        .mem_rdata_o(backing_rdata), .mem_ready_o(backing_ready)
+    );
 
     integer s, w;
 

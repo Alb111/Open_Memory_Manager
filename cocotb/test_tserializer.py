@@ -428,16 +428,32 @@ async def test_multi_spaced_send(dut):
 def tserializer_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/interposer_interface/tserializer.sv",
-    ]
+    sources = []
+    configs = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
 
-    configs = [
-        {"NUM_PINS": 1},
-        {"NUM_PINS": 4},
-        {"NUM_PINS": 9},
-    ]
+        configs += [
+            {"NUM_PINS": 9},
+        ]
+    else:
+        sources += [
+            proj_path / "../src/interposer_interface/tserializer.sv",
+        ]
 
+        configs += [
+            {"NUM_PINS": 1},
+            {"NUM_PINS": 4},
+            {"NUM_PINS": 9},
+        ]
     for config in configs:
         run_id = f"p{config['NUM_PINS']}"
 

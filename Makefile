@@ -161,3 +161,8 @@ test-all: ## Run all cocotb testbenches via pytest
 clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
 .PHONY: clean-sim
+
+# generate netlists for all top-level modules
+gen-netlists: ## Generate netlists for all top-level modules
+	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/gen_netlists.py
+.PHONY: gen-netlists

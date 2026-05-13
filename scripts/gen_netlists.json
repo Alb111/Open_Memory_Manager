@@ -1,0 +1,13 @@
+{
+  "target_modules": [
+    "wrr_arbiter",
+    "housekeeping_top",
+    "mem_ctrl_2048x32",
+    "mem_ctrl_128x32",
+    "sp_addr_handler",
+    "cache_interface",
+    "directory_interface",
+    "rserializer",
+    "tserializer"
+  ]
+}

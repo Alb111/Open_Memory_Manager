@@ -726,13 +726,28 @@ async def miss_emits_busrd_and_write_hit_upgrade(dut):
 if __name__ == "__main__":
     root = Path(__file__).resolve().parent.parent
     runner = get_runner("icarus")
-    runner.build(
-        sources=[
+
+    sources = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / "../src/netlists/housekeeping_top.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
+    else:
+        sources += [
             root / "src/msi_protocol/msi_protocol.sv",
             root / "src/cache/cache.sv",
             root / "src/mem_ctrl/mem512x32.sv",
             root / "src/cache/cache_controller.sv",
-        ],
+        ]
+
+    runner.build(
+        sources=sources,
         hdl_toplevel="cache_controller",
         build_dir=str(Path(__file__).resolve().parent / "sim_build" / "cache_controller"),
         always=True,

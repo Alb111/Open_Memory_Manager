@@ -303,15 +303,32 @@ async def test_valid_o_new_msg(dut):
 def rserializer_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/interposer_interface/rserializer.sv",
-    ]
+    sources = []
+    configs = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
 
-    configs = [
-        {"NUM_PINS": 1},
-        {"NUM_PINS": 4},
-        {"NUM_PINS": 9},
-    ]
+        configs += [
+            {"NUM_PINS": 9},
+        ]
+    else:
+        sources += [
+            proj_path / "../src/interposer_interface/rserializer.sv",
+        ]
+
+        configs += [
+            {"NUM_PINS": 1},
+            {"NUM_PINS": 4},
+            {"NUM_PINS": 9},
+        ]
 
     for config in configs:
         run_id = f"p{config['NUM_PINS']}"

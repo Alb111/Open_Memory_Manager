@@ -465,9 +465,20 @@ async def test_reset_clears_pointer_and_resumes(dut):
 def wrr_arbiter_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/arb/wrr_arbiter.sv",
-    ]
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
+    else:
+        sources = [
+            proj_path / "../src/arb/wrr_arbiter.sv",
+        ]
 
     build_args = []
     if sim == "icarus":
