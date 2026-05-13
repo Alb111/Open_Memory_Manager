@@ -32,10 +32,9 @@ VERILOG_FILES:
 - dir::../src/housekeeping/boot_fsm.sv
 - dir::../src/housekeeping/housekeeping_top.sv
 - dir::../src/housekeeping/spi_engine.sv
-- dir::../src/mem_ctrl/mem2048x32.sv
-- dir::../src/mem_ctrl/mem512x32.sv
-- dir::../src/msi_protocol/msi.v
-- dir::../src/msi_protocol/msi_v2.sv
+- dir::../src/mem_ctrl/main_memory/mem2048x32.sv
+- dir::../src/mem_ctrl/main_memory/mem512x32.sv
+- dir::../src/msi_protocol/msi_protocol.sv
 - dir::../src/interposer_interface/cache_interface.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv

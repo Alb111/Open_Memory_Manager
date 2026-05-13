@@ -288,11 +288,23 @@ async def test_boot_after_passthrough(dut):
 def boot_ctrl_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/housekeeping/spi_engine.sv",
-        proj_path / "../src/housekeeping/boot_fsm.sv",
-        proj_path / "../src/housekeeping/housekeeping_top.sv"
-    ]
+    sources = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
+    else:
+        sources = [
+            proj_path / "../src/housekeeping/spi_engine.sv",
+            proj_path / "../src/housekeeping/boot_fsm.sv",
+            proj_path / "../src/housekeeping/housekeeping_top.sv"
+        ]
 
     build_args = []
     if sim == "icarus":

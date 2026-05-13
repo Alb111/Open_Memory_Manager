@@ -427,20 +427,7 @@ module cache_controller #(
             cache_data_o = data_cache_rd_data_i;
             cache_cmd_o = (msi_state_q[flush_set] == MsiM) ?
                 CacheCmdEvictDirty : CacheCmdEvictClean;
-            cache_valid_o = 1'b1;
-
-            if (cache_ready_i) begin
-              flush_ready_o = 1'b1;
-              meta_write_en_d = 1'b1;
-              meta_set_d = flush_set;
-              meta_tag_d = tag_q[flush_set];
-              meta_state_d = MsiI;
-              meta_valid_d = 1'b0;
-            end else begin
-              evict_addr_d = flush_addr_i;
-              evict_cmd_d = (msi_state_q[flush_set] == MsiM) ?
-                  CacheCmdEvictDirty : CacheCmdEvictClean;
-              ctrl_state_d = CtrlFlushSend;
+        FlushSend;
             end
           end
         end else if (mem_valid_i && data_cache_ready_i) begin
@@ -456,7 +443,20 @@ module cache_controller #(
             data_cache_wr_word_o = mem_word;
             data_cache_wr_data_o = mem_wdata_i;
             data_cache_wr_strb_o = mem_wstrb_i;
-            mem_ready_o = 1'b1;
+            mem_ready_o = 1'b    cache_valid_o = 1'b1;
+
+            if (cache_ready_i) begin
+              flush_ready_o = 1'b1;
+              meta_write_en_d = 1'b1;
+              meta_set_d = flush_set;
+              meta_tag_d = tag_q[flush_set];
+              meta_state_d = MsiI;
+              meta_valid_d = 1'b0;
+            end else begin
+              evict_addr_d = flush_addr_i;
+              evict_cmd_d = (msi_state_q[flush_set] == MsiM) ?
+                  CacheCmdEvictDirty : CacheCmdEvictClean;
+              ctrl_state_d = Ctrl1;
           end else begin
             pending_addr_d = mem_addr_i;
             pending_wdata_d = mem_wdata_i;

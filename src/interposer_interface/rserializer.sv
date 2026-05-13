@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module rserializer #(
-    parameter int NUM_PINS = 1,
+    parameter int NUM_PINS = 9,
     parameter int MAX_MSG_LEN = 68
 )(
 

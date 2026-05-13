@@ -111,14 +111,27 @@ async def test_mem_ctrl_against_golden(dut):
 def mem_ctrl_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        # SRAM macro
-        Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
-        # SRAM bank 
-        proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
-        # memory with sram bank muxing
-        proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv"
-    ]
+    sources = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / "../src/netlists/mem_ctrl_2048x32.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
+        sources += [Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v"]
+    else:
+        sources = [
+            # SRAM macro
+            Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
+            # SRAM bank 
+            proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
+            # memory with sram bank muxing
+            proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv"
+        ]
 
     build_args = []
     if sim == "icarus":
