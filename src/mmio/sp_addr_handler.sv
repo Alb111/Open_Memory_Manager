@@ -105,6 +105,21 @@ module sp_addr_handler (
     assign pass_mem_wdata = mem_wdata;
     assign pass_mem_wstrb = mem_wstrb;
     assign pass_mem_valid = ~is_special_addr & mem_valid;
-    assign mem_ready = pass_mem_ready & ~is_special_addr | is_special_addr;
+    
+    logic mem_ready_l;
+    assign mem_ready = mem_ready_l;
+    always_comb begin : mem_ready_comb
+        if (~is_special_addr) begin
+            mem_ready_l = pass_mem_ready;
+        end else if (is_mmio) begin
+            mem_ready_l = '1; //mmio is always ready
+        end else if (is_flush) begin
+            mem_ready_l = flush_ready_i;
+        end else if (is_whoami) begin
+            mem_ready_l = '1; //whoami is always ready
+        end else begin
+            mem_ready_l = '0;
+        end
+    end
 
 endmodule
