@@ -61,8 +61,8 @@ def bstr_to_grouped_list(bstr : int, group_size : int, group_cnt : int):
 @cocotb.test
 async def test_single(dut):
 
-    NUM_PINS = int(dut.NUM_PINS.value)
-    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+    NUM_PINS = len(dut.serial_i)
+    MAX_MSG_LEN = 68
 
     logger = logging.getLogger("cocotb.test")
     msg_lens = {1,2,4,12,36,68}
@@ -106,8 +106,8 @@ async def test_single(dut):
 @cocotb.test
 async def test_const_send(dut):
 
-    NUM_PINS = int(dut.NUM_PINS.value)
-    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+    NUM_PINS = len(dut.serial_i)
+    MAX_MSG_LEN = 68
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -150,8 +150,8 @@ async def test_const_send(dut):
 @cocotb.test
 async def test_delayed_send(dut):
 
-    NUM_PINS = int(dut.NUM_PINS.value)
-    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+    NUM_PINS = len(dut.serial_i)
+    MAX_MSG_LEN = 68
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -197,8 +197,8 @@ async def test_delayed_send(dut):
 @cocotb.test
 async def test_valid_o_single(dut):
 
-    NUM_PINS = int(dut.NUM_PINS.value)
-    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+    NUM_PINS = len(dut.serial_i)
+    MAX_MSG_LEN = 68
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -250,8 +250,8 @@ async def test_valid_o_single(dut):
 @cocotb.test
 async def test_valid_o_new_msg(dut):
     
-    NUM_PINS = int(dut.NUM_PINS.value)
-    MAX_MSG_LEN = int(dut.MAX_MSG_LEN.value)
+    NUM_PINS = len(dut.serial_i)
+    MAX_MSG_LEN = 68
 
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
@@ -335,7 +335,10 @@ def rserializer_runner():
 
         build_args = []
         if sim == "icarus":
-            build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_PINS={config['NUM_PINS']}"]
+            if not gl:
+                build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_PINS={config['NUM_PINS']}"]
+            else:
+                build_args += ["-g2012"]
         if sim == "verilator":
             build_args += ["--timing", "--trace", "--trace-fst", "--trace-structs", f"-GNUM_PINS={config['NUM_PINS']}"]
         
