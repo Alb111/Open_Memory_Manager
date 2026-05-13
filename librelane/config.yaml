@@ -168,10 +168,7 @@ MACROS:
     lib:
       "*":
         - dir::../ip/gf180mcu_ws_ip__id/lib/gf180mcu_ws_ip__id.lib
-    instances:
-      chip_id:
-        location: [26, 26]
-        orientation: N
+
 
   gf180mcu_ws_ip__logo:
     gds:
@@ -203,19 +200,60 @@ MACROS:
       "*_ss_125C_4v50":
         - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
     instances:
-      # Make sure to specify the SRAMs in pdn_cfg.tcl
-      i_chip_core.sram_0:
-        location: [490, 500]
+      # SRAMs instantiated inside mem_ctrl_2048x32
+      # These will be automatically placed by the tool
+      i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0:
+        location: [500, 500]
         orientation: N
-      i_chip_core.sram_1:
-        location: [970, 500]
-        orientation: E
+      i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1:
+        location: [600, 500]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2:
+        location: [700, 500]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3:
+        location: [800, 500]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0:
+        location: [500, 600]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1:
+        location: [600, 600]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2:
+        location: [700, 600]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3:
+        location: [800, 600]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0:
+        location: [500, 700]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1:
+        location: [600, 700]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2:
+        location: [700, 700]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3:
+        location: [800, 700]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0:
+        location: [500, 800]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1:
+        location: [600, 800]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2:
+        location: [700, 800]
+        orientation: N
+      i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3:
+        location: [800, 800]
+        orientation: N
 
-# This is an alternative method compared to
-# specifying the power connections in the RTL
-PDN_MACRO_CONNECTIONS:
-- "i_chip_core.sram_0 VDD VSS VDD VSS"
-- "i_chip_core.sram_1 VDD VSS VDD VSS"
+# Power connections for SRAMs inside mem_ctrl_2048x32
+# These will be connected via the hierarchical instance path
+PDN_MACRO_CONNECTIONS: []
 
 # Halo size around macros while cutting rows.
 # Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868

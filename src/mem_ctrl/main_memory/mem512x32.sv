@@ -40,57 +40,74 @@ module mem_ctrl_512x32
 	// data to be written 
 	assign data_to_write = mem_wdata_i;
 
-	// power signals
-	// assign vdd = 1;
-	// assign vss = 0;
 
-	gf180mcu_fd_ip_sram__sram512x8m8wm1 sram0 (
+	(* keep *)  gf180mcu_fd_ip_sram__sram512x8m8wm1 sram0 (
 		.CLK(clk_i),
 		.CEN(sram_enable_n), 
 		.GWEN(~sram_write_en_n[0]),
 		.WEN(sram_write_bit_mask_n),
 		.A(sram_addr),
 		.D(data_to_write[7:0]),
-		.Q(data_read[7:0]),
-		.VDD(),
-		.VSS()
+		.Q(data_read[7:0])
+       `ifdef USE_POWER_PINS
+       // verilator lint_off ASSIGNIN
+       ,.VDD(VDD)
+       ,.VSS(VSS)
+       // verilator lint_on ASSIGNIN
+       `endif
+
 	);
 
-	gf180mcu_fd_ip_sram__sram512x8m8wm1 sram1 (
+	(* keep *)  gf180mcu_fd_ip_sram__sram512x8m8wm1 sram1 (
 		.CLK(clk_i),
 		.CEN(sram_enable_n), 
 		.GWEN(~sram_write_en_n[1]),
 		.WEN(sram_write_bit_mask_n),
 		.A(sram_addr),
 		.D(data_to_write[15:8]),
-		.Q(data_read[15:8]),
-		.VDD(),
-		.VSS()
+		.Q(data_read[15:8])
+       `ifdef USE_POWER_PINS
+       // verilator lint_off ASSIGNIN
+       ,.VDD(VDD)
+       ,.VSS(VSS)
+       // verilator lint_on ASSIGNIN
+       `endif
+
 	);
 
-	gf180mcu_fd_ip_sram__sram512x8m8wm1 sram2 (
+	(* keep *)  gf180mcu_fd_ip_sram__sram512x8m8wm1 sram2 (
 		.CLK(clk_i),
 		.CEN(sram_enable_n), 
 		.GWEN(~sram_write_en_n[2]),
 		.WEN(sram_write_bit_mask_n),
 		.A(sram_addr),
 		.D(data_to_write[23:16]),
-		.Q(data_read[23:16]),
-		.VDD(),
-		.VSS()
+		.Q(data_read[23:16])
+       `ifdef USE_POWER_PINS
+       // verilator lint_off ASSIGNIN
+       ,.VDD(VDD)
+       ,.VSS(VSS)
+       // verilator lint_on ASSIGNIN
+       `endif
+
 	);
 
 	
-	gf180mcu_fd_ip_sram__sram512x8m8wm1 sram3 (
+	(* keep *) gf180mcu_fd_ip_sram__sram512x8m8wm1 sram3 (
 		.CLK(clk_i),
 		.CEN(sram_enable_n), 
 		.GWEN(~sram_write_en_n[3]),
 		.WEN(sram_write_bit_mask_n),
 		.A(sram_addr),
 		.D(data_to_write[31:24]),
-		.Q(data_read[31:24]),
-		.VDD(),
-		.VSS()
+		.Q(data_read[31:24])
+       `ifdef USE_POWER_PINS
+       // verilator lint_off ASSIGNIN
+       ,.VDD(VDD)
+       ,.VSS(VSS)
+       // verilator lint_on ASSIGNIN
+       `endif
+
 	);	
 
 	assign mem_rdata_o = data_read;
@@ -99,25 +116,3 @@ module mem_ctrl_512x32
 endmodule
 
 `default_nettype wire
-
-
-
-
-
-	// genvar i;
-
-	// generate 
-	// 	for (i = 0; i < 4; i++) begin
-	// 		gf180mcu_fd_ip_sram__sram512x8m8wm1 sram1 (
-	// 			.CLK(clk_i),
-	// 			.CEN(sram_enable_n), 
-	// 			.GWEN(~sram_write_en_n[i]),
-	// 			.WEN(sram_write_bit_mask_n),
-	// 			.A(sram_addr),
-	// 			.D(data_to_write[(7+8*i):(8*i)]),
-	// 			.Q(data_read[(7+8*i):(8*i)]),
-	// 			.VDD(vdd),
-	// 			.VSS(vss)
-	// 		);
-	// 	end
-	// endgenerate
