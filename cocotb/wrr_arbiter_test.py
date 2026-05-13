@@ -17,7 +17,7 @@ scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
-hdl_toplevel = "wrr_arbiter.sv"
+hdl_toplevel = "wrr_arbiter"
 
 
 
@@ -465,6 +465,7 @@ async def test_reset_clears_pointer_and_resumes(dut):
 def wrr_arbiter_runner():
     proj_path = Path(__file__).resolve().parent
 
+    sources = []
     if gl:
         pdk_lib = os.path.join(
             pdk_root, 
@@ -476,7 +477,7 @@ def wrr_arbiter_runner():
         sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
         sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
     else:
-        sources = [
+        sources += [
             proj_path / "../src/arb/wrr_arbiter.sv",
         ]
 
