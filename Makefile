@@ -154,6 +154,22 @@ boot-wave: ## View simulation waveforms for boot contlr
 	gtkwave cocotb/sim_build/housekeeping_top.fst
 .PHONY: boot-wave
 
+test-boot-flash: ## Run cocotb tests for bootloader against Cypress flash model
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_flash_test.py
+.PHONY: test-boot-flash
+
+boot-flash-wave: ## View simulation waveforms for boot flash test
+	gtkwave cocotb/sim_build/boot_wrapper.fst
+.PHONY: boot-flash-wave
+
+test-boot-mem: ## Run cocotb integration tests for boot -> mem_ctrl -> SRAM
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_mem_test.py
+.PHONY: test-boot-mem
+
+boot-mem-wave: ## View simulation waveforms for boot mem integration test
+	gtkwave cocotb/sim_build/boot_mem_wrapper.fst
+.PHONY: boot-mem-wave
+
 test-all: ## Run all cocotb testbenches via pytest
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
 .PHONY: test-all

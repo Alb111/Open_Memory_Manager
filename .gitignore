@@ -7,4 +7,6 @@ final/
 img/
 *.lyrdb
 debug.txt
+src/housekeeping/cypress_model/
+cocotb/boot_image.mem
 .venv/
