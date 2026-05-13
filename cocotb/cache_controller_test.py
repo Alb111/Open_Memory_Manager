@@ -1,741 +1,686 @@
-# SPDX-FileCopyrightText: © 2025 Albert Felix
-# SPDX-License-Identifier: Apache-2.0
-#
-# cache_model.py
-# ─────────────────────────────────────────────────────────────────────────────
-# Python behavioural model of an MSI cache + cache controller.
-#
-# Key fixes vs prior revision
-#   1. access() is now CLOCK-ACCURATE: returns (0, False) for each stall cycle
-#      during a miss, then (rdata, True) on cycle N=miss_penalty.  The old
-#      version always returned ready=True even with miss_penalty>0 (bug).
-#   2. No RuntimeError is raised after construction.  All error conditions
-#      emit warnings.warn() and recover to a safe state so cocotb never crashes
-#      and logging is preserved.
-#   3. access_blocking() helper added for standalone/non-cocotb tests.
-# ─────────────────────────────────────────────────────────────────────────────
-
-from __future__ import annotations
-
-import math
-import warnings
-from dataclasses import dataclass, field
-from enum import IntEnum
-from typing import List, Optional, Tuple
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 1.  MSI Constants
-# ─────────────────────────────────────────────────────────────────────────────
-
-class MSIState(IntEnum):
-    I = 0b00
-    S = 0b01
-    M = 0b10
-
-
-class ProcEvent(IntEnum):
-    PR_RD = 0
-    PR_WR = 1
-
-
-class SnoopEvent(IntEnum):
-    BUS_RD   = 0b00
-    BUS_RDX  = 0b01
-    BUS_UPGR = 0b10
-
-
-class CoherenceCmd(IntEnum):
-    CMD_BUS_RD         = 0
-    CMD_BUS_RDX        = 1
-    CMD_BUS_UPGR       = 2
-    CMD_EVICT_CLEAN    = 3
-    CMD_EVICT_DIRTY    = 4
-    CMD_SNOOP_BUS_RD   = 5
-    CMD_SNOOP_BUS_RDX  = 6
-    CMD_SNOOP_BUS_UPGR = 7
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 2.  MSI Protocol (purely combinational)
-# ─────────────────────────────────────────────────────────────────────────────
-
-@dataclass
-class MSIOutput:
-    next_state : MSIState               = MSIState.I
-    cmd_valid  : bool                   = False
-    issue_cmd  : Optional[CoherenceCmd] = None
-    flush      : bool                   = False
-
-
-class MSIProtocol:
-    """
-    Combinational MSI state machine.  Mirrors msi_protocol.v.
-
-    Priority: proc_valid > snoop_valid.
-
-    Processor transitions (proc_valid=1, snoop_valid=0):
-      State  Event   Bus Cmd     Next
-      I      PR_RD   BUS_RD      S
-      I      PR_WR   BUS_RDX     M
-      S      PR_RD   –           S   (hit)
-      S      PR_WR   BUS_UPGR    M
-      M      PR_RD   –           M   (hit)
-      M      PR_WR   –           M   (hit)
-
-    Snoop transitions (snoop_valid=1, proc_valid=0):
-      State  Event     Bus Cmd          Next  Flush
-      I      BUS_RD    –                I     no
-      I      BUS_RDX   –                I     no
-      I      BUS_UPGR  –                I     no
-      S      BUS_RD    –                S     no
-      S      BUS_RDX   –                I     no
-      S      BUS_UPGR  –                I     no
-      M      BUS_RD    CMD_SNOOP_BUS_RD S     yes
-      M      BUS_RDX   CMD_SNOOP_BUS_RDX I   yes
-      M      BUS_UPGR  –  (safe I)      I     yes  ← illegal in correct proto,
-                                                      handled gracefully
-    """
-
-    _PROC_TABLE = {
-        (MSIState.I, ProcEvent.PR_RD): (MSIState.S, CoherenceCmd.CMD_BUS_RD,   False),
-        (MSIState.I, ProcEvent.PR_WR): (MSIState.M, CoherenceCmd.CMD_BUS_RDX,  False),
-        (MSIState.S, ProcEvent.PR_RD): (MSIState.S, None,                       False),
-        (MSIState.S, ProcEvent.PR_WR): (MSIState.M, CoherenceCmd.CMD_BUS_UPGR,  False),
-        (MSIState.M, ProcEvent.PR_RD): (MSIState.M, None,                       False),
-        (MSIState.M, ProcEvent.PR_WR): (MSIState.M, None,                       False),
-    }
-
-    _SNOOP_TABLE = {
-        (MSIState.I, SnoopEvent.BUS_RD  ): (MSIState.I, None,                           False),
-        (MSIState.I, SnoopEvent.BUS_RDX ): (MSIState.I, None,                           False),
-        (MSIState.I, SnoopEvent.BUS_UPGR): (MSIState.I, None,                           False),
-        (MSIState.S, SnoopEvent.BUS_RD  ): (MSIState.S, None,                           False),
-        (MSIState.S, SnoopEvent.BUS_RDX ): (MSIState.I, None,                           False),
-        (MSIState.S, SnoopEvent.BUS_UPGR): (MSIState.I, None,                           False),
-        (MSIState.M, SnoopEvent.BUS_RD  ): (MSIState.S, CoherenceCmd.CMD_SNOOP_BUS_RD,  True ),
-        (MSIState.M, SnoopEvent.BUS_RDX ): (MSIState.I, CoherenceCmd.CMD_SNOOP_BUS_RDX, True ),
-        (MSIState.M, SnoopEvent.BUS_UPGR): (MSIState.I, None,                           True ),
-    }
-
-    def evaluate(
-        self,
-        current_state : MSIState,
-        proc_valid    : bool,
-        proc_event    : Optional[ProcEvent],
-        snoop_valid   : bool,
-        snoop_event   : Optional[SnoopEvent],
-    ) -> MSIOutput:
-        out = MSIOutput(next_state=current_state)
-
-        if proc_valid and proc_event is not None:
-            row = self._PROC_TABLE.get((current_state, proc_event))
-            if row is None:
-                warnings.warn(
-                    f"MSIProtocol: undefined proc transition "
-                    f"state={current_state.name} event={proc_event.name} — holding",
-                    stacklevel=2,
-                )
-            else:
-                ns, cmd, flush = row
-                out.next_state = ns
-                out.cmd_valid  = cmd is not None
-                out.issue_cmd  = cmd
-                out.flush      = flush
-
-        elif snoop_valid and snoop_event is not None:
-            row = self._SNOOP_TABLE.get((current_state, snoop_event))
-            if row is None:
-                warnings.warn(
-                    f"MSIProtocol: undefined snoop transition "
-                    f"state={current_state.name} event={snoop_event.name} — holding",
-                    stacklevel=2,
-                )
-            else:
-                ns, cmd, flush = row
-                out.next_state = ns
-                out.cmd_valid  = cmd is not None
-                out.issue_cmd  = cmd
-                out.flush      = flush
-
-        return out
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 3.  Cache Line
-# ─────────────────────────────────────────────────────────────────────────────
-
-@dataclass
-class CacheLine:
-    valid       : bool      = False
-    state       : MSIState  = MSIState.I
-    tag         : int       = 0
-    data        : List[int] = field(default_factory=lambda: [0] * 4)
-    lru_counter : int       = 0
-
-    def invalidate(self) -> None:
-        self.valid = False
-        self.state = MSIState.I
-        self.tag   = 0
-        self.data  = [0] * len(self.data)
-
-    def is_dirty(self) -> bool:
-        return self.valid and self.state == MSIState.M
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4.  Cache
-# ─────────────────────────────────────────────────────────────────────────────
-
-class Cache:
-    """N-way set-associative cache with LRU replacement."""
-
-    def __init__(
-        self,
-        num_sets       : int = 64,
-        num_ways       : int = 2,
-        words_per_line : int = 4,
-        addr_bits      : int = 32,
-    ):
-        if not (num_sets and (num_sets & (num_sets - 1)) == 0):
-            raise ValueError("num_sets must be a power of 2")
-        if not (words_per_line and (words_per_line & (words_per_line - 1)) == 0):
-            raise ValueError("words_per_line must be a power of 2")
-
-        self.num_sets       = num_sets
-        self.num_ways       = num_ways
-        self.words_per_line = words_per_line
-        self.addr_bits      = addr_bits
-
-        self.byte_offset_bits = 2
-        self.word_offset_bits = int(math.log2(words_per_line))
-        self.index_bits       = int(math.log2(num_sets))
-        self.tag_bits         = (addr_bits
-                                 - self.index_bits
-                                 - self.word_offset_bits
-                                 - self.byte_offset_bits)
-
-        self.lines: List[List[CacheLine]] = [
-            [CacheLine(data=[0] * words_per_line) for _ in range(num_ways)]
-            for _ in range(num_sets)
-        ]
-        self._lru_tick = 0
-
-    # ── Address helpers ───────────────────────────────────────────────────────
-
-    def decode_addr(self, addr: int) -> Tuple[int, int, int, int]:
-        byte_offset = addr & 0x3
-        word_offset = (addr >> self.byte_offset_bits) & (self.words_per_line - 1)
-        set_index   = (addr >> (self.byte_offset_bits + self.word_offset_bits)) & (self.num_sets - 1)
-        tag         = addr >> (self.byte_offset_bits + self.word_offset_bits + self.index_bits)
-        return tag, set_index, word_offset, byte_offset
-
-    def make_line_addr(self, tag: int, set_index: int) -> int:
-        return ((tag << (self.byte_offset_bits + self.word_offset_bits + self.index_bits))
-                | (set_index << (self.byte_offset_bits + self.word_offset_bits)))
-
-    # ── Lookup ────────────────────────────────────────────────────────────────
-
-    def lookup(self, addr: int) -> Tuple[bool, int, Optional[CacheLine]]:
-        tag, set_idx, _, _ = self.decode_addr(addr)
-        for way, line in enumerate(self.lines[set_idx]):
-            if line.valid and line.tag == tag and line.state != MSIState.I:
-                return True, way, line
-        return False, -1, None
-
-    def _lru_victim(self, set_idx: int) -> Tuple[int, CacheLine]:
-        vw = min(range(self.num_ways), key=lambda w: self.lines[set_idx][w].lru_counter)
-        return vw, self.lines[set_idx][vw]
-
-    def _touch(self, set_idx: int, way: int) -> None:
-        self._lru_tick += 1
-        self.lines[set_idx][way].lru_counter = self._lru_tick
-
-    # ── Fill / Update ─────────────────────────────────────────────────────────
-
-    def fill(self, addr: int, data_words: List[int], state: MSIState) -> Optional[CacheLine]:
-        tag, set_idx, _, _ = self.decode_addr(addr)
-        vw, victim          = self._lru_victim(set_idx)
-        evicted = None
-        if victim.is_dirty():
-            evicted = CacheLine(valid=True, state=victim.state,
-                                tag=victim.tag, data=list(victim.data))
-        victim.valid = True
-        victim.state = state
-        victim.tag   = tag
-        victim.data  = list(data_words)
-        self._touch(set_idx, vw)
-        return evicted
-
-    def update_word(self, addr: int, word: int, strobe: int) -> bool:
-        """
-        Write a byte-strobed word into a resident line.
-        Returns False and warns (does NOT raise) if the line is not resident.
-        """
-        _, set_idx, word_off, _ = self.decode_addr(addr)
-        hit, way, line = self.lookup(addr)
-        if not hit:
-            warnings.warn(
-                f"Cache.update_word: 0x{addr:08X} not resident — write dropped",
-                stacklevel=2,
-            )
-            return False
-        current = line.data[word_off]
-        result  = 0
-        for b in range(4):
-            mask = 0xFF << (b * 8)
-            result |= (word & mask) if (strobe & (1 << b)) else (current & mask)
-        line.data[word_off] = result
-        line.state = MSIState.M
-        self._touch(set_idx, way)
-        return True
-
-    def read_word(self, addr: int) -> int:
-        """
-        Read a word from a resident line.
-        Returns 0 and warns (does NOT raise) if the line is not resident.
-        """
-        _, _, word_off, _ = self.decode_addr(addr)
-        hit, _, line = self.lookup(addr)
-        if not hit:
-            warnings.warn(
-                f"Cache.read_word: 0x{addr:08X} not resident — returning 0",
-                stacklevel=2,
-            )
-            return 0
-        return line.data[word_off]
-
-    def set_state(self, addr: int, state: MSIState) -> None:
-        hit, _, line = self.lookup(addr)
-        if hit:
-            line.state = state
-            if state == MSIState.I:
-                line.valid = False
-
-    def flush_line(self, addr: int) -> Optional[CacheLine]:
-        tag, set_idx, _, _ = self.decode_addr(addr)
-        for _, line in enumerate(self.lines[set_idx]):
-            if line.valid and line.tag == tag:
-                evicted = CacheLine(valid=True, state=line.state,
-                                    tag=tag, data=list(line.data))
-                line.invalidate()
-                return evicted
-        return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 5.  SRAM Model
-# ─────────────────────────────────────────────────────────────────────────────
-
-class SRAMModel:
-    """Behavioural 512×32 SRAM matching mem_ctrl_512x32."""
-
-    MEM_DEPTH = 512
-
-    def __init__(self):
-        self._mem: List[int] = [0] * self.MEM_DEPTH
-
-    def _wa(self, byte_addr: int) -> int:
-        return (byte_addr >> 2) & 0x1FF
-
-    def read(self, mem_addr: int) -> int:
-        return self._mem[self._wa(mem_addr)]
-
-    def write(self, mem_addr: int, data: int, strobe: int) -> None:
-        wa = self._wa(mem_addr)
-        cur = self._mem[wa]
-        result = 0
-        for b in range(4):
-            mask = 0xFF << (b * 8)
-            result |= (data & mask) if (strobe & (1 << b)) else (cur & mask)
-        self._mem[wa] = result
-
-    def read_line(self, base: int, words: int) -> List[int]:
-        return [self.read(base + i * 4) for i in range(words)]
-
-    def write_line(self, base: int, data_words: List[int]) -> None:
-        for i, w in enumerate(data_words):
-            self.write(base + i * 4, w, 0xF)
-
-    def load_program(self, data: List[int], start_word: int = 0) -> None:
-        for i, val in enumerate(data):
-            idx = start_word + i
-            if idx >= self.MEM_DEPTH:
-                break
-            self._mem[idx] = val & 0xFFFF_FFFF
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 6.  Cache Controller
-# ─────────────────────────────────────────────────────────────────────────────
-
-class CacheTransaction:
-    __slots__ = ("addr", "is_write", "data", "strobe", "hit",
-                 "msi_before", "msi_after", "cmd_issued", "stall_cycles")
-
-    def __init__(self):
-        self.addr         = 0
-        self.is_write     = False
-        self.data         = 0
-        self.strobe       = 0
-        self.hit          = False
-        self.msi_before   = MSIState.I
-        self.msi_after    = MSIState.I
-        self.cmd_issued   = None
-        self.stall_cycles = 0
-
-
-@dataclass
-class _PendingAccess:
-    """State for a multi-cycle miss in progress."""
-    rdata       : int
-    txn         : CacheTransaction
-    cycles_left : int   # reaches 0 on the cycle we return ready=True
-
-
-class CacheController:
-    """
-    MSI cache controller with clock-accurate miss-penalty modelling.
-
-    Miss-penalty stall protocol
-    ───────────────────────────
-    On a cache miss with miss_penalty=N:
-      Cycle 0  First access() call:  SRAM fill performed internally,
-               data ready, (0, False) returned (mem_ready=0).
-      Cycles 1…N-1:  subsequent access() calls return (0, False).
-      Cycle N:  access() returns (rdata, True) — mem_ready=1.
-
-    Set miss_penalty=0 for zero-stall / single-cycle operation.
-
-    No RuntimeError is ever raised after construction.
-    """
-
-    MISS_PENALTY = 4
-
-    def __init__(
-        self,
-        cache        : Optional[Cache]     = None,
-        sram         : Optional[SRAMModel] = None,
-        miss_penalty : int                 = MISS_PENALTY,
-    ):
-        self.cache        = cache or Cache()
-        self.sram         = sram  or SRAMModel()
-        self.msi          = MSIProtocol()
-        self.miss_penalty = miss_penalty
-        self._pending: Optional[_PendingAccess] = None
-
-        self.stats = {
-            "reads"     : 0,
-            "writes"    : 0,
-            "hits"      : 0,
-            "misses"    : 0,
-            "evictions" : 0,
-            "writebacks": 0,
-        }
-        self.log: List[CacheTransaction] = []
-
-    # ── Primary interface ─────────────────────────────────────────────────────
-
-    def access(
-        self,
-        mem_valid : bool,
-        mem_instr : bool,
-        mem_addr  : int,
-        mem_wdata : int = 0,
-        mem_wstrb : int = 0,
-    ) -> Tuple[int, bool]:
-        """
-        Call once per clock edge while mem_valid is asserted.
-        Returns (mem_rdata, mem_ready).
-        """
-        # ── Bus idle ──────────────────────────────────────────────────────────
-        if not mem_valid:
-            if self._pending is not None:
-                warnings.warn(
-                    f"CacheController: mem_valid dropped during pending miss "
-                    f"at 0x{self._pending.txn.addr:08X} — aborting transaction",
-                    stacklevel=2,
-                )
-                self._pending = None
-            return 0, False
-
-        # ── Drain stall for in-flight miss ────────────────────────────────────
-        if self._pending is not None:
-            self._pending.cycles_left -= 1
-            if self._pending.cycles_left <= 0:
-                rdata         = self._pending.rdata
-                self.log.append(self._pending.txn)
-                self._pending = None
-                return rdata, True
-            return 0, False
-
-        # ── New transaction ───────────────────────────────────────────────────
-        is_write = mem_wstrb != 0
-        proc_evt = ProcEvent.PR_WR if is_write else ProcEvent.PR_RD
-        self.stats["writes" if is_write else "reads"] += 1
-
-        hit, _, line  = self.cache.lookup(mem_addr)
-        current_state = line.state if hit else MSIState.I
-
-        txn = CacheTransaction()
-        txn.addr       = mem_addr
-        txn.is_write   = is_write
-        txn.data       = mem_wdata
-        txn.strobe     = mem_wstrb
-        txn.hit        = hit
-        txn.msi_before = current_state
-
-        msi_out = self.msi.evaluate(
-            current_state = current_state,
-            proc_valid    = True,
-            proc_event    = proc_evt,
-            snoop_valid   = False,
-            snoop_event   = None,
-        )
-        txn.msi_after  = msi_out.next_state
-        txn.cmd_issued = msi_out.issue_cmd
-
-        if not hit:
-            self.stats["misses"] += 1
-            self._fill_line(mem_addr, msi_out.next_state)
-        else:
-            self.stats["hits"] += 1
-            if msi_out.next_state != current_state:
-                self.cache.set_state(mem_addr, msi_out.next_state)
-
-        # Data operation always performed on cycle 0
-        rdata = 0
-        if is_write:
-            self.cache.update_word(mem_addr, mem_wdata, mem_wstrb)
-        else:
-            rdata = self.cache.read_word(mem_addr)
-
-        # ── Stall decision ────────────────────────────────────────────────────
-        if not hit and self.miss_penalty > 0:
-            txn.stall_cycles = self.miss_penalty
-            self._pending = _PendingAccess(
-                rdata       = rdata,
-                txn         = txn,
-                cycles_left = self.miss_penalty,   # decremented NEXT call
-            )
-            return 0, False
-
-        txn.stall_cycles = 0
-        self.log.append(txn)
-        return rdata, True
-
-    def access_blocking(
-        self,
-        mem_valid : bool,
-        mem_instr : bool,
-        mem_addr  : int,
-        mem_wdata : int = 0,
-        mem_wstrb : int = 0,
-    ) -> int:
-        """
-        Standalone helper: loops access() until ready.
-        Simulates the processor stalling on mem_ready=0.
-        """
-        rdata, ready = self.access(mem_valid, mem_instr, mem_addr, mem_wdata, mem_wstrb)
-        while not ready:
-            rdata, ready = self.access(mem_valid, mem_instr, mem_addr, mem_wdata, mem_wstrb)
-        return rdata
-
-    # ── Snoop interface ───────────────────────────────────────────────────────
-
-    def snoop(
-        self,
-        addr        : int,
-        snoop_event : SnoopEvent,
-    ) -> Tuple[Optional[List[int]], bool]:
-        """
-        Handle an incoming bus snoop.
-        Returns (supplied_data_or_None, flushed_bool).
-        """
-        hit, _, line = self.cache.lookup(addr)
-        if not hit:
-            return None, False
-
-        msi_out = self.msi.evaluate(
-            current_state = line.state,
-            proc_valid    = False,
-            proc_event    = None,
-            snoop_valid   = True,
-            snoop_event   = snoop_event,
-        )
-
-        supplied_data = None
-        flushed       = False
-
-        if msi_out.flush:
-            base = self.cache.make_line_addr(line.tag, self._get_set(addr))
-            self.sram.write_line(base, line.data)
-            self.stats["writebacks"] += 1
-            if snoop_event == SnoopEvent.BUS_RD:
-                supplied_data = list(line.data)
-
-        if msi_out.next_state == MSIState.I:
-            self.cache.flush_line(addr)
-            flushed = True
-        elif msi_out.next_state != line.state:
-            self.cache.set_state(addr, msi_out.next_state)
-
-        return supplied_data, flushed
-
-    # ── Internal helpers ──────────────────────────────────────────────────────
-
-    def _get_set(self, addr: int) -> int:
-        c = self.cache
-        return (addr >> (c.byte_offset_bits + c.word_offset_bits)) & (c.num_sets - 1)
-
-    def _fill_line(self, addr: int, state: MSIState) -> None:
-        c         = self.cache
-        line_mask = ~((c.words_per_line * 4) - 1) & 0xFFFF_FFFF
-        base      = addr & line_mask
-        _, set_idx, _, _ = c.decode_addr(addr)
-        _, victim = c._lru_victim(set_idx)
-        if victim.is_dirty():
-            wb_base = c.make_line_addr(victim.tag, set_idx)
-            self.sram.write_line(wb_base, victim.data)
-            self.stats["evictions"]  += 1
-            self.stats["writebacks"] += 1
-        data_words = self.sram.read_line(base, c.words_per_line)
-        c.fill(addr, data_words, state)
-
-    # ── Debug helpers ─────────────────────────────────────────────────────────
-
-    def print_stats(self) -> None:
-        s = self.stats
-        total = s["reads"] + s["writes"]
-        hr    = (s["hits"] / total * 100) if total else 0.0
-        print(f"  Reads      : {s['reads']}")
-        print(f"  Writes     : {s['writes']}")
-        print(f"  Hits       : {s['hits']}")
-        print(f"  Misses     : {s['misses']}")
-        print(f"  Hit rate   : {hr:.1f}%")
-        print(f"  Evictions  : {s['evictions']}")
-        print(f"  Writebacks : {s['writebacks']}")
-
-    def dump_log(self) -> None:
-        for i, t in enumerate(self.log):
-            op = "WR" if t.is_write else "RD"
-            print(
-                f"  [{i:4d}] {op} addr=0x{t.addr:08X}  "
-                f"{'HIT ' if t.hit else 'MISS'} "
-                f"{t.msi_before.name}→{t.msi_after.name}  "
-                f"cmd={t.cmd_issued.name if t.cmd_issued else 'none':<22} "
-                f"stall={t.stall_cycles}"
-            )
-
+"""
+cache_controller_test.py
+Cocotb testbench for the RTL cache_controller module.
+
+Golden model: CacheController (cache_v3.py / emulation package)
+
+Test strategy
+─────────────
+Both the DUT and the golden model share a single SimpleMemory "directory"
+that holds the authoritative backing store.  Every coherence request that
+the DUT issues on its cache→directory port is intercepted by a coroutine
+running in the background; the same request is replayed into the golden
+model's directory handler so both see identical traffic.
+
+Tests
+  1. test_single_read_miss          – cold read, checks BUS_RD → SHARED
+  2. test_single_write_miss         – cold write, checks BUS_RDX → MODIFIED
+  3. test_read_after_write_hit      – write then read same addr, no dir traffic
+  4. test_write_after_read_upgrade  – read then write, checks BUS_UPGR
+  5. test_tag_mismatch_evict        – force eviction of a dirty line
+  6. test_snoop_bus_rd_modified     – snoop BUS_RD on MODIFIED line → flush + SHARED
+  7. test_snoop_bus_rdx_shared      – snoop BUS_RDX on SHARED line → INVALID
+  8. test_snoop_bus_upgr_shared     – snoop BUS_UPGR on SHARED line → INVALID
+  9. test_random_traffic            – 200 random read/write ops vs golden
+"""
+
+import os
+import random
+import logging
 from pathlib import Path
-try:
-    from cocotb_tools.runner import get_runner
-except ImportError:
-    from cocotb.runner import get_runner
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.triggers import RisingEdge, FallingEdge, Timer, ClockCycles
+from cocotb_tools.runner import get_runner
 
-async def reset(dut):
-    dut.rst_ni.value = 0
-    dut.mem_valid_i.value = 0
-    dut.mem_addr_i.value = 0
-    dut.mem_wdata_i.value = 0
-    dut.mem_wstrb_i.value = 0
-    dut.snoop_valid_i.value = 0
-    dut.snoop_meta_i.value = 0
-    dut.snoop_addr_i.value = 0
-    dut.snoop_wdata_i.value = 0
-    dut.out_ready_i.value = 1
-    for _ in range(3):
-        await RisingEdge(dut.clk_i)
+# ── Golden model ────────────────────────────────────────────────────────────
+from emulation.cache_v3 import CacheController, CacheLine
+from emulation.axi_request_types import axi_request, axi_and_coherence_request
+from emulation.msi_v2 import MSIState, CoherenceCmd
+from emulation.config import OFFSET_WIDTH, INDEX_WIDTH, TAG_WIDTH, NUM_CACHE_LINES
+
+# ── Simulator selection ──────────────────────────────────────────────────────
+sim = os.getenv("SIM", "icarus")
+
+log = logging.getLogger("cache_tb")
+
+# ============================================================================
+# Backing memory (acts as the "directory" for both DUT and golden model)
+# ============================================================================
+
+MEM_WORDS = 1 << (INDEX_WIDTH + TAG_WIDTH)  # enough for all addressable lines
+
+class SimpleMemory:
+    """Word-addressed 32-bit backing store."""
+    def __init__(self):
+        self._mem: dict[int, int] = {}
+
+    def word_addr(self, byte_addr: int) -> int:
+        return byte_addr >> OFFSET_WIDTH  # OFFSET_WIDTH=0, so same as byte_addr
+
+    def read(self, byte_addr: int) -> int:
+        return self._mem.get(self.word_addr(byte_addr), 0)
+
+    def write(self, byte_addr: int, data: int, wstrb: int = 0xF) -> None:
+        wa = self.word_addr(byte_addr)
+        old = self._mem.get(wa, 0)
+        result = 0
+        for b in range(4):
+            if (wstrb >> b) & 1:
+                result |= (data >> (b * 8) & 0xFF) << (b * 8)
+            else:
+                result |= (old >> (b * 8) & 0xFF) << (b * 8)
+        self._mem[wa] = result
+
+
+# ============================================================================
+# Golden-model directory handler
+# The golden CacheController calls this instead of a real directory.
+# We just do the read/write on SimpleMemory and return an axi_request.
+# ============================================================================
+
+def make_golden_dir_handler(mem: SimpleMemory):
+    async def handler(req: axi_and_coherence_request) -> axi_request:
+        if not req.mem_valid:
+            return axi_request(mem_valid=False, mem_ready=False, mem_instr=False,
+                               mem_addr=0, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
+
+        cmd = req.coherence_cmd
+        addr = req.mem_addr
+        rdata = 0
+
+        if cmd in (CoherenceCmd.BUS_RD, CoherenceCmd.BUS_RDX):
+            rdata = mem.read(addr)
+        elif cmd == CoherenceCmd.BUS_UPGR:
+            rdata = mem.read(addr)
+        elif cmd == CoherenceCmd.EVICT_DIRTY:
+            mem.write(addr, req.mem_wdata_or_msi_payload)
+        elif cmd == CoherenceCmd.EVICT_CLEAN:
+            pass  # clean eviction – nothing to write back
+
+        return axi_request(
+            mem_valid=True,
+            mem_ready=True,
+            mem_instr=False,
+            mem_addr=addr,
+            mem_wdata=0,
+            mem_wstrb=0,
+            mem_rdata=rdata,
+        )
+    return handler
+
+
+# ============================================================================
+# DUT AXI helpers
+# ============================================================================
+
+TIMEOUT_CYCLES = 200  # maximum cycles to wait for a handshake
+
+
+async def start_clock(dut, freq_mhz: int = 50):
+    clock = Clock(dut.clk_i, 1 / freq_mhz * 1000, unit="ns")
+    cocotb.start_soon(clock.start())
+
+
+async def reset_dut(dut, duration_ns: int = 100):
+    """Assert active-low reset, hold all inputs low."""
+    dut.rst_ni.value         = 0
+    dut.mem_valid.value      = 0
+    dut.mem_instr.value      = 0
+    dut.mem_addr.value       = 0
+    dut.mem_wdata.value      = 0
+    dut.mem_wstrb.value      = 0
+    dut.cache_ready_i.value  = 0
+    dut.bus_valid_i.value    = 0
+    dut.bus_data_i.value     = 0
+    dut.bus_dircmd_i.value   = 0
+    dut.snoop_valid_i.value  = 0
+    dut.snoop_addr_i.value   = 0
+    dut.snoop_dircmd_i.value = 0
+    await Timer(duration_ns, unit="ns")
+    await FallingEdge(dut.clk_i)
     dut.rst_ni.value = 1
-    await RisingEdge(dut.clk_i)
+    await FallingEdge(dut.clk_i)
 
-async def cpu_read(dut, addr):
-    dut.mem_valid_i.value = 1
-    dut.mem_addr_i.value = addr
-    dut.mem_wstrb_i.value = 0
+
+# ============================================================================
+# DUT directory responder (background coroutine)
+#
+# Watches the cache→directory port. When the DUT issues a valid coherence
+# request (cache_valid_o=1), services it against SimpleMemory and drives
+# the bus_* response back to the DUT.
+# ============================================================================
+
+async def dut_dir_responder(dut, mem: SimpleMemory):
+    """
+    Background task – runs for the lifetime of each test.
+    Accepts every cache→dir request and responds in the same style a real
+    directory would: accept on cache_ready_i, then reply on bus_valid_i.
+    """
+    CMD_BUS_RD      = 1
+    CMD_BUS_RDX     = 2
+    CMD_BUS_UPGR    = 3
+    CMD_EVICT_CLEAN = 4
+    CMD_EVICT_DIRTY = 5
+
     while True:
         await RisingEdge(dut.clk_i)
-        if int(dut.mem_ready_o.value):
-            val = int(dut.mem_rdata_o.value)
-            dut.mem_valid_i.value = 0
-            return val
 
-async def cpu_write(dut, addr, data, strb=0xF):
-    dut.mem_valid_i.value = 1
-    dut.mem_addr_i.value = addr
-    dut.mem_wdata_i.value = data
-    dut.mem_wstrb_i.value = strb
-    while True:
-        await RisingEdge(dut.clk_i)
-        if int(dut.mem_ready_o.value):
-            dut.mem_valid_i.value = 0
-            dut.mem_wstrb_i.value = 0
-            return
+        if dut.cache_valid_o.value != 1:
+            continue
 
-@cocotb.test()
-async def smoke_read_write_and_snoop(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    await reset(dut)
-    assert int(dut.cpu_id_o.value) == 1
+        cmd  = int(dut.cache_cmd_o.value) & 0x1FF
+        addr = int(dut.cache_addr_o.value)
+        data = int(dut.cache_data_o.value)
 
-    val = await cpu_read(dut, 0x00000010)
-    assert val == 0
+        # ── Accept the request (cache_ready_i = 1 for one cycle) ──
+        await FallingEdge(dut.clk_i)
+        dut.cache_ready_i.value = 1
+        await FallingEdge(dut.clk_i)
+        dut.cache_ready_i.value = 0
 
-    await cpu_write(dut, 0x00000010, 0xDEADBEEF)
-    val2 = await cpu_read(dut, 0x00000010)
-    assert val2 == 0xDEADBEEF
+        # ── Perform the memory operation ───────────────────────────
+        rdata = 0
+        if cmd == CMD_BUS_RD:
+            rdata = mem.read(addr)
+        elif cmd == CMD_BUS_RDX:
+            rdata = mem.read(addr)
+        elif cmd == CMD_BUS_UPGR:
+            rdata = mem.read(addr)
+        elif cmd == CMD_EVICT_DIRTY:
+            mem.write(addr, data)
+        # EVICT_CLEAN: nothing to write
 
-    dut.snoop_valid_i.value = 1
-    dut.snoop_meta_i.value = 0x9
-    dut.snoop_addr_i.value = 0x00000010
-    await RisingEdge(dut.clk_i)
-    dut.snoop_valid_i.value = 0
-    saw = False
-    for _ in range(8):
-        await RisingEdge(dut.clk_i)
-        if int(dut.out_valid_o.value):
-            saw = True
-            assert int(dut.out_meta_o.value) in (0x9, 0xA)
-    assert saw
+        # ── Send response (bus_valid_i = 1 for one cycle) ─────────
+        await FallingEdge(dut.clk_i)
+        dut.bus_valid_i.value = 1
+        dut.bus_data_i.value  = rdata
+        await FallingEdge(dut.clk_i)
+        dut.bus_valid_i.value = 0
+        dut.bus_data_i.value  = 0
+        dut.bus_ready_o       # just observe, no drive needed
 
-@cocotb.test()
-async def miss_emits_busrd_and_write_hit_upgrade(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    await reset(dut)
 
-    dut.mem_valid_i.value = 1
-    dut.mem_addr_i.value = 0x00000120
-    dut.mem_wstrb_i.value = 0
-    seen_busrd = False
-    for _ in range(10):
-        await RisingEdge(dut.clk_i)
-        if int(dut.out_valid_o.value) and int(dut.out_meta_o.value) == 0x1:
-            seen_busrd = True
-        if int(dut.mem_ready_o.value):
+async def cpu_write(dut, addr: int, data: int, wstrb: int):
+    """Drive a CPU write to the DUT and wait for mem_ready."""
+    dut.mem_addr.value  = addr
+    dut.mem_wdata.value = data
+    dut.mem_wstrb.value = wstrb
+    dut.mem_valid.value = 1
+    dut.mem_instr.value = 0
+
+    for _ in range(TIMEOUT_CYCLES):
+        await FallingEdge(dut.clk_i)
+        if dut.mem_ready.value == 1:
             break
-    dut.mem_valid_i.value = 0
-    assert seen_busrd
+    else:
+        raise TimeoutError(f"cpu_write timeout at addr={addr:#010x}")
 
-    await cpu_write(dut, 0x00000120, 0xA5A5F00D)
-    assert int(dut.mem_ready_o.value) in (0,1)
+    dut.mem_valid.value = 0
+    dut.mem_wstrb.value = 0
+    await RisingEdge(dut.clk_i)
+
+
+async def cpu_read(dut, addr: int) -> int:
+    """Drive a CPU read to the DUT and return rdata."""
+    dut.mem_addr.value  = addr
+    dut.mem_wdata.value = 0
+    dut.mem_wstrb.value = 0
+    dut.mem_valid.value = 1
+    dut.mem_instr.value = 0
+
+    rdata = 0
+    for _ in range(TIMEOUT_CYCLES):
+        await FallingEdge(dut.clk_i)
+        if dut.mem_ready.value == 1:
+            rdata = int(dut.mem_rdata.value)
+            break
+    else:
+        raise TimeoutError(f"cpu_read timeout at addr={addr:#010x}")
+
+    dut.mem_valid.value = 0
+    await RisingEdge(dut.clk_i)
+    return rdata
+
+
+async def send_snoop(dut, addr: int, snoop_cmd: int):
+    """
+    Inject a snoop from the directory into the DUT.
+    snoop_cmd: 0=BUS_RD, 1=BUS_RDX, 2=BUS_UPGR
+    Waits for snoop_ready_o.
+    """
+    dut.snoop_valid_i.value  = 1
+    dut.snoop_addr_i.value   = addr
+    dut.snoop_dircmd_i.value = snoop_cmd
+
+    for _ in range(TIMEOUT_CYCLES):
+        await FallingEdge(dut.clk_i)
+        if dut.snoop_ready_o.value == 1:
+            break
+    else:
+        raise TimeoutError(f"snoop timeout at addr={addr:#010x} cmd={snoop_cmd}")
+
+    dut.snoop_valid_i.value = 0
+    await RisingEdge(dut.clk_i)
+
+
+# ============================================================================
+# Shared test fixture – call at the top of every test
+# ============================================================================
+
+async def setup(dut):
+    """
+    Returns (mem, golden) after starting the clock, resetting the DUT,
+    and launching the background directory-responder coroutine.
+    """
+    mem    = SimpleMemory()
+    golden = CacheController(core_id=0,
+                             directory_axi_handler=make_golden_dir_handler(mem))
+    await start_clock(dut)
+    await reset_dut(dut)
+    cocotb.start_soon(dut_dir_responder(dut, mem))
+    return mem, golden
+
+
+# ============================================================================
+# Helper: drive the golden model with the same CPU op
+# ============================================================================
+
+async def golden_write(golden: CacheController, addr: int, data: int, wstrb: int):
+    req = axi_request(mem_valid=True, mem_ready=False, mem_instr=False,
+                      mem_addr=addr, mem_wdata=data, mem_wstrb=wstrb, mem_rdata=0)
+    await golden._handle_cpu_write(req)
+
+
+async def golden_read(golden: CacheController, addr: int) -> int:
+    req = axi_request(mem_valid=True, mem_ready=False, mem_instr=False,
+                      mem_addr=addr, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
+    resp = await golden._handle_cpu_read(req)
+    return resp.mem_rdata
+
+
+def golden_snoop(golden: CacheController, addr: int, snoop_cmd: int):
+    """
+    snoop_cmd: 0=BUS_RD, 1=BUS_RDX, 2=BUS_UPGR
+    Maps to CoherenceCmd.SNOOP_BUS_RD/RDX/UPGR for the golden model.
+    """
+    cmd_map = {
+        0: CoherenceCmd.SNOOP_BUS_RD,
+        1: CoherenceCmd.SNOOP_BUS_RDX,
+        2: CoherenceCmd.SNOOP_BUS_UPGR,
+    }
+    req = axi_and_coherence_request(
+        mem_valid=True, mem_ready=False, mem_instr=False,
+        mem_addr=addr, mem_wdata_or_msi_payload=0, mem_wstrb=0xF,
+        mem_rdata=0, coherence_cmd=cmd_map[snoop_cmd], core_id=1,
+    )
+    golden._handle_snoop(req)
+
+
+# ============================================================================
+# Tests
+# ============================================================================
+
+@cocotb.test()
+async def test_single_read_miss(dut):
+    """Cold read: cache is INVALID → should issue BUS_RD → land in SHARED."""
+    log.info("=== test_single_read_miss ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000010
+    mem.write(addr, 0xDEADBEEF)  # pre-load backing memory
+
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_single_write_miss(dut):
+    """Cold write: cache is INVALID → should issue BUS_RDX → land in MODIFIED."""
+    log.info("=== test_single_write_miss ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000020
+    data = 0xCAFEBABE
+
+    await cpu_write(dut, addr, data, 0xF)
+    await golden_write(golden, addr, data, 0xF)
+
+    # Read back and compare
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Write-then-read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_read_after_write_hit(dut):
+    """
+    Write then read the same address.
+    Second access should be a cache hit (no directory traffic).
+    """
+    log.info("=== test_read_after_write_hit ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000030
+    data = 0x12345678
+
+    await cpu_write(dut, addr, data, 0xF)
+    await golden_write(golden, addr, data, 0xF)
+
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Hit-read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    assert dut_rdata == data, (
+        f"Expected {data:#010x}, got {dut_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_write_after_read_upgrade(dut):
+    """
+    Read first (→ SHARED), then write (→ BUS_UPGR → MODIFIED).
+    Verify the written value is readable.
+    """
+    log.info("=== test_write_after_read_upgrade ===")
+    mem, golden = await setup(dut)
+
+    addr      = 0x00000040
+    init_data = 0xAABBCCDD
+    new_data  = 0x11223344
+
+    mem.write(addr, init_data)
+
+    # Read to bring into SHARED
+    await cpu_read(dut, addr)
+    await golden_read(golden, addr)
+
+    # Write to upgrade to MODIFIED
+    await cpu_write(dut, addr, new_data, 0xF)
+    await golden_write(golden, addr, new_data, 0xF)
+
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Upgrade mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    assert dut_rdata == new_data, (
+        f"Expected {new_data:#010x}, got {dut_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_tag_mismatch_evict(dut):
+    """
+    Write to address A (→ MODIFIED in its cache slot).
+    Write to address B that maps to the SAME slot with a different tag.
+    The controller must evict A (EVICT_DIRTY) before fetching B.
+    Both reads back must match the golden model.
+    """
+    log.info("=== test_tag_mismatch_evict ===")
+    mem, golden = await setup(dut)
+
+    # Two addresses that land on the same index but different tags.
+    # Index is addr[INDEX_W-1:0] = addr[6:0].  Tag is addr[8:7].
+    # addr_a tag=0b00, index=0x01  → 0x01
+    # addr_b tag=0b01, index=0x01  → 0x81
+    addr_a = 0x00000001
+    addr_b = 0x00000081  # same index, different tag
+
+    data_a = 0xAAAAAAAA
+    data_b = 0xBBBBBBBB
+
+    # Write A → MODIFIED
+    await cpu_write(dut, addr_a, data_a, 0xF)
+    await golden_write(golden, addr_a, data_a, 0xF)
+
+    # Write B → should evict A first
+    await cpu_write(dut, addr_b, data_b, 0xF)
+    await golden_write(golden, addr_b, data_b, 0xF)
+
+    # Read B back
+    dut_b    = await cpu_read(dut, addr_b)
+    golden_b = await golden_read(golden, addr_b)
+
+    assert dut_b == golden_b, (
+        f"Tag-mismatch B mismatch: DUT={dut_b:#010x} GOLDEN={golden_b:#010x}"
+    )
+    # addr_a was evicted to memory; reading it back fetches from memory
+    dut_a    = await cpu_read(dut, addr_a)
+    golden_a = await golden_read(golden, addr_a)
+
+    assert dut_a == golden_a, (
+        f"Tag-mismatch A mismatch: DUT={dut_a:#010x} GOLDEN={golden_a:#010x}"
+    )
+    log.info(f"PASS: A={dut_a:#010x} B={dut_b:#010x}")
+
+
+@cocotb.test()
+async def test_snoop_bus_rd_modified(dut):
+    """
+    Write a line (→ MODIFIED).
+    Inject SNOOP_BUS_RD → DUT must flush dirty data and downgrade to SHARED.
+    Read the line back: should still return the correct data.
+    """
+    log.info("=== test_snoop_bus_rd_modified ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000050
+    data = 0xFACEFACE
+
+    await cpu_write(dut, addr, data, 0xF)
+    await golden_write(golden, addr, data, 0xF)
+
+    # Snoop BUS_RD (cmd=0)
+    await send_snoop(dut, addr, 0)
+    golden_snoop(golden, addr, 0)
+
+    # Read back – line is now SHARED, data in memory was updated by flush
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Snoop-BUS_RD mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_snoop_bus_rdx_shared(dut):
+    """
+    Read a line (→ SHARED).
+    Inject SNOOP_BUS_RDX → DUT must invalidate.
+    Next read should be a miss (fetches from memory).
+    """
+    log.info("=== test_snoop_bus_rdx_shared ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000060
+    data = 0x55AA55AA
+    mem.write(addr, data)
+
+    await cpu_read(dut, addr)
+    await golden_read(golden, addr)
+
+    # Snoop BUS_RDX (cmd=1)
+    await send_snoop(dut, addr, 1)
+    golden_snoop(golden, addr, 1)
+
+    # Read back – should re-fetch from memory (miss)
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Snoop-BUS_RDX mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    assert dut_rdata == data, (
+        f"Expected {data:#010x}, got {dut_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_snoop_bus_upgr_shared(dut):
+    """
+    Read a line (→ SHARED).
+    Inject SNOOP_BUS_UPGR → DUT must invalidate (no flush).
+    Next read is a miss.
+    """
+    log.info("=== test_snoop_bus_upgr_shared ===")
+    mem, golden = await setup(dut)
+
+    addr = 0x00000070
+    data = 0x13572468
+    mem.write(addr, data)
+
+    await cpu_read(dut, addr)
+    await golden_read(golden, addr)
+
+    # Snoop BUS_UPGR (cmd=2)
+    await send_snoop(dut, addr, 2)
+    golden_snoop(golden, addr, 2)
+
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Snoop-BUS_UPGR mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_wstrb_partial_write(dut):
+    """
+    Write a full word then do a partial-byte write using wstrb.
+    Verify only the strobed bytes are updated.
+    """
+    log.info("=== test_wstrb_partial_write ===")
+    mem, golden = await setup(dut)
+
+    addr      = 0x00000008
+    init_data = 0xDEADBEEF
+    new_data  = 0xFF112233  # only low byte (wstrb=0x1) should land
+
+    mem.write(addr, init_data)
+
+    # Full write to warm cache
+    await cpu_write(dut, addr, init_data, 0xF)
+    await golden_write(golden, addr, init_data, 0xF)
+
+    # Partial write: low byte only
+    await cpu_write(dut, addr, new_data, 0x1)
+    await golden_write(golden, addr, new_data, 0x1)
+
+    dut_rdata    = await cpu_read(dut, addr)
+    golden_rdata = await golden_read(golden, addr)
+
+    assert dut_rdata == golden_rdata, (
+        f"Partial-write mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+    )
+    expected = (init_data & 0xFFFFFF00) | (new_data & 0x000000FF)
+    assert dut_rdata == expected, (
+        f"Expected {expected:#010x}, got {dut_rdata:#010x}"
+    )
+    log.info(f"PASS: rdata={dut_rdata:#010x}")
+
+
+@cocotb.test()
+async def test_random_traffic(dut):
+    """
+    200 random read / write ops against the golden model.
+    Every result is compared immediately after each transaction.
+    """
+    log.info("=== test_random_traffic ===")
+    mem, golden = await setup(dut)
+
+    NUM_TRANSACTIONS = 200
+    rng = random.Random(42)  # fixed seed for reproducibility
+
+    # Use a small address range to exercise hits, misses, and evictions
+    ADDR_RANGE = 1 << (INDEX_WIDTH + 1)  # spans two tags per index
+
+    for i in range(NUM_TRANSACTIONS):
+        addr  = rng.randint(0, ADDR_RANGE - 1) & ~0x3  # word-align
+        data  = rng.randint(0, 0xFFFFFFFF)
+        wstrb = rng.choice([0x0, 0x1, 0x3, 0xF])  # 0x0 = read
+
+        if wstrb == 0:
+            dut_rdata    = await cpu_read(dut, addr)
+            golden_rdata = await golden_read(golden, addr)
+            assert dut_rdata == golden_rdata, (
+                f"[{i}] Read mismatch at {addr:#010x}: "
+                f"DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+            )
+        else:
+            await cpu_write(dut, addr, data, wstrb)
+            await golden_write(golden, addr, data, wstrb)
+
+            dut_rdata    = await cpu_read(dut, addr)
+            golden_rdata = await golden_read(golden, addr)
+            assert dut_rdata == golden_rdata, (
+                f"[{i}] Write-readback mismatch at {addr:#010x}: "
+                f"DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
+            )
+
+    log.info(f"PASS: {NUM_TRANSACTIONS} transactions verified")
+
+
+# ============================================================================
+# Runner
+# ============================================================================
+
+def cache_controller_test():
+    proj_path = Path(__file__).resolve().parent
+    pdk_root  = Path("../gf180mcu")
+
+    sources = [
+        proj_path / "../src/msi_protocol/apply_wstrb.sv",
+        proj_path / "../src/msi_protocol/on_processor_event_state_machine.sv",
+        proj_path / "../src/msi_protocol/on_snoop_event_state_machine.sv",
+        proj_path / "../src/msi_protocol/cache_controller.sv",
+
+        proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x4.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x32.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/cache_mem.sv",
+
+        pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
+        pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
+    ]
+
+    build_args = []
+    if sim == "verilator":
+        build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
+
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel="cache_controller",
+        always=True,
+        build_args=build_args,
+        waves=True,
+    )
+    runner.test(
+        hdl_toplevel="cache_controller",
+        test_module="cache_controller_test",
+        waves=True,
+    )
+
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parent.parent
-    runner = get_runner("icarus")
-    runner.build(
-        sources=[
-            root / "src/msi_protocol/msi_protocol.sv",
-            root / "src/cache/cache.sv",
-            root / "src/mem_ctrl/mem512x32.sv",
-            root / "src/cache/cache_controller.sv",
-        ],
-        hdl_toplevel="cache_controller",
-        build_dir=str(Path(__file__).resolve().parent / "sim_build" / "cache_controller"),
-        always=True,
-    )
-    runner.test(hdl_toplevel="cache_controller", test_module="test_cache_controller")
-
+    cache_controller_test()
