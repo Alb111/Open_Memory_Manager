@@ -53,9 +53,9 @@ module cache_controller
   localparam logic [3:0] CMD_EVICT_DIRTY = 4'b1000;
 
   // directory to cache
-  localparam logic [3:0] SNOOP_BUS_RD = 4'b1001;
-  localparam logic [3:0] SNOOP_BUS_RDX = 4'b1010;
-  localparam logic [3:0] SNOOP_BUS_UPGR = 4'b1011;
+  localparam logic [3:0] SNOOP_BUS_RD = 4'b1001; //9
+  localparam logic [3:0] SNOOP_BUS_RDX = 4'b1010; //10
+  localparam logic [3:0] SNOOP_BUS_UPGR = 4'b1011; //11
   
 
   // Address layout: addr[6:0]=index (7 bits), addr[8:7]=tag (2 bits)

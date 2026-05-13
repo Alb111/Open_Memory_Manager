@@ -67,9 +67,9 @@ class SnoopEvent(IntEnum):
     BUS_UPGR: Another cache is upgrading from SHARED to MODIFIED
         - This cache must invalidate (no flush needed - data already shared)
     """
-    BUS_RD = 0     # Another cache issued BusRd (read miss)
-    BUS_RDX = 1    # Another cache issued BusRdX (write miss)
-    BUS_UPGR = 2   # Another cache issued BusUpgr (write hit in Shared)
+    BUS_RD = 9     # Another cache issued BusRd (read miss)
+    BUS_RDX = 10    # Another cache issued BusRdX (write miss)
+    BUS_UPGR = 11   # Another cache issued BusUpgr (write hit in Shared)
 
 
 class CoherenceCmd(IntEnum):
