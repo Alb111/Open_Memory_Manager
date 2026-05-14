@@ -316,10 +316,12 @@ module cache_controller
     end
   end
 
-
   // ============================================================
   // Snoop FSM
   // ============================================================
+  // pre slice wires 
+  logic [1:0] snp_addr_tag;
+  assign snp_addr_tag = snp_addr_q[8:7];
   always_comb begin
 
     // hold
@@ -346,7 +348,7 @@ module cache_controller
     outbound_snoop_cache_addr_i  = '0;
     outbound_snoop_cache_data_i  = '0;
     outbound_snoop_cache_cmd_i   = '0;
-    outbound_snoop_cache_ready_o = '0;
+    // outbound_snoop_cache_ready_o = '0;
 
     // incoming bus ack (default off)
     bus_ready_o = 1'b0;
@@ -376,7 +378,7 @@ module cache_controller
 
       SNP_FETCH_LINE_RESP: begin
         if (cm_snoop_valid_o) begin
-          if (cm_snoop_rtag_o != snp_addr_q[8:7]) begin
+          if (cm_snoop_rtag_o != snp_addr_tag) begin
             // ghost snoop: tag doesn't match, nothing to do, just ack
             snp_state_d = SNP_DONE;
           end
@@ -463,6 +465,11 @@ module cache_controller
   // ============================================================
   // CPU FSM
   // ============================================================
+  //
+   
+  // pre slice wires 
+  logic [1:0] cpu_addr_tag;
+  assign cpu_addr_tag = cpu_addr_q[8:7];
   always_comb begin
 
     // hold
@@ -492,7 +499,7 @@ module cache_controller
     outbound_cpu_cache_addr_i  = '0;
     outbound_cpu_cache_data_i  = '0;
     outbound_cpu_cache_cmd_i   = '0;
-    outbound_cpu_cache_ready_o = '0;
+    // outbound_cpu_cache_ready_o = '0;
 
     // cpu-interface (default off)
     mem_ready_o = 1'b0;
@@ -520,7 +527,7 @@ module cache_controller
 
       CPU_FETCH_LINE_RESP: begin
         if (cm_cpu_valid_o) begin
-          if (cm_cpu_rtag_o != cpu_addr_q[8:7] && cm_cpu_rstate_o != S_INVALID) begin
+          if (cm_cpu_rtag_o != cpu_addr_tag && cm_cpu_rstate_o != S_INVALID) begin
             // tag miss with a valid line -> need to flush before refill.
             tag_match_cpu_d  = 1'b0;
             cpu_line_data_d  = cm_cpu_rdata_o;
@@ -625,7 +632,7 @@ module cache_controller
         cm_cpu_addr_i   = cpu_addr_q;
         cm_cpu_wstrb_i  = 4'b1111;
         cm_cpu_wdata_i  = cpu_line_data_q;
-        cm_cpu_wtag_i   = cpu_addr_q[8:7];
+        cm_cpu_wtag_i   = cpu_addr_tag;
         cm_cpu_wstate_i = cpu_next_state_q;
 
         if (cm_cpu_ready_o) begin
@@ -698,7 +705,7 @@ module cache_controller
         cm_cpu_addr_i   = cpu_addr_q;
         cm_cpu_wstrb_i  = cpu_wstrb_q;
         cm_cpu_wdata_i  = data_to_write;
-        cm_cpu_wtag_i   = cpu_addr_q[8:7];
+        cm_cpu_wtag_i   = cpu_addr_tag;
         cm_cpu_wstate_i = cpu_next_state_q;
 
         if (cm_cpu_ready_o) begin

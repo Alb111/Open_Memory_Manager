@@ -60,6 +60,13 @@ module mem_ctrl_128x4
     end
   end
 
+  // pre sliced wires
+  logic [5:0] mem_addr_slice;
+  logic       mem_addr_bit0;
+  assign mem_addr_slice = mem_addr_i[6:1];
+  assign mem_addr_bit0  = mem_addr_i[0];
+
+
   always_comb begin
     state_d         = state_q;
     reset_addr_d    = reset_addr_q;
@@ -91,15 +98,15 @@ module mem_ctrl_128x4
 
       IDLE: begin
         if (mem_valid_i && mem_ready_o) begin
-          addr_d       = mem_addr_i[6:1];
-          nibble_sel_d = mem_addr_i[0];
+          addr_d       = mem_addr_slice;
+          nibble_sel_d = mem_addr_bit0;
           wdata_d      = mem_wdata_i;
           state_d      = MEM_REQ;
 
           if (!mem_read_en_i) begin
             sram_enable_n = 1'b0;
             sram_gwen     = 1'b0;
-            if (mem_addr_i[0]) begin
+            if (mem_addr_bit0) begin
               sram_bit_mask   = 8'b00001111;
               data_to_write_d = {mem_wdata_i, 4'b0000};
             end else begin
@@ -130,11 +137,15 @@ module mem_ctrl_128x4
   assign mem_ready_o = (state_q == IDLE);
   assign mem_valid_o = (state_q == MEM_RESP);
 
+
+  logic [3:0] read_top, read_bot;
+  assign read_top = data_read_q[7:4];
+  assign read_bot = data_read_q[3:0];
   always_comb begin
     if (nibble_sel_q)
-      mem_rdata_o = data_read_q[7:4];
+      mem_rdata_o = read_top;
     else
-      mem_rdata_o = data_read_q[3:0];
+      mem_rdata_o = read_bot;
   end
 
   always_comb begin
@@ -145,8 +156,8 @@ module mem_ctrl_128x4
       sram_addr     = reset_addr_q;
       data_to_write = 8'h00;
     end else if (state_q == IDLE && mem_valid_i && mem_ready_o && !mem_read_en_i) begin
-      sram_addr = mem_addr_i[6:1];
-      if (mem_addr_i[0])
+      sram_addr = mem_addr_slice;
+      if (mem_addr_bit0)
         data_to_write = {mem_wdata_i, 4'b0000};
       else
         data_to_write = {4'b0000, mem_wdata_i};

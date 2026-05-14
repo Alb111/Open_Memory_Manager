@@ -1,27 +1,25 @@
 """
 cache_controller_test.py
 Cocotb testbench for the RTL cache_controller module.
+Golden model: MSI state machine logic (inline below).
 
-Golden model: CacheController (cache_v3.py / emulation package)
+Assumed command encodings – adjust constants to match your RTL:
 
-Test strategy
-─────────────
-Both the DUT and the golden model share a single SimpleMemory "directory"
-that holds the authoritative backing store.  Every coherence request that
-the DUT issues on its cache→directory port is intercepted by a coroutine
-running in the background; the same request is replayed into the golden
-model's directory handler so both see identical traffic.
+  cache_cmd_o  (9-bit, cache → directory)
+    CMD_GETS  = 0x01  – read request (wants Shared)
+    CMD_GETM  = 0x02  – write / upgrade request (wants Modified)
+    CMD_PUTM  = 0x04  – write-back dirty line
 
-Tests
-  1. test_single_read_miss          – cold read, checks BUS_RD → SHARED
-  2. test_single_write_miss         – cold write, checks BUS_RDX → MODIFIED
-  3. test_read_after_write_hit      – write then read same addr, no dir traffic
-  4. test_write_after_read_upgrade  – read then write, checks BUS_UPGR
-  5. test_tag_mismatch_evict        – force eviction of a dirty line
-  6. test_snoop_bus_rd_modified     – snoop BUS_RD on MODIFIED line → flush + SHARED
-  7. test_snoop_bus_rdx_shared      – snoop BUS_RDX on SHARED line → INVALID
-  8. test_snoop_bus_upgr_shared     – snoop BUS_UPGR on SHARED line → INVALID
-  9. test_random_traffic            – 200 random read/write ops vs golden
+  bus_dircmd_i (3-bit, directory → cache inbound response)
+    DIR_NOP   = 0  – no operation / idle
+    DIR_DATA  = 1  – data payload (fills cache line for GetS / GetM)
+    DIR_INV   = 2  – forced invalidate  (downgrade M→I or S→I)
+    DIR_ACK   = 3  – upgrade ack (S→M, no data transfer)
+
+  snoop_dircmd_i (3-bit, directory-initiated snoop)
+    SNOOP_NOP  = 0
+    SNOOP_INV  = 1  – invalidate (peer wrote, drop our S copy)
+    SNOOP_GETS = 2  – intervention: supply data to peer reader
 """
 
 import os
@@ -30,620 +28,589 @@ import logging
 from pathlib import Path
 
 import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, FallingEdge, Timer, ClockCycles
+from cocotb.clock   import Clock
+from cocotb.triggers import RisingEdge, FallingEdge, Timer, ClockCycles, with_timeout
 from cocotb_tools.runner import get_runner
 
-# ── Golden model ────────────────────────────────────────────────────────────
-from emulation.cache_v3 import CacheController, CacheLine
-from emulation.axi_request_types import axi_request, axi_and_coherence_request
-from emulation.msi_v2 import MSIState, CoherenceCmd
-from emulation.config import OFFSET_WIDTH, INDEX_WIDTH, TAG_WIDTH, NUM_CACHE_LINES
-
-# ── Simulator selection ──────────────────────────────────────────────────────
+# ─── Sim / logging setup ────────────────────────────────────────────────────
 sim = os.getenv("SIM", "icarus")
-
 log = logging.getLogger("cache_tb")
+logging.basicConfig(level=logging.INFO)
 
-# ============================================================================
-# Backing memory (acts as the "directory" for both DUT and golden model)
-# ============================================================================
+TIMEOUT_CYCLES = 100   # cycles to wait for any single handshake
 
-MEM_WORDS = 1 << (INDEX_WIDTH + TAG_WIDTH)  # enough for all addressable lines
+# ─── Protocol constants (keep in sync with RTL parameters) ──────────────────
+CMD_GETS  = 0x01
+CMD_GETM  = 0x02
+CMD_PUTM  = 0x04
 
-class SimpleMemory:
-    """Word-addressed 32-bit backing store."""
-    def __init__(self):
-        self._mem: dict[int, int] = {}
+DIR_NOP   = 0
+DIR_DATA  = 1
+DIR_INV   = 2
+DIR_ACK   = 3
 
-    def word_addr(self, byte_addr: int) -> int:
-        return byte_addr >> OFFSET_WIDTH  # OFFSET_WIDTH=0, so same as byte_addr
-
-    def read(self, byte_addr: int) -> int:
-        return self._mem.get(self.word_addr(byte_addr), 0)
-
-    def write(self, byte_addr: int, data: int, wstrb: int = 0xF) -> None:
-        wa = self.word_addr(byte_addr)
-        old = self._mem.get(wa, 0)
-        result = 0
-        for b in range(4):
-            if (wstrb >> b) & 1:
-                result |= (data >> (b * 8) & 0xFF) << (b * 8)
-            else:
-                result |= (old >> (b * 8) & 0xFF) << (b * 8)
-        self._mem[wa] = result
+SNOOP_NOP  = 0
+SNOOP_INV  = 1
+SNOOP_GETS = 2
 
 
-# ============================================================================
-# Golden-model directory handler
-# The golden CacheController calls this instead of a real directory.
-# We just do the read/write on SimpleMemory and return an axi_request.
-# ============================================================================
-
-def make_golden_dir_handler(mem: SimpleMemory):
-    async def handler(req: axi_and_coherence_request) -> axi_request:
-        if not req.mem_valid:
-            return axi_request(mem_valid=False, mem_ready=False, mem_instr=False,
-                               mem_addr=0, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
-
-        cmd = req.coherence_cmd
-        addr = req.mem_addr
-        rdata = 0
-
-        if cmd in (CoherenceCmd.BUS_RD, CoherenceCmd.BUS_RDX):
-            rdata = mem.read(addr)
-        elif cmd == CoherenceCmd.BUS_UPGR:
-            rdata = mem.read(addr)
-        elif cmd == CoherenceCmd.EVICT_DIRTY:
-            mem.write(addr, req.mem_wdata_or_msi_payload)
-        elif cmd == CoherenceCmd.EVICT_CLEAN:
-            pass  # clean eviction – nothing to write back
-
-        return axi_request(
-            mem_valid=True,
-            mem_ready=True,
-            mem_instr=False,
-            mem_addr=addr,
-            mem_wdata=0,
-            mem_wstrb=0,
-            mem_rdata=rdata,
-        )
-    return handler
-
-
-# ============================================================================
-# DUT AXI helpers
-# ============================================================================
-
-TIMEOUT_CYCLES = 200  # maximum cycles to wait for a handshake
-
+# ════════════════════════════════════════════════════════════════════════════
+#  Low-level helpers
+# ════════════════════════════════════════════════════════════════════════════
 
 async def start_clock(dut, freq_mhz: int = 50):
-    clock = Clock(dut.clk_i, 1 / freq_mhz * 1000, unit="ns")
+    clock = Clock(dut.clk_i, 1_000 / freq_mhz, unit="ns")
     cocotb.start_soon(clock.start())
 
 
 async def reset_dut(dut, duration_ns: int = 100):
-    """Assert active-low reset, hold all inputs low."""
-    dut.rst_ni.value         = 0
-    dut.mem_valid.value      = 0
-    dut.mem_instr.value      = 0
-    dut.mem_addr.value       = 0
-    dut.mem_wdata.value      = 0
-    dut.mem_wstrb.value      = 0
-    dut.cache_ready_i.value  = 0
-    dut.bus_valid_i.value    = 0
-    dut.bus_data_i.value     = 0
-    dut.bus_dircmd_i.value   = 0
-    dut.snoop_valid_i.value  = 0
-    dut.snoop_addr_i.value   = 0
+    """Assert active-low reset and hold all inputs idle."""
+    dut.rst_ni.value        = 0
+    dut.mem_valid_i.value   = 0
+    dut.mem_instr_i.value   = 0
+    dut.mem_addr_i.value    = 0
+    dut.mem_wdata_i.value   = 0
+    dut.mem_wstrb_i.value   = 0
+    dut.cache_ready_i.value = 0
+    dut.bus_valid_i.value   = 0
+    dut.bus_data_i.value    = 0
+    dut.bus_dircmd_i.value  = 0
+    dut.snoop_valid_i.value = 0
+    dut.snoop_addr_i.value  = 0
     dut.snoop_dircmd_i.value = 0
     await Timer(duration_ns, unit="ns")
     await FallingEdge(dut.clk_i)
     dut.rst_ni.value = 1
     await FallingEdge(dut.clk_i)
 
+    reset_time = 128 * 4 * 2
 
-# ============================================================================
-# DUT directory responder (background coroutine)
-#
-# Watches the cache→directory port. When the DUT issues a valid coherence
-# request (cache_valid_o=1), services it against SimpleMemory and drives
-# the bus_* response back to the DUT.
-# ============================================================================
+    for i in range(reset_time):
+        await FallingEdge(dut.clk_i)
+    
+    log.info("Reset released")
 
-async def dut_dir_responder(dut, mem: SimpleMemory):
+
+async def clkedge(dut):
+    await RisingEdge(dut.clk_i)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Bus-functional models
+# ════════════════════════════════════════════════════════════════════════════
+
+async def proc_read(dut, addr: int) -> int:
     """
-    Background task – runs for the lifetime of each test.
-    Accepts every cache→dir request and responds in the same style a real
-    directory would: accept on cache_ready_i, then reply on bus_valid_i.
+    Drive a processor read on the mem_* interface.
+    Returns the data word latched when mem_ready_o is asserted.
+    Does NOT wait for the coherence transaction to complete – the caller
+    should run drive_dir_response() concurrently if a miss is expected.
     """
-    CMD_BUS_RD      = 1
-    CMD_BUS_RDX     = 2
-    CMD_BUS_UPGR    = 3
-    CMD_EVICT_CLEAN = 4
-    CMD_EVICT_DIRTY = 5
+    dut.mem_valid_i.value = 1
+    dut.mem_instr_i.value = 0
+    dut.mem_addr_i.value  = addr
+    dut.mem_wdata_i.value = 0
+    dut.mem_wstrb_i.value = 0
 
-    while True:
+    print("starting test")
+
+    for _ in range(TIMEOUT_CYCLES):
         await RisingEdge(dut.clk_i)
+        if dut.mem_ready_o.value:
+            data = int(dut.mem_rdata_o.value)
+            dut.mem_valid_i.value = 0
+            log.info("proc_read  addr=0x%08x → data=0x%08x", addr, data)
+            return data
 
-        if dut.cache_valid_o.value != 1:
-            continue
-
-        cmd  = int(dut.cache_cmd_o.value) & 0x1FF
-        addr = int(dut.cache_addr_o.value)
-        data = int(dut.cache_data_o.value)
-
-        # ── Accept the request (cache_ready_i = 1 for one cycle) ──
-        await FallingEdge(dut.clk_i)
-        dut.cache_ready_i.value = 1
-        await FallingEdge(dut.clk_i)
-        dut.cache_ready_i.value = 0
-
-        # ── Perform the memory operation ───────────────────────────
-        rdata = 0
-        if cmd == CMD_BUS_RD:
-            rdata = mem.read(addr)
-        elif cmd == CMD_BUS_RDX:
-            rdata = mem.read(addr)
-        elif cmd == CMD_BUS_UPGR:
-            rdata = mem.read(addr)
-        elif cmd == CMD_EVICT_DIRTY:
-            mem.write(addr, data)
-        # EVICT_CLEAN: nothing to write
-
-        # ── Send response (bus_valid_i = 1 for one cycle) ─────────
-        await FallingEdge(dut.clk_i)
-        dut.bus_valid_i.value = 1
-        dut.bus_data_i.value  = rdata
-        await FallingEdge(dut.clk_i)
-        dut.bus_valid_i.value = 0
-        dut.bus_data_i.value  = 0
-        dut.bus_ready_o       # just observe, no drive needed
+    dut.mem_valid_i.value = 0
+    raise cocotb.result.TestFailure(
+        f"proc_read timed out waiting for mem_ready_o (addr=0x{addr:08x})"
+    )
 
 
-async def cpu_write(dut, addr: int, data: int, wstrb: int):
-    """Drive a CPU write to the DUT and wait for mem_ready."""
-    dut.mem_addr.value  = addr
-    dut.mem_wdata.value = data
-    dut.mem_wstrb.value = wstrb
-    dut.mem_valid.value = 1
-    dut.mem_instr.value = 0
+async def proc_write(dut, addr: int, data: int, wstrb: int = 0xF):
+    """Drive a processor write. Waits for mem_ready_o."""
+    dut.mem_valid_i.value = 1
+    dut.mem_instr_i.value = 0
+    dut.mem_addr_i.value  = addr
+    dut.mem_wdata_i.value = data
+    dut.mem_wstrb_i.value = wstrb
 
     for _ in range(TIMEOUT_CYCLES):
-        await FallingEdge(dut.clk_i)
-        if dut.mem_ready.value == 1:
-            break
-    else:
-        raise TimeoutError(f"cpu_write timeout at addr={addr:#010x}")
+        await RisingEdge(dut.clk_i)
+        if dut.mem_ready_o.value:
+            dut.mem_valid_i.value = 0
+            log.info("proc_write addr=0x%08x  data=0x%08x  wstrb=0x%x",
+                     addr, data, wstrb)
+            return
 
-    dut.mem_valid.value = 0
-    dut.mem_wstrb.value = 0
-    await RisingEdge(dut.clk_i)
+    dut.mem_valid_i.value = 0
+    raise cocotb.result.TestFailure(
+        f"proc_write timed out (addr=0x{addr:08x})"
+    )
 
 
-async def cpu_read(dut, addr: int) -> int:
-    """Drive a CPU read to the DUT and return rdata."""
-    dut.mem_addr.value  = addr
-    dut.mem_wdata.value = 0
-    dut.mem_wstrb.value = 0
-    dut.mem_valid.value = 1
-    dut.mem_instr.value = 0
-
-    rdata = 0
+async def wait_cache_request(dut) -> tuple[int, int]:
+    """
+    Wait for the cache to raise cache_valid_o and latch (addr, cmd).
+    Holds cache_ready_i=0 until the request is seen, then pulses it.
+    Returns (addr, cmd).
+    """
+    dut.cache_ready_i.value = 0
     for _ in range(TIMEOUT_CYCLES):
-        await FallingEdge(dut.clk_i)
-        if dut.mem_ready.value == 1:
-            rdata = int(dut.mem_rdata.value)
-            break
-    else:
-        raise TimeoutError(f"cpu_read timeout at addr={addr:#010x}")
+        await RisingEdge(dut.clk_i)
+        if dut.cache_valid_o.value:
+            addr = int(dut.cache_addr_o.value)
+            cmd  = int(dut.cache_cmd_o.value)
+            log.info("cache→dir  cmd=0x%03x  addr=0x%08x", cmd, addr)
+            # Accept the request
+            dut.cache_ready_i.value = 1
+            await RisingEdge(dut.clk_i)
+            dut.cache_ready_i.value = 0
+            return addr, cmd
 
-    dut.mem_valid.value = 0
-    await RisingEdge(dut.clk_i)
-    return rdata
+    raise cocotb.result.TestFailure("Timeout waiting for cache_valid_o")
 
 
-async def send_snoop(dut, addr: int, snoop_cmd: int):
+async def drive_dir_response(dut, dircmd: int, data: int = 0):
     """
-    Inject a snoop from the directory into the DUT.
-    snoop_cmd: 0=BUS_RD, 1=BUS_RDX, 2=BUS_UPGR
-    Waits for snoop_ready_o.
+    Send one directory→cache response on the bus_* interface.
+    Waits for bus_ready_o before deasserting.
     """
+    dut.bus_valid_i.value  = 1
+    dut.bus_dircmd_i.value = dircmd
+    dut.bus_data_i.value   = data
+
+    for _ in range(TIMEOUT_CYCLES):
+        await RisingEdge(dut.clk_i)
+        if dut.bus_ready_o.value:
+            dut.bus_valid_i.value  = 0
+            dut.bus_dircmd_i.value = DIR_NOP
+            dut.bus_data_i.value   = 0
+            log.info("dir→cache  dircmd=%d  data=0x%08x", dircmd, data)
+            return
+
+    dut.bus_valid_i.value = 0
+    raise cocotb.result.TestFailure("Timeout waiting for bus_ready_o")
+
+
+async def drive_snoop(dut, addr: int, dircmd: int):
+    """Send a directory-initiated snoop and wait for snoop_ready_o."""
     dut.snoop_valid_i.value  = 1
     dut.snoop_addr_i.value   = addr
-    dut.snoop_dircmd_i.value = snoop_cmd
+    dut.snoop_dircmd_i.value = dircmd
 
     for _ in range(TIMEOUT_CYCLES):
-        await FallingEdge(dut.clk_i)
-        if dut.snoop_ready_o.value == 1:
-            break
-    else:
-        raise TimeoutError(f"snoop timeout at addr={addr:#010x} cmd={snoop_cmd}")
+        await RisingEdge(dut.clk_i)
+        if dut.snoop_ready_o.value:
+            dut.snoop_valid_i.value  = 0
+            dut.snoop_dircmd_i.value = SNOOP_NOP
+            log.info("snoop ack  dircmd=%d  addr=0x%08x", dircmd, addr)
+            return
 
     dut.snoop_valid_i.value = 0
-    await RisingEdge(dut.clk_i)
+    raise cocotb.result.TestFailure(
+        f"Timeout waiting for snoop_ready_o (addr=0x{addr:08x})"
+    )
 
 
-# ============================================================================
-# Shared test fixture – call at the top of every test
-# ============================================================================
+# ════════════════════════════════════════════════════════════════════════════
+#  Test cases
+# ════════════════════════════════════════════════════════════════════════════
 
-async def setup(dut):
+@cocotb.test()
+async def test_read_miss_cold(dut):
     """
-    Returns (mem, golden) after starting the clock, resetting the DUT,
-    and launching the background directory-responder coroutine.
+    Read to an uncached address:
+      Processor issues read → cache sends GetS to directory →
+      directory replies with DATA → processor receives data.
+    Expected MSI state transition: I → S
     """
-    mem    = SimpleMemory()
-    golden = CacheController(core_id=0,
-                             directory_axi_handler=make_golden_dir_handler(mem))
     await start_clock(dut)
     await reset_dut(dut)
-    cocotb.start_soon(dut_dir_responder(dut, mem))
-    return mem, golden
-
-
-# ============================================================================
-# Helper: drive the golden model with the same CPU op
-# ============================================================================
-
-async def golden_write(golden: CacheController, addr: int, data: int, wstrb: int):
-    req = axi_request(mem_valid=True, mem_ready=False, mem_instr=False,
-                      mem_addr=addr, mem_wdata=data, mem_wstrb=wstrb, mem_rdata=0)
-    await golden._handle_cpu_write(req)
-
-
-async def golden_read(golden: CacheController, addr: int) -> int:
-    req = axi_request(mem_valid=True, mem_ready=False, mem_instr=False,
-                      mem_addr=addr, mem_wdata=0, mem_wstrb=0, mem_rdata=0)
-    resp = await golden._handle_cpu_read(req)
-    return resp.mem_rdata
-
-
-def golden_snoop(golden: CacheController, addr: int, snoop_cmd: int):
-    """
-    snoop_cmd: 0=BUS_RD, 1=BUS_RDX, 2=BUS_UPGR
-    Maps to CoherenceCmd.SNOOP_BUS_RD/RDX/UPGR for the golden model.
-    """
-    cmd_map = {
-        0: CoherenceCmd.SNOOP_BUS_RD,
-        1: CoherenceCmd.SNOOP_BUS_RDX,
-        2: CoherenceCmd.SNOOP_BUS_UPGR,
-    }
-    req = axi_and_coherence_request(
-        mem_valid=True, mem_ready=False, mem_instr=False,
-        mem_addr=addr, mem_wdata_or_msi_payload=0, mem_wstrb=0xF,
-        mem_rdata=0, coherence_cmd=cmd_map[snoop_cmd], core_id=1,
-    )
-    golden._handle_snoop(req)
-
-
-# ============================================================================
-# Tests
-# ============================================================================
-
-@cocotb.test()
-async def test_single_read_miss(dut):
-    """Cold read: cache is INVALID → should issue BUS_RD → land in SHARED."""
-    log.info("=== test_single_read_miss ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000010
-    mem.write(addr, 0xDEADBEEF)  # pre-load backing memory
-
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_single_write_miss(dut):
-    """Cold write: cache is INVALID → should issue BUS_RDX → land in MODIFIED."""
-    log.info("=== test_single_write_miss ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000020
-    data = 0xCAFEBABE
-
-    await cpu_write(dut, addr, data, 0xF)
-    await golden_write(golden, addr, data, 0xF)
-
-    # Read back and compare
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Write-then-read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_read_after_write_hit(dut):
-    """
-    Write then read the same address.
-    Second access should be a cache hit (no directory traffic).
-    """
-    log.info("=== test_read_after_write_hit ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000030
-    data = 0x12345678
-
-    await cpu_write(dut, addr, data, 0xF)
-    await golden_write(golden, addr, data, 0xF)
-
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Hit-read mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    assert dut_rdata == data, (
-        f"Expected {data:#010x}, got {dut_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_write_after_read_upgrade(dut):
-    """
-    Read first (→ SHARED), then write (→ BUS_UPGR → MODIFIED).
-    Verify the written value is readable.
-    """
-    log.info("=== test_write_after_read_upgrade ===")
-    mem, golden = await setup(dut)
-
-    addr      = 0x00000040
-    init_data = 0xAABBCCDD
-    new_data  = 0x11223344
-
-    mem.write(addr, init_data)
-
-    # Read to bring into SHARED
-    await cpu_read(dut, addr)
-    await golden_read(golden, addr)
-
-    # Write to upgrade to MODIFIED
-    await cpu_write(dut, addr, new_data, 0xF)
-    await golden_write(golden, addr, new_data, 0xF)
-
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Upgrade mismatch at {addr:#010x}: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    assert dut_rdata == new_data, (
-        f"Expected {new_data:#010x}, got {dut_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_tag_mismatch_evict(dut):
-    """
-    Write to address A (→ MODIFIED in its cache slot).
-    Write to address B that maps to the SAME slot with a different tag.
-    The controller must evict A (EVICT_DIRTY) before fetching B.
-    Both reads back must match the golden model.
-    """
-    log.info("=== test_tag_mismatch_evict ===")
-    mem, golden = await setup(dut)
-
-    # Two addresses that land on the same index but different tags.
-    # Index is addr[INDEX_W-1:0] = addr[6:0].  Tag is addr[8:7].
-    # addr_a tag=0b00, index=0x01  → 0x01
-    # addr_b tag=0b01, index=0x01  → 0x81
-    addr_a = 0x00000001
-    addr_b = 0x00000081  # same index, different tag
-
-    data_a = 0xAAAAAAAA
-    data_b = 0xBBBBBBBB
-
-    # Write A → MODIFIED
-    await cpu_write(dut, addr_a, data_a, 0xF)
-    await golden_write(golden, addr_a, data_a, 0xF)
-
-    # Write B → should evict A first
-    await cpu_write(dut, addr_b, data_b, 0xF)
-    await golden_write(golden, addr_b, data_b, 0xF)
-
-    # Read B back
-    dut_b    = await cpu_read(dut, addr_b)
-    golden_b = await golden_read(golden, addr_b)
-
-    assert dut_b == golden_b, (
-        f"Tag-mismatch B mismatch: DUT={dut_b:#010x} GOLDEN={golden_b:#010x}"
-    )
-    # addr_a was evicted to memory; reading it back fetches from memory
-    dut_a    = await cpu_read(dut, addr_a)
-    golden_a = await golden_read(golden, addr_a)
-
-    assert dut_a == golden_a, (
-        f"Tag-mismatch A mismatch: DUT={dut_a:#010x} GOLDEN={golden_a:#010x}"
-    )
-    log.info(f"PASS: A={dut_a:#010x} B={dut_b:#010x}")
-
-
-@cocotb.test()
-async def test_snoop_bus_rd_modified(dut):
-    """
-    Write a line (→ MODIFIED).
-    Inject SNOOP_BUS_RD → DUT must flush dirty data and downgrade to SHARED.
-    Read the line back: should still return the correct data.
-    """
-    log.info("=== test_snoop_bus_rd_modified ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000050
-    data = 0xFACEFACE
-
-    await cpu_write(dut, addr, data, 0xF)
-    await golden_write(golden, addr, data, 0xF)
-
-    # Snoop BUS_RD (cmd=0)
-    await send_snoop(dut, addr, 0)
-    golden_snoop(golden, addr, 0)
-
-    # Read back – line is now SHARED, data in memory was updated by flush
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Snoop-BUS_RD mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_snoop_bus_rdx_shared(dut):
-    """
-    Read a line (→ SHARED).
-    Inject SNOOP_BUS_RDX → DUT must invalidate.
-    Next read should be a miss (fetches from memory).
-    """
-    log.info("=== test_snoop_bus_rdx_shared ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000060
-    data = 0x55AA55AA
-    mem.write(addr, data)
-
-    await cpu_read(dut, addr)
-    await golden_read(golden, addr)
-
-    # Snoop BUS_RDX (cmd=1)
-    await send_snoop(dut, addr, 1)
-    golden_snoop(golden, addr, 1)
-
-    # Read back – should re-fetch from memory (miss)
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Snoop-BUS_RDX mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    assert dut_rdata == data, (
-        f"Expected {data:#010x}, got {dut_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_snoop_bus_upgr_shared(dut):
-    """
-    Read a line (→ SHARED).
-    Inject SNOOP_BUS_UPGR → DUT must invalidate (no flush).
-    Next read is a miss.
-    """
-    log.info("=== test_snoop_bus_upgr_shared ===")
-    mem, golden = await setup(dut)
-
-    addr = 0x00000070
-    data = 0x13572468
-    mem.write(addr, data)
-
-    await cpu_read(dut, addr)
-    await golden_read(golden, addr)
-
-    # Snoop BUS_UPGR (cmd=2)
-    await send_snoop(dut, addr, 2)
-    golden_snoop(golden, addr, 2)
-
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Snoop-BUS_UPGR mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_wstrb_partial_write(dut):
-    """
-    Write a full word then do a partial-byte write using wstrb.
-    Verify only the strobed bytes are updated.
-    """
-    log.info("=== test_wstrb_partial_write ===")
-    mem, golden = await setup(dut)
-
-    addr      = 0x00000008
-    init_data = 0xDEADBEEF
-    new_data  = 0xFF112233  # only low byte (wstrb=0x1) should land
-
-    mem.write(addr, init_data)
-
-    # Full write to warm cache
-    await cpu_write(dut, addr, init_data, 0xF)
-    await golden_write(golden, addr, init_data, 0xF)
-
-    # Partial write: low byte only
-    await cpu_write(dut, addr, new_data, 0x1)
-    await golden_write(golden, addr, new_data, 0x1)
-
-    dut_rdata    = await cpu_read(dut, addr)
-    golden_rdata = await golden_read(golden, addr)
-
-    assert dut_rdata == golden_rdata, (
-        f"Partial-write mismatch: DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-    )
-    expected = (init_data & 0xFFFFFF00) | (new_data & 0x000000FF)
-    assert dut_rdata == expected, (
-        f"Expected {expected:#010x}, got {dut_rdata:#010x}"
-    )
-    log.info(f"PASS: rdata={dut_rdata:#010x}")
-
-
-@cocotb.test()
-async def test_random_traffic(dut):
-    """
-    200 random read / write ops against the golden model.
-    Every result is compared immediately after each transaction.
-    """
-    log.info("=== test_random_traffic ===")
-    mem, golden = await setup(dut)
-
-    NUM_TRANSACTIONS = 200
-    rng = random.Random(42)  # fixed seed for reproducibility
-
-    # Use a small address range to exercise hits, misses, and evictions
-    ADDR_RANGE = 1 << (INDEX_WIDTH + 1)  # spans two tags per index
-
-    for i in range(NUM_TRANSACTIONS):
-        addr  = rng.randint(0, ADDR_RANGE - 1) & ~0x3  # word-align
-        data  = rng.randint(0, 0xFFFFFFFF)
-        wstrb = rng.choice([0x0, 0x1, 0x3, 0xF])  # 0x0 = read
-
-        if wstrb == 0:
-            dut_rdata    = await cpu_read(dut, addr)
-            golden_rdata = await golden_read(golden, addr)
-            assert dut_rdata == golden_rdata, (
-                f"[{i}] Read mismatch at {addr:#010x}: "
-                f"DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-            )
-        else:
-            await cpu_write(dut, addr, data, wstrb)
-            await golden_write(golden, addr, data, wstrb)
-
-            dut_rdata    = await cpu_read(dut, addr)
-            golden_rdata = await golden_read(golden, addr)
-            assert dut_rdata == golden_rdata, (
-                f"[{i}] Write-readback mismatch at {addr:#010x}: "
-                f"DUT={dut_rdata:#010x} GOLDEN={golden_rdata:#010x}"
-            )
-
-    log.info(f"PASS: {NUM_TRANSACTIONS} transactions verified")
-
-
-# ============================================================================
-# Runner
-# ============================================================================
+
+    ADDR      = 0x0000_0000
+    FILL_DATA = 0xDEAD_BEEF
+
+    # # Kick off processor read; the cache will miss and stall mem_ready_o
+    read_task = cocotb.start_soon(proc_read(dut, ADDR))
+
+    # Expect a GetS on the outbound coherence port
+    # req_addr, req_cmd = await wait_cache_request(dut)
+    # assert req_addr == ADDR,    f"Expected addr 0x{ADDR:08x}, got 0x{req_addr:08x}"
+    # assert req_cmd  == CMD_GETS, f"Expected GetS (0x{CMD_GETS:x}), got 0x{req_cmd:x}"
+
+    # # Directory supplies the cache line
+    # await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+
+    # # Processor read should now complete with fill data
+    # rdata = await read_task
+    # assert rdata == FILL_DATA, f"Expected 0x{FILL_DATA:08x}, got 0x{rdata:08x}"
+    # log.info("PASS test_read_miss_cold")
+
+
+# @cocotb.test()
+# async def test_read_hit_after_fill(dut):
+#     """
+#     Two reads to the same address.  The second read must be served from
+#     the cache (no second GetS should appear on cache_valid_o).
+#     Expected state: I → S (miss) → S (hit, no coherence traffic).
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR      = 0x0000_2000
+#     FILL_DATA = 0xCAFE_BABE
+
+#     # ── First read (miss) ──────────────────────────────────────────
+#     read1 = cocotb.start_soon(proc_read(dut, ADDR))
+#     _, cmd = await wait_cache_request(dut)
+#     assert cmd == CMD_GETS
+#     await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+#     rdata1 = await read1
+#     assert rdata1 == FILL_DATA
+
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # ── Second read (should hit – no outbound request) ─────────────
+#     dut.cache_ready_i.value = 1          # keep ready asserted so we notice any spurious req
+#     read2 = cocotb.start_soon(proc_read(dut, ADDR))
+
+#     spurious_req = False
+#     for _ in range(20):
+#         await RisingEdge(dut.clk_i)
+#         if dut.cache_valid_o.value:
+#             spurious_req = True
+#             break
+
+#     rdata2 = await read2
+#     dut.cache_ready_i.value = 0
+
+#     assert not spurious_req, "Unexpected coherence request on cache hit"
+#     assert rdata2 == FILL_DATA, f"Cache hit returned wrong data: 0x{rdata2:08x}"
+#     log.info("PASS test_read_hit_after_fill")
+
+
+# @cocotb.test()
+# async def test_write_miss(dut):
+#     """
+#     Write to an uncached (Invalid) address:
+#       Processor write → cache issues GetM → directory responds with DATA/ACK →
+#       write completes.
+#     Expected MSI state: I → M
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR  = 0x0000_3000
+#     WDATA = 0x1234_5678
+#     WSTRB = 0xF
+
+#     write_task = cocotb.start_soon(proc_write(dut, ADDR, WDATA, WSTRB))
+
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR,    f"Wrong address: 0x{req_addr:08x}"
+#     assert req_cmd  == CMD_GETM, f"Expected GetM (0x{CMD_GETM:x}), got 0x{req_cmd:x}"
+
+#     # Directory grants exclusive ownership (data response for a cold miss)
+#     await drive_dir_response(dut, DIR_DATA, 0x0)
+
+#     await write_task
+#     log.info("PASS test_write_miss")
+
+
+# @cocotb.test()
+# async def test_write_upgrade_shared(dut):
+#     """
+#     Read (I→S) then write (S→M upgrade):
+#       Second coherence request must be GetM, no data in response needed.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR      = 0x0000_4000
+#     FILL_DATA = 0xAAAA_BBBB
+#     WDATA     = 0xCCCC_DDDD
+
+#     # ── Fill into Shared ───────────────────────────────────────────
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR))
+#     await wait_cache_request(dut)
+#     await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+#     await read_task
+
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # ── Upgrade to Modified ────────────────────────────────────────
+#     write_task = cocotb.start_soon(proc_write(dut, ADDR, WDATA))
+
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR,    f"Wrong address: 0x{req_addr:08x}"
+#     assert req_cmd  == CMD_GETM, f"Expected GetM upgrade, got 0x{req_cmd:x}"
+
+#     # Directory sends upgrade ACK (no fresh data needed)
+#     await drive_dir_response(dut, DIR_ACK, 0)
+
+#     await write_task
+#     log.info("PASS test_write_upgrade_shared")
+
+
+# @cocotb.test()
+# async def test_snoop_invalidate_shared(dut):
+#     """
+#     Line in Shared state receives a SNOOP_INV:
+#       Cache must assert snoop_ready_o and transition to Invalid.
+#     Verify: a subsequent read causes a fresh GetS (not a hit).
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR      = 0x0000_5000
+#     FILL_DATA = 0x1111_2222
+#     NEW_DATA  = 0x3333_4444
+
+#     # ── Populate the line (I→S) ────────────────────────────────────
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR))
+#     await wait_cache_request(dut)
+#     await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+#     await read_task
+
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # ── Snoop invalidate ───────────────────────────────────────────
+#     await drive_snoop(dut, ADDR, SNOOP_INV)
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # ── Re-read should miss again ──────────────────────────────────
+#     read_task2 = cocotb.start_soon(proc_read(dut, ADDR))
+
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR,    f"Wrong address on re-read: 0x{req_addr:08x}"
+#     assert req_cmd  == CMD_GETS, f"Expected GetS after invalidation, got 0x{req_cmd:x}"
+
+#     await drive_dir_response(dut, DIR_DATA, NEW_DATA)
+#     rdata = await read_task2
+#     assert rdata == NEW_DATA, f"Expected fresh data 0x{NEW_DATA:08x}, got 0x{rdata:08x}"
+#     log.info("PASS test_snoop_invalidate_shared")
+
+
+# @cocotb.test()
+# async def test_snoop_unrelated_address(dut):
+#     """
+#     A snoop to an address not held by this cache must still be
+#     acknowledged without error (cache responds snoop_ready_o=1 quickly).
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     await drive_snoop(dut, 0xDEAD_0000, SNOOP_INV)
+#     log.info("PASS test_snoop_unrelated_address")
+
+
+# @cocotb.test()
+# async def test_dir_backpressure(dut):
+#     """
+#     cache_ready_i is de-asserted for several cycles; the cache must hold
+#     cache_valid_o and keep the request stable until accepted.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR      = 0x0000_6000
+#     FILL_DATA = 0xFEED_FACE
+
+#     dut.cache_ready_i.value = 0   # block the outbound channel
+
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR))
+
+#     # Wait until cache raises valid
+#     for _ in range(TIMEOUT_CYCLES):
+#         await RisingEdge(dut.clk_i)
+#         if dut.cache_valid_o.value:
+#             break
+#     else:
+#         raise cocotb.result.TestFailure("cache_valid_o never asserted")
+
+#     # Keep it blocked for 10 more cycles; verify the request stays stable
+#     first_addr = int(dut.cache_addr_o.value)
+#     first_cmd  = int(dut.cache_cmd_o.value)
+#     for _ in range(10):
+#         await RisingEdge(dut.clk_i)
+#         assert dut.cache_valid_o.value,                    "cache_valid_o dropped prematurely"
+#         assert int(dut.cache_addr_o.value) == first_addr,  "cache_addr_o changed under backpressure"
+#         assert int(dut.cache_cmd_o.value)  == first_cmd,   "cache_cmd_o changed under backpressure"
+
+#     # Release and complete the transaction
+#     dut.cache_ready_i.value = 1
+#     await RisingEdge(dut.clk_i)
+#     dut.cache_ready_i.value = 0
+
+#     await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+#     rdata = await read_task
+#     assert rdata == FILL_DATA
+#     log.info("PASS test_dir_backpressure")
+
+
+# @cocotb.test()
+# async def test_instruction_fetch(dut):
+#     """
+#     mem_instr_i=1 should be forwarded correctly.  The cache must still
+#     issue a GetS and complete the fetch.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR      = 0x0000_0100   # typical instruction address
+#     INSTR_VAL = 0x0013_0293   # addi t0, t1, 1  (just a valid-looking word)
+
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR, instr=True))
+#     await wait_cache_request(dut)
+#     await drive_dir_response(dut, DIR_DATA, INSTR_VAL)
+#     rdata = await read_task
+#     assert rdata == INSTR_VAL
+#     log.info("PASS test_instruction_fetch")
+
+
+# @cocotb.test()
+# async def test_partial_write_wstrb(dut):
+#     """
+#     Write with a byte-enable mask (wstrb != 0xF).
+#     Cache must still acquire the line (GetM) and complete without errors.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR  = 0x0000_7000
+#     WDATA = 0xABCD_EF01
+#     WSTRB = 0b0110   # byte 1 and byte 2 only
+
+#     write_task = cocotb.start_soon(proc_write(dut, ADDR, WDATA, WSTRB))
+
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR
+#     assert req_cmd  == CMD_GETM
+
+#     # For a partial write the cache may need the existing line first
+#     await drive_dir_response(dut, DIR_DATA, 0xFFFF_FFFF)
+#     await write_task
+#     log.info("PASS test_partial_write_wstrb")
+
+
+# @cocotb.test()
+# async def test_sequential_reads_different_addresses(dut):
+#     """
+#     N back-to-back reads to different (cold) addresses.
+#     Each must generate exactly one GetS and receive data.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     N = 8
+#     base_addr = 0x0001_0000
+
+#     for i in range(N):
+#         addr      = base_addr + i * 4
+#         fill_data = random.randint(0, 0xFFFF_FFFF)
+
+#         read_task = cocotb.start_soon(proc_read(dut, addr))
+#         req_addr, req_cmd = await wait_cache_request(dut)
+#         assert req_addr == addr
+#         assert req_cmd  == CMD_GETS
+
+#         await drive_dir_response(dut, DIR_DATA, fill_data)
+#         rdata = await read_task
+#         assert rdata == fill_data, (
+#             f"iter {i}: expected 0x{fill_data:08x}, got 0x{rdata:08x}"
+#         )
+
+#     log.info("PASS test_sequential_reads_different_addresses (%d iters)", N)
+
+
+# @cocotb.test()
+# async def test_write_then_read_same_line(dut):
+#     """
+#     Write to a line (I→M) and immediately read back from it.
+#     The second access should hit the Modified line (no new coherence msg).
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     ADDR  = 0x0002_0000
+#     WDATA = 0x5A5A_A5A5
+
+#     # ── Write (miss → Modified) ───────────────────────────────────
+#     write_task = cocotb.start_soon(proc_write(dut, ADDR, WDATA))
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR
+#     assert req_cmd  == CMD_GETM
+#     await drive_dir_response(dut, DIR_DATA, 0)
+#     await write_task
+
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # ── Read back (should hit – no outbound GetS) ─────────────────
+#     dut.cache_ready_i.value = 1
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR))
+
+#     spurious = False
+#     for _ in range(20):
+#         await RisingEdge(dut.clk_i)
+#         if dut.cache_valid_o.value:
+#             spurious = True
+#             break
+
+#     rdata = await read_task
+#     dut.cache_ready_i.value = 0
+
+#     assert not spurious, "Unexpected coherence request on Modified-line read"
+#     assert rdata == WDATA, f"Expected 0x{WDATA:08x}, got 0x{rdata:08x}"
+#     log.info("PASS test_write_then_read_same_line")
+
+
+# @cocotb.test()
+# async def test_reset_clears_state(dut):
+#     """
+#     After a mid-transaction reset the DUT must return to idle:
+#     all outputs deasserted and ready to accept a fresh request.
+#     """
+#     await start_clock(dut)
+#     await reset_dut(dut)
+
+#     # Start a read but do NOT service it (leave cache_ready_i=0)
+#     dut.mem_valid_i.value = 1
+#     dut.mem_addr_i.value  = 0x9999_0000
+#     dut.mem_wstrb_i.value = 0
+
+#     await ClockCycles(dut.clk_i, 5)
+
+#     # Assert reset in the middle
+#     dut.rst_ni.value = 0
+#     await ClockCycles(dut.clk_i, 4)
+#     dut.rst_ni.value = 1
+#     dut.mem_valid_i.value = 0
+#     await ClockCycles(dut.clk_i, 4)
+
+#     # After reset, outputs should be deasserted
+#     assert not dut.mem_ready_o.value,   "mem_ready_o should be 0 after reset"
+#     assert not dut.cache_valid_o.value, "cache_valid_o should be 0 after reset"
+#     assert not dut.bus_ready_o.value,   "bus_ready_o should be 0 after reset"
+
+#     # And a fresh transaction should work normally
+#     ADDR      = 0x0003_0000
+#     FILL_DATA = 0xBEEF_CAFE
+
+#     read_task = cocotb.start_soon(proc_read(dut, ADDR))
+#     req_addr, req_cmd = await wait_cache_request(dut)
+#     assert req_addr == ADDR
+#     assert req_cmd  == CMD_GETS
+#     await drive_dir_response(dut, DIR_DATA, FILL_DATA)
+#     rdata = await read_task
+#     assert rdata == FILL_DATA
+#     log.info("PASS test_reset_clears_state")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Runner
+# ════════════════════════════════════════════════════════════════════════════
 
 def cache_controller_test():
     proj_path = Path(__file__).resolve().parent
@@ -654,11 +621,11 @@ def cache_controller_test():
         proj_path / "../src/msi_protocol/on_processor_event_state_machine.sv",
         proj_path / "../src/msi_protocol/on_snoop_event_state_machine.sv",
         proj_path / "../src/msi_protocol/cache_controller.sv",
-
+        proj_path / "../src/msi_protocol/outbound_arbiter.sv",
         proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x4.sv",
         proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x32.sv",
         proj_path / "../src/mem_ctrl/cache_dir_memory/cache_mem.sv",
-
+        proj_path / "../src/mem_ctrl/cache_dir_memory/two_port_cache_mem.sv",
         pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
         pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
     ]

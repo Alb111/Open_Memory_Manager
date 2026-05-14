@@ -67,7 +67,7 @@ module outbound_arbiter (
         m0_ready_o = 1'b0;
         m1_ready_o = 1'b0;
 
-        unique case (state_q)
+        case (state_q)
 
             // -----------------------------------------------------------------
             IDLE: begin
