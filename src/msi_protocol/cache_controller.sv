@@ -37,8 +37,6 @@ module cache_controller
   input  logic        snoop_valid_i,
   input  logic [31:0] snoop_addr_i,
   input  logic [2:0]  snoop_dircmd_i,   
-  output logic [31:0] flushed_data_o,
-  output logic        flushed_valid_o,
   output logic        snoop_ready_o
 );
 
@@ -157,7 +155,7 @@ module cache_controller
      // on snoop event port 
     .p1_valid_i(cm_snoop_valid_i),
     .p1_ready_o(cm_snoop_ready_o),
-    .p1_addr_i({2'b00, cm_cpu_addr_i[29:0]}), // take index bits as addr
+    .p1_addr_i({2'b00, cm_snoop_addr_i[29:0]}), // take index bits as addr
     .p1_wdata_i(cm_snoop_wdata_i),
     .p1_wstrb_i(cm_snoop_wstrb_i),
     .p1_wstate_i(cm_snoop_wstate_i),
@@ -283,6 +281,7 @@ module cache_controller
       cpu_issue_cmd_q  <= 9'b0;
       cpu_cmd_valid_q  <= 1'b0;
       cpu_line_data_q  <= 32'b0;
+      cpu_line_tag_q   <= 2'd0;
       tag_match_cpu_q  <= 1'b1; 
       snp_addr_q       <= 32'b0;
       snp_dircmd_q     <= 3'b0;
@@ -300,6 +299,7 @@ module cache_controller
       cpu_issue_cmd_q  <= cpu_issue_cmd_d;
       cpu_cmd_valid_q  <= cpu_cmd_valid_d;
       cpu_line_data_q  <= cpu_line_data_d;
+      cpu_line_tag_q   <= cpu_line_tag_d;
       tag_match_cpu_q <= tag_match_cpu_d; 
       snp_addr_q       <= snp_addr_d;
       snp_dircmd_q     <= snp_dircmd_d;
@@ -320,6 +320,7 @@ module cache_controller
     snp_next_state_d = snp_next_state_q;
     snp_flush_d      = snp_flush_q;
     snp_flush_data_d = snp_flush_data_q;
+    snp_tag_d = snp_tag_q;
 
     // logic to control cache mem for snoop
     cm_snoop_valid_i = '0;
@@ -339,7 +340,10 @@ module cache_controller
     outbound_snoop_cache_ready_o = '0;
 
     // logic to accept incoming cmd of snoop
-    bus_ready_o = 1'b0; 
+    bus_ready_o = 1'b0;
+
+    // logic to mark snoop as done
+    snoop_ready_o = 1'b0;
 
     case (snp_state_q)
 
@@ -480,20 +484,24 @@ module cache_controller
     cm_cpu_wstate_i = '0;
     cm_cpu_wtag_i = '0;
 
-    // logic to control ouput of cpu
+    // logic to control bus reqs
     outbound_cpu_cache_valid_i = '0;
     outbound_cpu_cache_addr_i = '0;
     outbound_cpu_cache_data_i = '0;
     outbound_cpu_cache_cmd_i = '0;
     outbound_cpu_cache_ready_o = '0;
 
+    // logic to control cpu interface 
+    mem_ready_o = 1'b0;
+    mem_rdata_o = '0;
+
     case (cpu_state_q)
 
       CPU_IDLE: begin
         if (mem_valid_i) begin
-          cpu_addr_q  = mem_addr_i;
-          cpu_wdata_q = mem_wdata_i;
-          cpu_wstrb_q = mem_wstrb_i;
+          cpu_addr_d  = mem_addr_i;
+          cpu_wdata_d = mem_wdata_i;
+          cpu_wstrb_d = mem_wstrb_i;
           cpu_state_d = CPU_FETCH_LINE_REQ;
         end
       end
@@ -534,7 +542,7 @@ module cache_controller
           outbound_cpu_cache_cmd_i = EvictClean_1h;
         end
         else if (cm_cpu_rstate_o == S_MODIFIED) begin
-          outbound_cpu_cache_cmd_i = EvictClean_1h;
+          outbound_cpu_cache_cmd_i = EvictDirty_1h;
         end
         else begin
           outbound_cpu_cache_cmd_i = NULLcc1h;
@@ -603,6 +611,7 @@ module cache_controller
           else begin
             // error
           end
+          bus_ready_o = 1'b1;
           cpu_state_d = CPU_READ_MISS_UPDATE_LINE_REQ;
         end
       end
@@ -611,12 +620,12 @@ module cache_controller
         cm_cpu_valid_i = 1'b1;
         cm_cpu_addr_i  = cpu_addr_q;
         cm_cpu_wstrb_i = 4'b1111; //write in new data or old data with new state
-        cm_cpu_wdata_i = data_to_write;
+        cm_cpu_wdata_i = cpu_line_data_q;
         cm_cpu_wtag_i = cpu_addr_q[31:30];
         cm_cpu_wstate_i = cpu_next_state_q;
 
         if(cm_cpu_ready_o) begin
-          cpu_state_d  = CPU_READ_REQ;
+          cpu_state_d  = CPU_READ_MISS_UPDATE_LINE_RESP;
         end
       end
 
@@ -674,6 +683,7 @@ module cache_controller
           else begin
             // error
           end
+          bus_ready_o = 1'b1;
           cpu_state_d = CPU_WRITE_REQ;
         end
       end
@@ -708,7 +718,3 @@ module cache_controller
   end
 endmodule
 
-
-
-
-`default_nettype wire
