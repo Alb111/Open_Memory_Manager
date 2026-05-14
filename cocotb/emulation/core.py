@@ -1,5 +1,5 @@
 from typing import Callable, Optional, Awaitable
-from axi_request_types import axi_request
+from .axi_request_types import axi_request
 
 class Core:
 

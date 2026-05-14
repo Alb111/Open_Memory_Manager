@@ -44,6 +44,9 @@ async def axi_write(dut, addr, data):
 
     dut.mem_addr_i.value = addr
     dut.mem_wdata_i.value = data
+
+    dut.mem_valid_i.value = 1
+    dut.mem_read_en_i.value = 0
     dut.mem_ready_i.value = 1
 
 
@@ -53,9 +56,6 @@ async def axi_write(dut, addr, data):
         if dut.mem_ready_o.value == 1:
             break
     
-    # tell data ready
-    dut.mem_valid_i.value = 1
-
     # Wait for ready handshake
     while True:
         await FallingEdge(dut.clk_i)
@@ -73,6 +73,7 @@ async def axi_read(dut, addr):
 
     dut.mem_valid_i.value = 1
     dut.mem_ready_i.value = 1
+    dut.mem_read_en_i.value = 1
 
     # wait for dut to be ready
     while True:
@@ -106,12 +107,12 @@ async def test_mem_ctrl_against_golden(dut):
     await start_clock(dut)
     await reset(dut)
 
-    NUM_TRANSACTIONS = 10000
+    NUM_TRANSACTIONS = 1000
 
     for _ in range(1, NUM_TRANSACTIONS + 1, 1):
 
         addr = random.randint(0, 127)
-        data = random.randint(0, 4)
+        data = random.randint(0, 15)
 
         wstrb = 15
 

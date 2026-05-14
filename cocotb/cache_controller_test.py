@@ -1,950 +1,535 @@
-# SPDX-License-Identifier: Apache-2.0
-#
-# Cocotb tests for cache_controller.sv using mocked SRAM ports.
-#
-# The DUT still instantiates msi_protocol.sv. These tests exercise that MSI
-# logic through the controller inputs, rather than driving msi_protocol directly.
-
 import os
+import random
+import logging
 from pathlib import Path
 
 import cocotb
-from cocotb.clock import Clock
-from cocotb.triggers import RisingEdge, Timer
+from cocotb.clock    import Clock
+from cocotb.triggers import RisingEdge, FallingEdge, Timer, ClockCycles, with_timeout
+from cocotb_tools.runner import get_runner
+
+# ─── Sim / logging setup ────────────────────────────────────────────────────
+sim = os.getenv("SIM", "icarus")
+log = logging.getLogger("cache_tb")
+logging.basicConfig(level=logging.INFO)
+
+TIMEOUT_CYCLES = 200   # cycles to wait for any single handshake
+
+# ─── MSI coherence command encodings (must mirror cache_controller.sv) ───────
+# Outbound (cache → directory)
+CMD_BUS_RD         = 0b000000001
+CMD_BUS_RDX        = 0b000000010
+CMD_BUS_UPGR       = 0b000000100
+CMD_EVICT_CLEAN    = 0b000001000
+CMD_EVICT_DIRTY    = 0b000010000
+# Snoop acks (cache → directory)
+CMD_SNOOP_RD_ACK   = 0b000100000
+CMD_SNOOP_RDX_ACK  = 0b001000000
+CMD_SNOOP_UPGR_ACK = 0b010000000
+# Inbound acks (directory → cache)  bus_dircmd_i
+BUSRD_ACK   = 0b001
+BUSRDX_ACK  = 0b010
+BUSUPGR_ACK = 0b100
+# Snoop commands  snoop_dircmd_i
+SNOOP_RD   = 0b001
+SNOOP_RDX  = 0b010
+SNOOP_UPGR = 0b100
+# Cache-line states
+S_INVALID  = 0b00
+S_SHARED   = 0b01
+S_MODIFIED = 0b10
 
 
-NUM_SETS = 64
-WORDS_PER_LINE = 4
-SET_WIDTH = 6
-WORD_WIDTH = 2
-TAG_SHIFT = SET_WIDTH + WORD_WIDTH + 2
+# ════════════════════════════════════════════════════════════════════════════
+#  Low-level helpers
+# ════════════════════════════════════════════════════════════════════════════
 
-CACHE_CMD_NONE = 0b000_000_000
-CACHE_CMD_BUS_RD = 0b000_000_001
-CACHE_CMD_BUS_RDX = 0b000_000_010
-CACHE_CMD_BUS_UPGR = 0b000_000_100
-CACHE_CMD_EVICT_CLEAN = 0b000_001_000
-CACHE_CMD_EVICT_DIRTY = 0b000_010_000
-CACHE_CMD_SNOOP_BUS_RD_ACK = 0b000_100_000
-CACHE_CMD_SNOOP_BUS_RDX_ACK = 0b001_000_000
-CACHE_CMD_SNOOP_BUS_UPGR_ACK = 0b010_000_000
-
-DIR_CMD_BUS_RD_ACK = 0b001
-DIR_CMD_BUS_RDX_ACK = 0b010
-DIR_CMD_BUS_UPGR_ACK = 0b100
-
-SNOOP_CMD_BUS_RD = 0b001
-SNOOP_CMD_BUS_RDX = 0b010
-SNOOP_CMD_BUS_UPGR = 0b100
+async def start_clock(dut, freq_mhz: int = 50):
+    clock = Clock(dut.clk_i, 1_000 / freq_mhz, unit="ns")
+    cocotb.start_soon(clock.start())
 
 
-def build_addr(tag, set_idx, word_idx):
-    """Build a 32-bit address from tag, set index, and word index."""
-    return (
-        ((tag & ((1 << (32 - TAG_SHIFT)) - 1)) << TAG_SHIFT)
-        | ((set_idx & ((1 << SET_WIDTH) - 1)) << (WORD_WIDTH + 2))
-        | ((word_idx & ((1 << WORD_WIDTH) - 1)) << 2)
-    )
-
-
-def get_set(addr):
-    """Extract cache set index from address."""
-    return (addr >> (WORD_WIDTH + 2)) & ((1 << SET_WIDTH) - 1)
-
-
-def get_word(addr):
-    """Extract cache word index from address."""
-    return (addr >> 2) & ((1 << WORD_WIDTH) - 1)
-
-
-def merge_word(old_data, new_data, strb):
-    """Apply byte write strobes to a 32-bit word."""
-    merged = old_data
-
-    for byte_idx in range(4):
-        if (strb >> byte_idx) & 1:
-            mask = 0xFF << (byte_idx * 8)
-            merged = (merged & ~mask) | (new_data & mask)
-
-    return merged & 0xFFFF_FFFF
-
-
-class MockSram:
-    """Mock SRAM model connected to cache controller data-cache ports."""
-
-    def __init__(self, dut):
-        self.dut = dut
-        self.mem = {}
-
-    def key(self, set_idx, word_idx):
-        """Return dictionary key for mocked SRAM."""
-        return (set_idx & 0x3F, word_idx & 0x3)
-
-    def read(self, set_idx, word_idx):
-        """Read a mocked SRAM word."""
-        return self.mem.get(self.key(set_idx, word_idx), 0)
-
-    def write(self, set_idx, word_idx, data, strb):
-        """Write a mocked SRAM word with byte strobes."""
-        old_data = self.read(set_idx, word_idx)
-        self.mem[self.key(set_idx, word_idx)] = merge_word(
-            old_data,
-            data,
-            strb,
-        )
-
-    def read_addr(self, addr):
-        """Read mocked SRAM using a full address."""
-        return self.read(get_set(addr), get_word(addr))
-
-    def write_addr(self, addr, data, strb):
-        """Write mocked SRAM using a full address."""
-        self.write(get_set(addr), get_word(addr), data, strb)
-
-    async def settle(self):
-        """Drive read data according to current SRAM read address."""
-        await Timer(1, units="ps")
-
-        set_idx = int(self.dut.data_cache_rd_set_o.value)
-        word_idx = int(self.dut.data_cache_rd_word_o.value)
-
-        self.dut.data_cache_rd_data_i.value = self.read(set_idx, word_idx)
-
-        await Timer(1, units="ps")
-
-    async def tick(self):
-        """Advance one cycle and capture writes into the mocked SRAM."""
-        await self.settle()
-
-        if int(self.dut.data_cache_wr_en_o.value) == 1:
-            set_idx = int(self.dut.data_cache_wr_set_o.value)
-            word_idx = int(self.dut.data_cache_wr_word_o.value)
-            data = int(self.dut.data_cache_wr_data_o.value)
-            strb = int(self.dut.data_cache_wr_strb_o.value)
-
-            self.write(set_idx, word_idx, data, strb)
-
-        await RisingEdge(self.dut.clk_i)
-        await Timer(1, units="ps")
-
-
-async def reset_dut(dut):
-    """Reset DUT and initialize all input ports."""
-    dut.rst_ni.value = 0
-
-    dut.mem_valid_i.value = 0
-    dut.mem_addr_i.value = 0
-    dut.mem_wdata_i.value = 0
-    dut.mem_wstrb_i.value = 0
-
-    dut.flush_valid_i.value = 0
-    dut.flush_addr_i.value = 0
-
-    dut.data_cache_rd_data_i.value = 0
-    dut.data_cache_ready_i.value = 1
-
-    dut.cache_ready_i.value = 1
-
-    dut.bus_valid_i.value = 0
-    dut.bus_data_i.value = 0
-    dut.bus_dircmd_i.value = 0
-
-    dut.snoop_valid_i.value = 0
-    dut.snoop_data_i.value = 0
+async def reset_dut(dut, duration_ns: int = 100):
+    """Assert active-low reset and hold all inputs idle."""
+    dut.rst_ni.value         = 0
+    dut.mem_valid_i.value    = 0
+    dut.mem_instr_i.value    = 0
+    dut.mem_addr_i.value     = 0
+    dut.mem_wdata_i.value    = 0
+    dut.mem_wstrb_i.value    = 0
+    dut.cache_ready_i.value  = 0
+    dut.bus_valid_i.value    = 0
+    dut.bus_data_i.value     = 0
+    dut.bus_dircmd_i.value   = 0
+    dut.snoop_valid_i.value  = 0
+    dut.snoop_addr_i.value   = 0
     dut.snoop_dircmd_i.value = 0
-
-    await RisingEdge(dut.clk_i)
-    await RisingEdge(dut.clk_i)
-
+    await Timer(duration_ns, unit="ns")
+    await FallingEdge(dut.clk_i)
     dut.rst_ni.value = 1
+    await FallingEdge(dut.clk_i)
 
+    # The cache_mem initialises 128 lines × 4 cycles × 2 ports = 1024 cycles
+    reset_time = 128 * 4 * 2
+    for _ in range(reset_time):
+        await FallingEdge(dut.clk_i)
+
+    log.info("Reset released")
+
+
+# ─── Processor request helper ────────────────────────────────────────────────
+
+async def cpu_request(dut, addr: int, wdata: int = 0, wstrb: int = 0):
+    """
+    Drive a processor transaction onto the mem_* interface.
+    wstrb == 0  → read
+    wstrb != 0  → write
+    Returns rdata (meaningful only for reads).
+    """
+    dut.mem_valid_i.value = 1
+    dut.mem_addr_i.value  = addr
+    dut.mem_wdata_i.value = wdata
+    dut.mem_wstrb_i.value = wstrb
+    dut.mem_instr_i.value = 0
+
+    # Wait for mem_ready_o
+    for _ in range(TIMEOUT_CYCLES):
+        await RisingEdge(dut.clk_i)
+        if dut.mem_ready_o.value == 1:
+            rdata = int(dut.mem_rdata_o.value)
+            dut.mem_valid_i.value = 0
+            return rdata
+    raise TimeoutError(f"cpu_request timed out: addr=0x{addr:08x}")
+
+
+# ─── Directory response helpers ──────────────────────────────────────────────
+
+async def wait_for_cache_valid(dut):
+    """
+    Wait until the cache issues an outbound coherence command (cache_valid_o).
+    Returns (addr, data, cmd).
+    """
+    for _ in range(TIMEOUT_CYCLES):
+        await RisingEdge(dut.clk_i)
+        if dut.cache_valid_o.value == 1:
+            return (
+                int(dut.cache_addr_o.value),
+                int(dut.cache_data_o.value),
+                int(dut.cache_cmd_o.value),
+            )
+    raise TimeoutError("Timed out waiting for cache_valid_o")
+
+
+async def ack_cache_cmd(dut):
+    """Single-cycle ready pulse to acknowledge an outbound cache command."""
+    dut.cache_ready_i.value = 1
     await RisingEdge(dut.clk_i)
-    await Timer(1, units="ps")
-
-
-async def start(dut):
-    """Start clock, reset DUT, and return mocked SRAM object."""
-    cocotb.start_soon(Clock(dut.clk_i, 10, units="ns").start())
-    await reset_dut(dut)
-    return MockSram(dut)
-
-
-def drive_cpu_read(dut, addr):
-    """Drive a CPU read request."""
-    dut.mem_valid_i.value = 1
-    dut.mem_addr_i.value = addr
-    dut.mem_wdata_i.value = 0
-    dut.mem_wstrb_i.value = 0
-
-
-def drive_cpu_write(dut, addr, data, strb=0xF):
-    """Drive a CPU write request."""
-    dut.mem_valid_i.value = 1
-    dut.mem_addr_i.value = addr
-    dut.mem_wdata_i.value = data
-    dut.mem_wstrb_i.value = strb
-
-
-def clear_cpu(dut):
-    """Clear CPU request inputs."""
-    dut.mem_valid_i.value = 0
-    dut.mem_addr_i.value = 0
-    dut.mem_wdata_i.value = 0
-    dut.mem_wstrb_i.value = 0
-
-
-def clear_bus(dut):
-    """Clear directory bus response inputs."""
-    dut.bus_valid_i.value = 0
-    dut.bus_data_i.value = 0
-    dut.bus_dircmd_i.value = 0
-
-
-def clear_snoop(dut):
-    """Clear snoop request inputs."""
-    dut.snoop_valid_i.value = 0
-    dut.snoop_data_i.value = 0
-    dut.snoop_dircmd_i.value = 0
-
-
-def assert_cache_cmd(dut, cmd, addr=None, data=None):
-    """Check outgoing cache-interface command."""
-    assert int(dut.cache_valid_o.value) == 1
-    assert int(dut.cache_cmd_o.value) == cmd
-
-    if addr is not None:
-        assert int(dut.cache_addr_o.value) == addr
-
-    if data is not None:
-        assert int(dut.cache_data_o.value) == data
-
-
-async def complete_bus_ack(dut, sram, ack_cmd, data):
-    """Drive a directory bus ack and complete pending CPU request."""
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = ack_cmd
-    dut.bus_data_i.value = data
-
-    await sram.settle()
-
-    assert int(dut.bus_ready_o.value) == 1
-    assert int(dut.mem_ready_o.value) == 1
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-
-
-async def read_miss_fill(dut, sram, addr, fill_data):
-    """Cause a read miss and complete it with a directory fill."""
-    drive_cpu_read(dut, addr)
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 0
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr)
-
-    await sram.tick()
-
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RD_ACK
-    dut.bus_data_i.value = fill_data
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.mem_rdata_o.value) == fill_data
-    assert int(dut.data_cache_wr_en_o.value) == 1
-    assert int(dut.data_cache_wr_data_o.value) == fill_data
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-
-
-async def write_miss_fill(dut, sram, addr, store_data, strb=0xF, fill_data=0):
-    """Cause a write miss and complete it with a directory fill."""
-    expected = merge_word(fill_data, store_data, strb)
-
-    drive_cpu_write(dut, addr, store_data, strb)
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 0
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RDX, addr=addr)
-
-    await sram.tick()
-
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RDX_ACK
-    dut.bus_data_i.value = fill_data
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.data_cache_wr_en_o.value) == 1
-    assert int(dut.data_cache_wr_data_o.value) == expected
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    assert sram.read_addr(addr) == expected
-
-
-async def read_hit(dut, sram, addr, expected):
-    """Check CPU read hit."""
-    drive_cpu_read(dut, addr)
-
-    await sram.settle()
-
-    assert int(dut.cache_valid_o.value) == 0
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.mem_rdata_o.value) == expected
-
-    await sram.tick()
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-
-async def write_hit_modified(dut, sram, addr, data, strb=0xF):
-    """Check CPU write hit in Modified state."""
-    old_data = sram.read_addr(addr)
-    expected = merge_word(old_data, data, strb)
-
-    drive_cpu_write(dut, addr, data, strb)
-
-    await sram.settle()
-
-    assert int(dut.cache_valid_o.value) == 0
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.data_cache_wr_en_o.value) == 1
-    assert int(dut.data_cache_wr_strb_o.value) == strb
-
-    await sram.tick()
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    assert sram.read_addr(addr) == expected
-
-
-async def write_shared_upgrade(dut, sram, addr, data, strb=0xF):
-    """Check CPU write hit in Shared state requiring upgrade."""
-    old_data = sram.read_addr(addr)
-    expected = merge_word(old_data, data, strb)
-
-    drive_cpu_write(dut, addr, data, strb)
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 0
-    assert_cache_cmd(dut, CACHE_CMD_BUS_UPGR, addr=addr)
-
-    await sram.tick()
-
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_UPGR_ACK
-
-    # The current RTL merges pending stores against bus_data_i during upgrade.
-    # Drive the current cached data here so this test checks intended data merge.
-    dut.bus_data_i.value = old_data
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.data_cache_wr_en_o.value) == 1
-    assert int(dut.data_cache_wr_data_o.value) == expected
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    assert sram.read_addr(addr) == expected
-
-
-@cocotb.test()
-async def test_read_miss_shared_then_read_hit(dut):
-    """Test I read miss to S, followed by S read hit."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0x12, set_idx=3, word_idx=1)
-    fill_data = 0x1234_5678
-
-    await read_miss_fill(dut, sram, addr, fill_data)
-    await read_hit(dut, sram, addr, fill_data)
-
-
-@cocotb.test()
-async def test_write_miss_modified_then_read_hit(dut):
-    """Test I write miss to M, followed by M read hit."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0x22, set_idx=4, word_idx=2)
-    store_data = 0xCAFE_BABE
-
-    await write_miss_fill(dut, sram, addr, store_data)
-    await read_hit(dut, sram, addr, store_data)
-
-
-@cocotb.test()
-async def test_shared_write_upgrade_then_modified_write_hit(dut):
-    """Test S write upgrade, then M write hit."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0x33, set_idx=5, word_idx=0)
-
-    await read_miss_fill(dut, sram, addr, 0xAAAA_5555)
-    await write_shared_upgrade(dut, sram, addr, 0xDEAD_BEEF)
-    await read_hit(dut, sram, addr, 0xDEAD_BEEF)
-
-    await write_hit_modified(dut, sram, addr, 0xFACE_CAFE, strb=0xF)
-    await read_hit(dut, sram, addr, 0xFACE_CAFE)
-
-
-@cocotb.test()
-async def test_modified_byte_strobes_preserve_unwritten_bytes(dut):
-    """Test byte strobes on Modified write hits."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0x44, set_idx=6, word_idx=3)
-
-    await write_miss_fill(dut, sram, addr, 0x1122_3344)
-
-    cases = [
-        (0xAAAA_AA99, 0x1, 0x1122_3399),
-        (0xAAAA_8800, 0x2, 0x1122_8899),
-        (0xAA77_0000, 0x4, 0x1177_8899),
-        (0x6600_0000, 0x8, 0x6677_8899),
-    ]
-
-    for data, strb, expected in cases:
-        await write_hit_modified(dut, sram, addr, data, strb=strb)
-        await read_hit(dut, sram, addr, expected)
-
-
-@cocotb.test()
-async def test_clean_replacement_sends_clean_evict_then_new_read(dut):
-    """Test replacing a clean Shared line."""
-    sram = await start(dut)
-
-    old_addr = build_addr(tag=0x51, set_idx=7, word_idx=1)
-    new_addr = build_addr(tag=0x52, set_idx=7, word_idx=1)
-    old_data = 0x0102_0304
-    new_data = 0xA0B0_C0D0
-
-    await read_miss_fill(dut, sram, old_addr, old_data)
-
-    drive_cpu_read(dut, new_addr)
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 0
-    assert int(dut.cache_valid_o.value) == 0
-
-    await sram.tick()
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_EVICT_CLEAN, addr=old_addr, data=old_data)
-
-    await sram.tick()
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=new_addr)
-
-    await sram.tick()
-
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RD_ACK
-    dut.bus_data_i.value = new_data
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.mem_rdata_o.value) == new_data
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-    await read_hit(dut, sram, new_addr, new_data)
-
-
-@cocotb.test()
-async def test_dirty_replacement_sends_latest_dirty_data(dut):
-    """Test replacing a dirty Modified line sends latest dirty data."""
-    sram = await start(dut)
-
-    old_addr = build_addr(tag=0x61, set_idx=8, word_idx=2)
-    new_addr = build_addr(tag=0x62, set_idx=8, word_idx=2)
-    dirty_data = 0x0BAD_F00D
-    new_data = 0xABCD_EF01
-
-    await write_miss_fill(dut, sram, old_addr, dirty_data)
-
-    drive_cpu_read(dut, new_addr)
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 0
-
-    await sram.tick()
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_EVICT_DIRTY, addr=old_addr, data=dirty_data)
-
-    await sram.tick()
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=new_addr)
-
-    await sram.tick()
-
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RD_ACK
-    dut.bus_data_i.value = new_data
-
-    await sram.settle()
-
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.mem_rdata_o.value) == new_data
-
-    await sram.tick()
-
-    clear_bus(dut)
-    clear_cpu(dut)
-
-    await sram.tick()
-
-
-@cocotb.test()
-async def test_flush_invalid_shared_and_modified_lines(dut):
-    """Test flush behavior for Invalid, Shared, and Modified lines."""
-    sram = await start(dut)
-
-    invalid_addr = build_addr(tag=0x70, set_idx=9, word_idx=0)
-    shared_addr = build_addr(tag=0x71, set_idx=10, word_idx=1)
-    modified_addr = build_addr(tag=0x72, set_idx=11, word_idx=2)
-
-    dut.flush_valid_i.value = 1
-    dut.flush_addr_i.value = invalid_addr
-
-    await sram.settle()
-
-    assert int(dut.flush_ready_o.value) == 1
-    assert int(dut.cache_valid_o.value) == 0
-
-    await sram.tick()
-
-    dut.flush_valid_i.value = 0
-
-    await sram.tick()
-
-    await read_miss_fill(dut, sram, shared_addr, 0x2222_3333)
-
-    dut.flush_valid_i.value = 1
-    dut.flush_addr_i.value = shared_addr
-
-    await sram.settle()
-
-    assert int(dut.flush_ready_o.value) == 1
-    assert_cache_cmd(dut, CACHE_CMD_EVICT_CLEAN, addr=shared_addr, data=0x2222_3333)
-
-    await sram.tick()
-
-    dut.flush_valid_i.value = 0
-
-    await sram.tick()
-
-    drive_cpu_read(dut, shared_addr)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=shared_addr)
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    await write_miss_fill(dut, sram, modified_addr, 0x4444_5555)
-
-    dut.flush_valid_i.value = 1
-    dut.flush_addr_i.value = modified_addr
-
-    await sram.settle()
-
-    assert int(dut.flush_ready_o.value) == 1
-    assert_cache_cmd(
-        dut,
-        CACHE_CMD_EVICT_DIRTY,
-        addr=modified_addr,
-        data=0x4444_5555,
-    )
-
-    await sram.tick()
-
-    dut.flush_valid_i.value = 0
-
-    await sram.tick()
-
-    drive_cpu_read(dut, modified_addr)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=modified_addr)
-
-
-async def drive_snoop(dut, sram, addr, cmd):
-    """Drive a directory snoop request."""
-    dut.snoop_valid_i.value = 1
-    dut.snoop_data_i.value = addr
-    dut.snoop_dircmd_i.value = cmd
-
-    await sram.settle()
-
-    assert int(dut.snoop_ready_o.value) == 1
-
-
-@cocotb.test()
-async def test_snoop_cases_from_invalid_state_are_ignored(dut):
-    """Test snoops while line is Invalid."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0x80, set_idx=12, word_idx=0)
-
-    for cmd in [SNOOP_CMD_BUS_RD, SNOOP_CMD_BUS_RDX, SNOOP_CMD_BUS_UPGR]:
-        await drive_snoop(dut, sram, addr, cmd)
-
-        assert int(dut.cache_valid_o.value) == 0
-
-        await sram.tick()
-
-        clear_snoop(dut)
-
-        await sram.tick()
-
-
-@cocotb.test()
-async def test_snoop_cases_from_shared_state(dut):
-    """Test snoops while lines are Shared."""
-    sram = await start(dut)
-
-    addr_rd = build_addr(tag=0x90, set_idx=13, word_idx=0)
-    addr_rdx = build_addr(tag=0x91, set_idx=14, word_idx=1)
-    addr_upgr = build_addr(tag=0x92, set_idx=15, word_idx=2)
-
-    await read_miss_fill(dut, sram, addr_rd, 0xAAAA_0001)
-    await drive_snoop(dut, sram, addr_rd, SNOOP_CMD_BUS_RD)
-
-    assert int(dut.cache_valid_o.value) == 0
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-    await read_hit(dut, sram, addr_rd, 0xAAAA_0001)
-
-    await read_miss_fill(dut, sram, addr_rdx, 0xBBBB_0002)
-    await drive_snoop(dut, sram, addr_rdx, SNOOP_CMD_BUS_RDX)
-
-    assert_cache_cmd(dut, CACHE_CMD_SNOOP_BUS_UPGR_ACK, addr=addr_rdx)
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-
-    drive_cpu_read(dut, addr_rdx)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr_rdx)
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    await read_miss_fill(dut, sram, addr_upgr, 0xCCCC_0003)
-    await drive_snoop(dut, sram, addr_upgr, SNOOP_CMD_BUS_UPGR)
-
-    assert_cache_cmd(dut, CACHE_CMD_SNOOP_BUS_UPGR_ACK, addr=addr_upgr)
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-
-    drive_cpu_read(dut, addr_upgr)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr_upgr)
-
-
-@cocotb.test()
-async def test_snoop_cases_from_modified_state(dut):
-    """Test snoops while lines are Modified."""
-    sram = await start(dut)
-
-    addr_rd = build_addr(tag=0xA0, set_idx=16, word_idx=0)
-    addr_rdx = build_addr(tag=0xA1, set_idx=17, word_idx=1)
-    addr_upgr = build_addr(tag=0xA2, set_idx=18, word_idx=2)
-
-    await write_miss_fill(dut, sram, addr_rd, 0x1111_AAAA)
-    await drive_snoop(dut, sram, addr_rd, SNOOP_CMD_BUS_RD)
-
-    assert_cache_cmd(
-        dut,
-        CACHE_CMD_SNOOP_BUS_RD_ACK,
-        addr=addr_rd,
-        data=0x1111_AAAA,
-    )
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-    await read_hit(dut, sram, addr_rd, 0x1111_AAAA)
-
-    # After M to S downgrade, a CPU write must request an upgrade.
-    drive_cpu_write(dut, addr_rd, 0x2222_BBBB, 0xF)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_UPGR, addr=addr_rd)
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    await write_miss_fill(dut, sram, addr_rdx, 0x3333_CCCC)
-    await drive_snoop(dut, sram, addr_rdx, SNOOP_CMD_BUS_RDX)
-
-    assert_cache_cmd(
-        dut,
-        CACHE_CMD_SNOOP_BUS_RDX_ACK,
-        addr=addr_rdx,
-        data=0x3333_CCCC,
-    )
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-
-    drive_cpu_read(dut, addr_rdx)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr_rdx)
-
-    clear_cpu(dut)
-
-    await sram.tick()
-
-    # M + BusUPGR is illegal in the MSI helper. This controller should still
-    # recover by invalidating safely and not deadlocking. The current RTL may
-    # send an invalidation ack; if it does, check that it is the safe ack.
-    await write_miss_fill(dut, sram, addr_upgr, 0x4444_DDDD)
-    await drive_snoop(dut, sram, addr_upgr, SNOOP_CMD_BUS_UPGR)
-
-    if int(dut.cache_valid_o.value) == 1:
-        assert int(dut.cache_cmd_o.value) == CACHE_CMD_SNOOP_BUS_UPGR_ACK
-
-    await sram.tick()
-
-    clear_snoop(dut)
-
-    await sram.tick()
-
-    drive_cpu_read(dut, addr_upgr)
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr_upgr)
-
-
-@cocotb.test()
-async def test_cache_interface_ready_stalls_and_holds_command(dut):
-    """Test command hold while cache_interface is not ready."""
-    sram = await start(dut)
-
-    addr = build_addr(tag=0xB0, set_idx=19, word_idx=1)
-
     dut.cache_ready_i.value = 0
 
-    drive_cpu_read(dut, addr)
 
-    await sram.settle()
+async def send_bus_response(dut, dircmd: int, data: int = 0):
+    """
+    Inject one bus_* inbound response from the directory.
+    Waits until the cache asserts bus_ready_o to complete the handshake.
+    """
+    dut.bus_valid_i.value  = 1
+    dut.bus_dircmd_i.value = dircmd
+    dut.bus_data_i.value   = data
 
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr)
-    assert int(dut.mem_ready_o.value) == 0
+    for _ in range(TIMEOUT_CYCLES):
+        await RisingEdge(dut.clk_i)
+        if dut.bus_ready_o.value == 1:
+            dut.bus_valid_i.value  = 0
+            dut.bus_dircmd_i.value = 0
+            dut.bus_data_i.value   = 0
+            return
+    raise TimeoutError("Timed out waiting for bus_ready_o")
 
-    await sram.tick()
 
-    for _ in range(3):
-        await sram.settle()
+# ─── Snoop helpers ───────────────────────────────────────────────────────────
 
-        assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr)
-        assert int(dut.mem_ready_o.value) == 0
+async def send_snoop(dut, addr: int, dircmd: int):
+    """
+    Present one snoop request to the cache.
+    Waits for snoop_ready_o (acceptance) then for the cache to issue its ack
+    command on the outbound bus and accepts it.
+    Returns (snoop_ack_cmd, snoop_ack_addr).
+    """
+    dut.snoop_valid_i.value  = 1
+    dut.snoop_addr_i.value   = addr
+    dut.snoop_dircmd_i.value = dircmd
 
-        await sram.tick()
+    # Wait for snoop_ready_o (cache accepted the snoop)
+    for _ in range(TIMEOUT_CYCLES):
+        await RisingEdge(dut.clk_i)
+        if dut.snoop_ready_o.value == 1:
+            dut.snoop_valid_i.value  = 0
+            dut.snoop_dircmd_i.value = 0
+            break
+    else:
+        raise TimeoutError(f"Timed out waiting for snoop_ready_o: addr=0x{addr:08x}")
 
-    dut.cache_ready_i.value = 1
+    # Wait for the cache to issue the snoop ack on the outbound bus
+    ack_addr, _, ack_cmd = await wait_for_cache_valid(dut)
+    await ack_cache_cmd(dut)
+    return ack_cmd, ack_addr
+y_i. When cache_ready_i is asserted, cache_valid_o should still be 1 if the master is still
 
-    await sram.settle()
+# ─── Full transaction wrappers ───────────────────────────────────────────────
 
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr)
+async def do_read_miss(dut, addr: int, fill_data: int):
+    """
+    Full read-miss flow:
+      1. CPU issues read request → cache sends BusRD
+      2. Testbench accepts BusRD and injects BUSRD_ACK with fill_data
+      3. Returns the value the CPU received
+    """
+    # Start CPU request concurrently
+    read_task = cocotb.start_soon(cpu_request(dut, addr, wstrb=0))
 
-    await sram.tick()
+    # Wait for outbound BusRD
+    c_addr, _, c_cmd = await wait_for_cache_valid(dut)
+    assert c_cmd == CMD_BUS_RD,   f"Expected BusRD (0x{CMD_BUS_RD:03x}), got 0x{c_cmd:03x}"
+    assert c_addr == addr,        f"BusRD addr mismatch: 0x{c_addr:08x} vs 0x{addr:08x}"
+    await ack_cache_cmd(dut)
 
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RD_ACK
-    dut.bus_data_i.value = 0x1234_ABCD
+    # Inject bus response with data
+    await send_bus_response(dut, BUSRD_ACK, fill_data)
 
-    await sram.settle()
+    # Collect CPU result
+    rdata = await read_task
+    return rdata
 
-    assert int(dut.mem_ready_o.value) == 1
-    assert int(dut.mem_rdata_o.value) == 0x1234_ABCD
+
+async def do_write_miss(dut, addr: int, wdata: int, wstrb: int = 0xF,
+                        existing_data: int = 0):
+    """
+    Full write-miss flow (line is Invalid):
+      1. CPU issues write → cache sends BusRDX
+      2. Testbench accepts BusRDX and injects BUSRDX_ACK
+      3. Returns when the CPU completes (mem_ready_o)
+    """
+    write_task = cocotb.start_soon(cpu_request(dut, addr, wdata, wstrb))
+
+    c_addr, _, c_cmd = await wait_for_cache_valid(dut)
+    assert c_cmd == CMD_BUS_RDX,  f"Expected BusRDX (0x{CMD_BUS_RDX:03x}), got 0x{c_cmd:03x}"
+    assert c_addr == addr,        f"BusRDX addr mismatch"
+    await ack_cache_cmd(dut)
+
+    await send_bus_response(dut, BUSRDX_ACK, existing_data)
+
+    await write_task  # completes when mem_ready_o pulses
+
+
+async def do_write_upgrade(dut, addr: int, wdata: int, wstrb: int = 0xF):
+    """
+    Write-upgrade flow (line is Shared):
+      1. CPU issues write → cache sends BusUPGR
+      2. Testbench accepts BusUPGR and injects BUSUPGR_ACK
+    """
+    write_task = cocotb.start_soon(cpu_request(dut, addr, wdata, wstrb))
+
+    c_addr, _, c_cmd = await wait_for_cache_valid(dut)
+    assert c_cmd == CMD_BUS_UPGR, f"Expected BusUPGR (0x{CMD_BUS_UPGR:03x}), got 0x{c_cmd:03x}"
+    assert c_addr == addr,        f"BusUPGR addr mismatch"
+    await ack_cache_cmd(dut)
+
+    await send_bus_response(dut, BUSUPGR_ACK, 0)
+    await write_task
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Test cases
+# ════════════════════════════════════════════════════════════════════════════
+
+@cocotb.test()
+async def test_simple(dut):
+    """
+    Minimal smoke test:
+      - Read-miss on address 0x00 → cache should issue BusRD, receive data,
+        and return it to the processor.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    ADDR      = 0x00000000
+    FILL_DATA = 0xDEADBEEF
+
+    rdata = await do_read_miss(dut, ADDR, FILL_DATA)
+
+    assert rdata == FILL_DATA, \
+        f"test_simple FAIL: expected 0x{FILL_DATA:08x}, got 0x{rdata:08x}"
+    log.info("test_simple PASS  rdata=0x%08x", rdata)
 
 
 @cocotb.test()
-async def test_data_cache_not_ready_stalls_cpu_request(dut):
-    """Test controller waits while data cache is not ready."""
-    sram = await start(dut)
+async def test_read_miss_then_read_hit(dut):
+    """
+    After a read-miss brings the line into Shared state, a second read to the
+    same address must complete without any outbound coherence command.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
 
-    addr = build_addr(tag=0xC0, set_idx=20, word_idx=0)
+    ADDR      = 0x00000010
+    FILL_DATA = 0xCAFEBABE
 
-    dut.data_cache_ready_i.value = 0
+    # First access: cold miss
+    rdata = await do_read_miss(dut, ADDR, FILL_DATA)
+    assert rdata == FILL_DATA, f"First read wrong: 0x{rdata:08x}"
 
-    drive_cpu_read(dut, addr)
+    # Second access: should be a cache hit (no BusRD on the outbound bus)
+    hit_task = cocotb.start_soon(cpu_request(dut, ADDR, wstrb=0))
 
-    await sram.settle()
+    # Give some cycles; if cache_valid_o fires it means an unexpected miss
+    for _ in range(20):
+        await RisingEdge(dut.clk_i)
+        assert dut.cache_valid_o.value == 0, \
+            "Unexpected outbound command on read hit"
 
-    assert int(dut.mem_ready_o.value) == 0
-    assert int(dut.cache_valid_o.value) == 0
-
-    await sram.tick()
-
-    dut.data_cache_ready_i.value = 1
-
-    await sram.settle()
-
-    assert_cache_cmd(dut, CACHE_CMD_BUS_RD, addr=addr)
+    rdata2 = await hit_task
+    assert rdata2 == FILL_DATA, \
+        f"Read hit returned wrong data: 0x{rdata2:08x} expected 0x{FILL_DATA:08x}"
+    log.info("test_read_miss_then_read_hit PASS")
 
 
 @cocotb.test()
-async def test_unexpected_bus_ack_while_idle_does_not_corrupt_state(dut):
-    """Test unexpected bus ack while idle is ignored safely."""
-    sram = await start(dut)
+async def test_write_miss(dut):
+    """
+    Write to an Invalid line:
+      cache should issue BusRDX, receive the ack, then complete the write.
+    A subsequent read-hit must return the written data.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
 
-    addr = build_addr(tag=0xD0, set_idx=21, word_idx=1)
+    ADDR   = 0x00000020
+    WDATA  = 0x12345678
+    WSTRB  = 0xF         # full-word write
 
-    dut.bus_valid_i.value = 1
-    dut.bus_dircmd_i.value = DIR_CMD_BUS_RD_ACK
-    dut.bus_data_i.value = 0xFFFF_FFFF
+    await do_write_miss(dut, ADDR, WDATA, WSTRB)
 
-    await sram.settle()
+    # Read back without any coherence traffic (line now in Modified)
+    read_task = cocotb.start_soon(cpu_request(dut, ADDR, wstrb=0))
+    for _ in range(20):
+        await RisingEdge(dut.clk_i)
+        assert dut.cache_valid_o.value == 0, \
+            "Unexpected outbound command on post-write read"
+    rdata = await read_task
 
-    assert int(dut.bus_ready_o.value) == 0
+    assert rdata == WDATA, \
+        f"test_write_miss read-back FAIL: got 0x{rdata:08x} expected 0x{WDATA:08x}"
+    log.info("test_write_miss PASS")
 
-    await sram.tick()
 
-    clear_bus(dut)
+@cocotb.test()
+async def test_write_upgrade(dut):
+    """
+    Read-miss (→ Shared) followed by write (→ must issue BusUPGR, not BusRDX).
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
 
-    await read_miss_fill(dut, sram, addr, 0x1357_9BDF)
-    await read_hit(dut, sram, addr, 0x1357_9BDF)
+    ADDR      = 0x00000030
+    FILL_DATA = 0xAAAAAAAA
+    WDATA     = 0x55555555
 
-def run_tests():
-    """Build and run cache_controller.sv with its MSI dependency."""
-    import subprocess
-    from textwrap import dedent
+    # Bring line in as Shared
+    await do_read_miss(dut, ADDR, FILL_DATA)
 
-    sim = os.getenv("SIM", "icarus")
+    # Write the same line → should upgrade, not re-fetch
+    await do_write_upgrade(dut, ADDR, WDATA)
 
-    # This file is:
-    #
-    #   Open_Memory_Manager/cocotb/cache_controller_test.py
-    #
-    # So repo_dir becomes:
-    #
-    #   Open_Memory_Manager
-    repo_dir = Path(__file__).resolve().parent.parent
-    src_dir = repo_dir / "src"
+    log.info("test_write_upgrade PASS")
 
-    verilog_sources = [
-        src_dir / "msi_protocol" / "msi_protocol.sv",
-        src_dir / "cache" / "rishi_stuff" / "cache_controller.sv",
+
+@cocotb.test()
+async def test_snoop_rd_on_invalid_line(dut):
+    """
+    BusRD snoop targeting an Invalid (cold) line → cache should ack without
+    flushing anything and NOT issue an EvictDirty.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    SNOOP_ADDR = 0x00000040
+    ack_cmd, _ = await send_snoop(dut, SNOOP_ADDR, SNOOP_RD)
+
+    assert ack_cmd == CMD_SNOOP_RD_ACK, \
+        f"Expected SnoopBusRD_Ack (0x{CMD_SNOOP_RD_ACK:03x}), got 0x{ack_cmd:03x}"
+    log.info("test_snoop_rd_on_invalid_line PASS")
+
+
+@cocotb.test()
+async def test_snoop_rdx_invalidates_shared(dut):
+    """
+    1. Bring a line into Shared via read-miss.
+    2. Receive a BusRDX snoop → line should be invalidated (no flush needed).
+    3. A subsequent read must re-issue BusRD (cold miss again).
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    ADDR      = 0x00000050
+    FILL_DATA = 0x11223344
+
+    # Bring line into Shared
+    await do_read_miss(dut, ADDR, FILL_DATA)
+
+    # BusRDX snoop → invalidate
+    ack_cmd, _ = await send_snoop(dut, ADDR, SNOOP_RDX)
+    assert ack_cmd == CMD_SNOOP_RDX_ACK, \
+        f"Expected SnoopBusRDX_Ack (0x{CMD_SNOOP_RDX_ACK:03x}), got 0x{ack_cmd:03x}"
+
+    # Read must now be a miss again
+    NEW_DATA = 0xDEADC0DE
+    rdata = await do_read_miss(dut, ADDR, NEW_DATA)
+    assert rdata == NEW_DATA, \
+        f"Post-invalidate read returned stale data: 0x{rdata:08x}"
+    log.info("test_snoop_rdx_invalidates_shared PASS")
+
+
+@cocotb.test()
+async def test_snoop_rd_flushes_modified(dut):
+    """
+    1. Bring a line into Modified via write-miss.
+    2. Receive a BusRD snoop → cache must flush (EvictDirty) before acking.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    ADDR  = 0x00000060
+    WDATA = 0xFACEFEED
+
+    # Bring line into Modified
+    await do_write_miss(dut, ADDR, WDATA)
+
+    # Present BusRD snoop.  The snoop FSM will:
+    #   fetch the line  →  detect flush needed  →  issue EvictDirty  →  ack
+    # We need to accept the EvictDirty on the outbound bus first.
+    snoop_task = cocotb.start_soon(send_snoop(dut, ADDR, SNOOP_RD))
+
+    # The first outbound command must be EvictDirty
+    c_addr, c_data, c_cmd = await wait_for_cache_valid(dut)
+    assert c_cmd == CMD_EVICT_DIRTY, \
+        f"Expected EvictDirty (0x{CMD_EVICT_DIRTY:03x}) before snoop ack, got 0x{c_cmd:03x}"
+    assert c_data == WDATA, \
+        f"EvictDirty carried wrong data: 0x{c_data:08x} expected 0x{WDATA:08x}"
+    await ack_cache_cmd(dut)
+
+    # Now the snoop FSM continues to issue its ack
+    ack_cmd, _ = await snoop_task
+    assert ack_cmd == CMD_SNOOP_RD_ACK, \
+        f"Expected SnoopBusRD_Ack after flush, got 0x{ack_cmd:03x}"
+    log.info("test_snoop_rd_flushes_modified PASS")
+
+
+@cocotb.test()
+async def test_byte_write_strobe(dut):
+    """
+    Write a single byte (wstrb = 0x1) into an existing Modified line and
+    verify that only that byte changes in the read-back.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    ADDR       = 0x00000070
+    FILL_DATA  = 0x11223344   # initial line content
+
+    # Full write-miss to bring line in Modified with known content
+    await do_write_miss(dut, ADDR, FILL_DATA)
+
+    # Byte-write: overwrite byte 0 only (bits [7:0]) with 0xFF
+    BYTE_VAL = 0xFF
+    write_task = cocotb.start_soon(cpu_request(dut, ADDR, BYTE_VAL, wstrb=0x1))
+
+    # This is a write-hit on a Modified line → no outbound command expected
+    for _ in range(20):
+        await RisingEdge(dut.clk_i)
+        assert dut.cache_valid_o.value == 0, \
+            "Unexpected outbound command on Modified write-hit"
+    await write_task
+y_i. When cache_ready_i is asserted, cache_valid_o should still be 1 if the master is still
+    # Read back: bytes [31:8] unchanged, byte [7:0] = 0xFF
+    expected = (FILL_DATA & 0xFFFFFF00) | 0xFF
+    rdata = await with_timeout(
+        cocotb.start_soon(cpu_request(dut, ADDR, wstrb=0)),
+        timeout_time=TIMEOUT_CYCLES * 20, timeout_unit="ns"
+    )
+    assert rdata == expected, \
+        f"Byte-write mismatch: got 0x{rdata:08x}, expected 0x{expected:08x}"
+    log.info("test_byte_write_strobe PASS")
+
+
+@cocotb.test()
+async def test_multiple_addresses_independent(dut):
+    """
+    Verify that two addresses that map to different cache indices are
+    completely independent – read-miss, fill, and hit on each.
+    """
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    # index bits are addr[6:0]; choose two distinct indices
+    ADDR_A, DATA_A = 0x00000000, 0xAAAA0000
+    ADDR_B, DATA_B = 0x00000008, 0x0000BBBB
+
+    await do_read_miss(dut, ADDR_A, DATA_A)
+    await do_read_miss(dut, ADDR_B, DATA_B)
+
+    # Both should now be hits
+    for addr, expected in [(ADDR_A, DATA_A), (ADDR_B, DATA_B)]:
+        hit_task = cocotb.start_soon(cpu_request(dut, addr, wstrb=0))
+        for _ in range(20):
+            await RisingEdge(dut.clk_i)
+            assert dut.cache_valid_o.value == 0, "Unexpected miss on repeat read"
+        rdata = await hit_task
+        assert rdata == expected, \
+            f"Read at 0x{addr:08x}: got 0x{rdata:08x} expected 0x{expected:08x}"
+
+    log.info("test_multiple_addresses_independent PASS")
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  Runner
+# ════════════════════════════════════════════════════════════════════════════
+
+def cache_controller_test():
+    proj_path = Path(__file__).resolve().parent
+    pdk_root  = Path("../gf180mcu")
+
+    sources = [
+        proj_path / "../src/msi_protocol/apply_wstrb.sv",
+        proj_path / "../src/msi_protocol/on_processor_event_state_machine.sv",
+        proj_path / "../src/msi_protocol/on_snoop_event_state_machine.sv",
+        proj_path / "../src/msi_protocol/cache_controller.sv",
+        proj_path / "../src/msi_protocol/outbound_arbiter.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x4.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/mem128x32.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/cache_mem.sv",
+        proj_path / "../src/mem_ctrl/cache_dir_memory/two_port_cache_mem.sv",
+        pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
+        pdk_root / "gf180mcuD/libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
     ]
 
-    # If cache_controller.sv imports a package, add it FIRST:
-    #
-    # verilog_sources.insert(
-    #     0,
-    #     src_dir / "cache" / "rishi_stuff" / "cache_controller_pkg.sv",
-    # )
+    build_args = []
+    if sim == "verilator":
+        build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
 
-    for source in verilog_sources:
-        print("source:", source)
-        print("exists:", source.exists())
-
-        if not source.exists():
-            raise FileNotFoundError(f"Missing Verilog source: {source}")
-
-    sim_build_dir = Path(__file__).resolve().parent / "sim_build" / "cache_controller"
-    sim_build_dir.mkdir(parents=True, exist_ok=True)
-
-    makefile_path = sim_build_dir / "Makefile"
-
-    verilog_sources_text = " \\\n  ".join(str(source) for source in verilog_sources)
-
-    makefile_text = dedent(f"""\
-    TOPLEVEL_LANG = verilog
-    SIM ?= {sim}
-
-    TOPLEVEL = cache_controller
-    COCOTB_TEST_MODULES = {Path(__file__).stem}
-
-    VERILOG_SOURCES = \\
-        {verilog_sources_text}
-
-    COMPILE_ARGS += -g2012
-
-    WAVES = 1
-
-    include $(shell cocotb-config --makefiles)/Makefile.sim
-    """)
-
-    makefile_path.write_text(makefile_text)
-
-    subprocess.run(
-        ["make", "-f", str(makefile_path)],
-        cwd=Path(__file__).resolve().parent,
-        check=True,
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel="cache_controller",
+        always=True,
+        build_args=build_args,
+        waves=True,
+    )
+    runner.test(
+        hdl_toplevel="cache_controller",
+        test_module="cache_controller_test",
+        waves=True,
     )
 
 
 if __name__ == "__main__":
-    run_tests()
+    cache_controller_test()

@@ -67,9 +67,9 @@ class SnoopEvent(IntEnum):
     BUS_UPGR: Another cache is upgrading from SHARED to MODIFIED
         - This cache must invalidate (no flush needed - data already shared)
     """
-    BUS_RD = 0     # Another cache issued BusRd (read miss)
-    BUS_RDX = 1    # Another cache issued BusRdX (write miss)
-    BUS_UPGR = 2   # Another cache issued BusUpgr (write hit in Shared)
+    BUS_RD = 1     # Another cache issued BusRd (read miss)
+    BUS_RDX = 2    # Another cache issued BusRdX (write miss)
+    BUS_UPGR = 4   # Another cache issued BusUpgr (write hit in Shared)
 
 
 class CoherenceCmd(IntEnum):
@@ -95,9 +95,9 @@ class CoherenceCmd(IntEnum):
     # Cache-to-Directory commands (values 1-5)
     BUS_RD = 1        # Read request (cache miss on read)
     BUS_RDX = 2       # Read-exclusive request (cache miss on write)
-    BUS_UPGR = 3      # Upgrade request (cache hit on write in SHARED state)
-    EVICT_CLEAN = 4   # Evict SHARED line (no data)
-    EVICT_DIRTY = 5   # Evict MODIFIED line (includes writeback data)
+    BUS_UPGR = 4      # Upgrade request (cache hit on write in SHARED state)
+    EVICT_CLEAN = 8   # Evict SHARED line (no data)
+    EVICT_DIRTY = 16   # Evict MODIFIED line (includes writeback data)
     
     # Directory-to-Cache commands (values 17-19, offset to avoid conflicts)
     SNOOP_BUS_RD = 17    # Snoop: another cache reading

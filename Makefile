@@ -178,6 +178,10 @@ clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
 .PHONY: clean-sim
 
+
+emulate: ## Remove all sim-build dirs in cocotb
+	python -m cocotb.emulation.emulate
+.PHONY: emulate
 # generate netlists for all top-level modules
 gen-netlists: ## Generate netlists for all top-level modules
 	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/gen_netlists.py
