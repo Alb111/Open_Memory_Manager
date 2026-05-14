@@ -85,7 +85,10 @@ async def reset_dut(dut):
 async def collect_message(dut):
 
     logger = logging.getLogger("cocotb.test")
-    NUM_PINS = int(dut.NUM_TPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_TPINS.value)
+    else:
+        NUM_PINS = 9
 
     while dut.req_o.value == 0:
         await RisingEdge(dut.clk_i)
@@ -105,7 +108,10 @@ async def collect_message(dut):
 async def send_message(dut, data, msg_len):
 
     logger = logging.getLogger("cocotb.test")
-    NUM_PINS = int(dut.NUM_RPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_RPINS.value)
+    else:
+        NUM_PINS = 9
 
     dut.req_i.value = 1
 
@@ -146,7 +152,10 @@ class CycleCounter:
 # ─── Tests ────────────────────────────────────────────────────────────────────
 @cocotb.test
 async def test_send_BusRD(dut):
-    NUM_PINS = int(dut.NUM_TPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_TPINS.value)
+    else:
+        NUM_PINS = 9
 
     await start_clock(dut)
     await reset_dut(dut)
@@ -174,7 +183,10 @@ async def test_send_BusRD(dut):
 
 @cocotb.test
 async def test_send_EvictDirty(dut):
-    NUM_PINS = int(dut.NUM_TPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_TPINS.value)
+    else:
+        NUM_PINS = 9
 
     await start_clock(dut)
     await reset_dut(dut)
@@ -202,7 +214,10 @@ async def test_send_EvictDirty(dut):
 
 @cocotb.test
 async def test_send_SnoopBusRD_Ack(dut):
-    NUM_PINS = int(dut.NUM_TPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_TPINS.value)
+    else:
+        NUM_PINS = 9
 
     await start_clock(dut)
     await reset_dut(dut)
@@ -230,7 +245,10 @@ async def test_send_SnoopBusRD_Ack(dut):
 
 @cocotb.test
 async def test_send_ResetDone(dut):
-    NUM_PINS = int(dut.NUM_TPINS.value)
+    if not gl:
+        NUM_PINS = int(dut.NUM_TPINS.value)
+    else:
+        NUM_PINS = 9
 
     await start_clock(dut)
     await reset_dut(dut)
@@ -406,25 +424,45 @@ async def test_receive_SnoopBusRDX(dut):
 def directory_interface_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/interposer_interface/cache_interface.sv",
-        proj_path / "../src/interposer_interface/rserializer.sv",
-        proj_path / "../src/interposer_interface/tserializer.sv",
-        proj_path / "../src/interposer_interface/lossy_pipe_stage.sv",
-    ]
+    sources = []
+    configs = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
 
-    configs = [
-        {"NUM_TPINS": 1, "NUM_RPINS": 1},
-        {"NUM_TPINS": 4, "NUM_RPINS": 4},
-        {"NUM_TPINS": 9, "NUM_RPINS": 9},
-    ]
+        configs += [
+            {"NUM_TPINS": 9, "NUM_RPINS": 9},
+        ]
+    else:
+        sources = [
+            proj_path / "../src/interposer_interface/cache_interface.sv",
+            proj_path / "../src/interposer_interface/rserializer.sv",
+            proj_path / "../src/interposer_interface/tserializer.sv",
+            proj_path / "../src/interposer_interface/lossy_pipe_stage.sv",
+        ]
+
+        configs += [
+            {"NUM_TPINS": 1, "NUM_RPINS": 1},
+            {"NUM_TPINS": 4, "NUM_RPINS": 4},
+            {"NUM_TPINS": 9, "NUM_RPINS": 9},
+        ]
 
     for config in configs:
         run_id = f"tp{config['NUM_TPINS']}_rp{config['NUM_RPINS']}"
 
         build_args = []
         if sim == "icarus":
-            build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_TPINS={config['NUM_TPINS']}", f"-P{hdl_toplevel}.NUM_RPINS={config['NUM_RPINS']}"]
+            if not gl:
+                build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_TPINS={config['NUM_TPINS']}", f"-P{hdl_toplevel}.NUM_RPINS={config['NUM_RPINS']}"]
+            else:
+                build_args += ["-g2012"]
         if sim == "verilator":
             build_args += ["--timing", "--trace", "--trace-fst", "--trace-structs", f"-GNUM_TPINS={config['NUM_TPINS']}", f"-GNUM_RPINS={config['NUM_RPINS']}"]
         

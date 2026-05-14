@@ -116,7 +116,7 @@ test-msi-protocol: ## Run cocotb tests on standalone msi_protocol
 
 test-cache-controller: ## Run cocotb tests for cache_controller_core
 	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_controller_test.py
-.PHONY: test-cache-controller
+	.PHONY: test-cache-controller
 
 test-arb: ## Run all cocotb tests on msi
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
@@ -154,6 +154,22 @@ boot-wave: ## View simulation waveforms for boot contlr
 	gtkwave cocotb/sim_build/housekeeping_top.fst
 .PHONY: boot-wave
 
+test-boot-flash: ## Run cocotb tests for bootloader against Cypress flash model
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_flash_test.py
+.PHONY: test-boot-flash
+
+boot-flash-wave: ## View simulation waveforms for boot flash test
+	gtkwave cocotb/sim_build/boot_wrapper.fst
+.PHONY: boot-flash-wave
+
+test-boot-mem: ## Run cocotb integration tests for boot -> mem_ctrl -> SRAM
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_mem_test.py
+.PHONY: test-boot-mem
+
+boot-mem-wave: ## View simulation waveforms for boot mem integration test
+	gtkwave cocotb/sim_build/boot_mem_wrapper.fst
+.PHONY: boot-mem-wave
+
 test-all: ## Run all cocotb testbenches via pytest
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
 .PHONY: test-all
@@ -166,3 +182,7 @@ clean-sim: ## Remove all sim-build dirs in cocotb
 emulate: ## Remove all sim-build dirs in cocotb
 	python -m cocotb.emulation.emulate
 .PHONY: emulate
+# generate netlists for all top-level modules
+gen-netlists: ## Generate netlists for all top-level modules
+	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/gen_netlists.py
+.PHONY: gen-netlists

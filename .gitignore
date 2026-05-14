@@ -8,3 +8,6 @@ img/
 *.lyrdb
 debug.txt
 ip/picorv32/
+src/housekeeping/cypress_model/
+cocotb/boot_image.mem
+.venv/
