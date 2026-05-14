@@ -12,13 +12,13 @@ module cache_controller
   input  logic        rst_ni,
 
   // ── Processor → Cache ────────────────────────────────────────────
-  input  logic        mem_valid,
-  input  logic        mem_instr,
-  input  logic [31:0] mem_addr,
-  input  logic [31:0] mem_wdata,
-  input  logic [3:0]  mem_wstrb,
-  output logic        mem_ready,
-  output logic [31:0] mem_rdata,
+  input  logic        mem_valid_i,
+  input  logic        mem_instr_i,
+  input  logic [31:0] mem_addr_i,
+  input  logic [31:0] mem_wdata_i,
+  input  logic [3:0]  mem_wstrb_i,
+  output logic        mem_ready_o,
+  output logic [31:0] mem_rdata_o,
 
   // ── Cache → Directory (outbound coherence request) ────────────────
   output logic        cache_valid_o,
@@ -93,9 +93,9 @@ module cache_controller
   logic [1:0]  cm_cpu_wtag_i;
   logic        cm_cpu_ready_o;
   logic        cm_cpu_valid_o;
-  logic [31:0] cm_cpu_line_data_o;
-  logic [1:0]  cm_cpu_line_state_o;
-  logic [1:0]  cm_cpu_line_tag_o;
+  logic [31:0] cm_cpu_rdata_o;
+  logic [1:0]  cm_cpu_rstate_o;
+  logic [1:0]  cm_cpu_rtag_o;
 
   // on_snoop_request port
   logic        cm_snoop_valid_i;
@@ -119,7 +119,7 @@ module cache_controller
      // on processor event port 
     .p0_valid_i(cm_cpu_valid_i),
     .p0_ready_o(cm_cpu_ready_o),
-    .p0_addr_i(cm_cpu_addr_i),
+    .p0_addr_i({2'b00, cm_cpu_addr_i[29:0]}), // take index bits as addr
     .p0_wdata_i(cm_cpu_wdata_i),
     .p0_wstrb_i(cm_cpu_wstrb_i),
     .p0_wstate_i(cm_cpu_wstate_i),
@@ -134,7 +134,7 @@ module cache_controller
      // on snoop event port 
     .p1_valid_i(cm_snoop_valid_i),
     .p1_ready_o(cm_snoop_ready_o),
-    .p1_addr_i(cm_snoop_addr_i),
+    .p1_addr_i({2'b00, cm_cpu_addr_i[29:0]}), // take index bits as addr
     .p1_wdata_i(cm_snoop_wdata_i),
     .p1_wstrb_i(cm_snoop_wstrb_i),
     .p1_wstate_i(cm_snoop_wstate_i),
@@ -202,7 +202,7 @@ module cache_controller
   logic [2:0] on_processor_event_issue_cmd_o;
   logic       on_processor_event_cmd_valid_o;
   on_processor_event_state_machine u_proc_sm (
-    .current_state_i   (cm_line_state_o), // state form cache_mem 
+    .current_state_i ((!tag_match_cpu_q) ? cm_cpu_rstate_o : S_INVALID),
     .wstrb_i           (cpu_wstrb_q), // latched wrtsb
     .next_state_o      (on_processor_event_state_o),
     .issue_cmd_o       (proc_issue_cmd),
@@ -239,6 +239,7 @@ module cache_controller
   logic [2:0]  cpu_issue_cmd_q,  cpu_issue_cmd_d;
   logic        cpu_cmd_valid_q,  cpu_cmd_valid_d;
   logic [31:0] cpu_line_data_q,  cpu_line_data_d;
+  logic        tag_match_cpu_q,  tag_match_cpu_d; 
 
   logic [31:0] snp_addr_q,       snp_addr_d;
   logic [2:0]  snp_dircmd_q,     snp_dircmd_d;
@@ -260,6 +261,7 @@ module cache_controller
       cpu_issue_cmd_q  <= 3'b0;
       cpu_cmd_valid_q  <= 1'b0;
       cpu_line_data_q  <= 32'b0;
+      tag_match_cpu_q  <= 1'b0; 
       snp_addr_q       <= 32'b0;
       snp_dircmd_q     <= 3'b0;
       snp_next_state_q <= S_INVALID;
@@ -276,6 +278,7 @@ module cache_controller
       cpu_issue_cmd_q  <= cpu_issue_cmd_d;
       cpu_cmd_valid_q  <= cpu_cmd_valid_d;
       cpu_line_data_q  <= cpu_line_data_d;
+      tag_match_cpu_q <= tag_match_cpu_d; 
       snp_addr_q       <= snp_addr_d;
       snp_dircmd_q     <= snp_dircmd_d;
       snp_next_state_q <= snp_next_state_d;
@@ -304,11 +307,14 @@ module cache_controller
     cm_snoop_wstrb_i = '0;
     cm_snoop_wstate_i = '0;
     cm_snoop_wtag_i = '0;
+    tag_match_snoop = 1'b1;
 
     // logic to control ouput of snoop
-    flushed_data_o  = 32'b0;
-    flushed_valid_o = 1'b0;
-    snoop_ready_o = 1'b0;
+    outbound_snoop_cache_valid_i = '0;
+    outbound_snoop_cache_addr_i = '0;
+    outbound_snoop_cache_data_i = '0;
+    outbound_snoop_cache_cmd_i = '0;
+    outbound_snoop_cache_ready_o = '0;
 
     case (snp_state_q)
 
@@ -334,11 +340,17 @@ module cache_controller
 
       SNP_FETCH_LINE_RESP: begin
         if(cm_snoop_valid_o) begin
-          cm_snoop_ready_i = 1'b1;
-          snp_flush_data_d = cm_snoop_rdata_o;
-          snp_tag_d = cm_snoop_rtag_o;
-          // snoop state is already wired into the module
-          snp_state_d  = SNP_ON_SNOOP_EVENT;
+          if (cm_snoop_rtag_o != snp_addr_q[31:30]) begin
+            // ghost snoop do nothing and send ack
+            snp_state_d  = SNP_DONE;
+          end
+          else begin
+            snp_flush_data_d = cm_snoop_rdata_o;
+            snp_tag_d = cm_snoop_rtag_o;
+            // snoop state is already wired into the module
+            snp_state_d  = SNP_ON_SNOOP_EVENT;
+          end
+          cm_snoop_ready_i = 1'b1; // mark data as read
         end
       end
 
@@ -411,6 +423,116 @@ module cache_controller
         // wait for it to be done
         if (outbound_snoop_cache_ready_o == 1'b1) begin
           snp_state_d = SNP_IDLE;
+        end
+      end
+
+      default: snp_state_d = SNP_IDLE;
+    endcase
+  end
+
+  // CPU FSM
+  always_comb begin
+
+    // flip flops
+    cpu_state_d = cpu_state_q; 
+    cpu_addr_d       = cpu_addr_q;
+    cpu_wdata_d      = cpu_wdata_q;
+    cpu_wstrb_d      = cpu_wstrb_q;
+    cpu_next_state_d = cpu_next_state_q;
+    cpu_issue_cmd_d  = cpu_issue_cmd_q;
+    cpu_cmd_valid_d  = cpu_cmd_valid_q;
+    cpu_line_data_d  = cpu_line_data_q;
+    tag_match_cpu_d = tag_match_cpu_q;
+
+    // logic to control cache mem for cpu cmd
+    cm_cpu_valid_i = '0;
+    cm_cpu_ready_i = '0;
+    cm_cpu_addr_i  = '0;
+    cm_cpu_wdata_i = '0;
+    cm_cpu_wstrb_i = '0;
+    cm_cpu_wstate_i = '0;
+    cm_cpu_wtag_i = '0;
+
+    // logic to control ouput of cpu
+    outbound_cpu_cache_valid_i = '0;
+    outbound_cpu_cache_addr_i = '0;
+    outbound_cpu_cache_data_i = '0;
+    outbound_cpu_cache_cmd_i = '0;
+    outbound_cpu_cache_ready_o = '0;
+
+    case (cpu_state_q)
+
+      CPU_IDLE: begin
+        if (mem_valid_i) begin
+          cpu_addr_q  = mem_addr_i;
+          cpu_wdata_q = mem_wdata_i;
+          cpu_wstrb_q = mem_wstrb_i;
+          cpu_state_d = CPU_FETCH_LINE_REQ;
+        end
+      end
+
+      CPU_FETCH_LINE_REQ: begin
+        // set up the read request
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = '0; // send in a read req 
+        if(cm_cpu_ready_o) begin
+          cpu_state_d  = CPU_FETCH_LINE_RESP;
+        end
+      end
+
+      CPU_FETCH_LINE_RESP: begin
+        if(cm_cpu_valid_o) begin
+          if (cm_cpu_rtag_o != cpu_addr_q[31:30] && cm_cpu_rstate != S_INVALID) begin
+            // tag miss need flush data, if tag miss and invalid it doesnt matter
+            tag_match_cpu_d = 1'b1
+            cpu_state_d  = CPU_TAG_MISS;
+          end
+          else begin
+            cpu_Line_data_d = cm_cpu_rdata_o;
+            cpu_ling_tag_d = cm_cpu_rtag_o;
+            // state is already wired into the on_cpu_event
+            cpu_state_d  = CPU_TAG_MATCH;
+          end
+          cm_cpu_ready_i = 1'b1;
+        end
+      end
+
+      CPU_TAG_MISS: begin
+        // flush out the wrong tag
+        outbound_cpu_cache_valid_i = 1'b1;
+        outbound_cpu_cache_addr_i = cpu_addr_q;
+        outbound_cpu_cache_data_i = cpu_line_data_q;
+        if (cm_cpu_rstate == S_SHARED) begin
+          outbound_cpu_cache_cmd_i = EvictClean_1h;
+        end
+        else if (cm_cpu_rstate == S_MODIFIED) begin
+          outbound_cpu_cache_cmd_i = EvictClean_1h;
+        end
+        else begin
+          outbound_cpu_cache_cmd_i = NULLcc1h;
+        end
+            
+        // wait for it to be done
+        if (outbound_cpu_cache_ready_o == 1'b1) begin
+          cpu_state_d = CPU_UPDATE_LINE_REQ;
+        end
+      end
+
+      
+
+      
+      CPU_UPDATE_LINE_REQ: begin
+        // set up the write req for cache mem
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = '1; //write req
+        cm_cpu_wdata_i = snp_flush_data_q;
+        cm_cpu_wtag_i = snp_tag_q;
+        cm_cpu_wstate_i = snp_next_state_q;
+
+        if(cm_snoop_ready_o) begin
+          snp_state_d  = SNP_UPDATE_LINE_RESP;
         end
       end
 
