@@ -5,12 +5,11 @@ module on_snoop_event_state_machine
 (
   // input interface
   input  logic [1:0]   current_state_i,
-  input  logic [3:0]   snoop_event_i,
+  input  logic [2:0]   snoop_event_i,
 
   // output interface     
   output logic [1:0] next_state_o,
-  output logic [0:0] flush_o,
-  output logic [0:0] is_dirty_o
+  output logic [0:0] flush_o
 );
 
   // types
@@ -44,7 +43,6 @@ module on_snoop_event_state_machine
   always_comb begin
     state_d = state_q;
     flush_flag = 1'b0;
-    is_dirty_o = 1'b0;  
 
     case(state_q)
 
@@ -68,12 +66,10 @@ module on_snoop_event_state_machine
         if(snoop_event_x == BUS_RD) begin
           state_d = SHARED;
           flush_flag = 1'b1;
-          is_dirty_o = 1'b1;  
         end
         else if(snoop_event_x == BUS_RDX) begin
           state_d = INVALID;
           flush_flag = 1'b1;
-          is_dirty_o = 1'b1;  
         end
         else begin
           state_d = MODIFIED;

@@ -1,3 +1,6 @@
+`default_nettype none
+`timescale 1ns/1ps
+
 module outbound_arbiter (
     input  logic        clk_i,
     input  logic        rst_ni,
@@ -139,8 +142,8 @@ module outbound_arbiter (
     // Sequential state registers
     // -------------------------------------------------------------------------
 
-    always_ff @(posedge clk_i or negedge rst_ni begin
-        if (!rst_ni begin
+    always_ff @(posedge clk_i) begin
+        if (!rst_ni) begin
             state_q       <= IDLE;
             rr_priority_q <= 1'b0;   // m0 has priority after reset
         end else begin

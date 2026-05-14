@@ -48,9 +48,9 @@ module cache_controller
   localparam logic [1:0] S_MODIFIED = 2'b10;
 
   // snoop acks
-  localparam logic [8:0] SnoopBusRD_Ack_1h   = 3'b1;
-  localparam logic [8:0] SnoopBusRDX_Ack_1h  = 3'b10;
-  localparam logic [8:0] SnoopBusUPGR_Ack_1h = 3'b100;
+  localparam logic [8:0] SnoopBusRD_Ack_1h   = 9'b100000;
+  localparam logic [8:0] SnoopBusRDX_Ack_1h  = 9'b1000000;
+  localparam logic [8:0] SnoopBusUPGR_Ack_1h = 9'b10000000;
   
   // cohrence cmds
   localparam logic [8:0] NULLcc1h            = 9'b0;
@@ -60,6 +60,10 @@ module cache_controller
   localparam logic [8:0] EvictClean_1h       = 9'b1000;
   localparam logic [8:0] EvictDirty_1h       = 9'b10000;
 
+  // cohrence cmd acks
+  localparam logic [2:0] BUSRD_ACK   = 3'b001;
+  localparam logic [2:0] BUSRDX_ACK  = 3'b010;
+  localparam logic [2:0] BUSUPGR_ACK = 3'b100;
   
   // Address layout: addr[6:0]=index (7 bits), addr[8:7]=tag (2 bits)
   localparam int OFFSET_W = 0;
@@ -79,6 +83,26 @@ module cache_controller
     SNP_UPDATE_LINE_RESP = 3'd6,   
     SNP_DONE          = 3'd7
   } snp_state_t;
+
+  
+  typedef enum logic [3:0] {
+      CPU_IDLE = 4'd1, 
+      CPU_FETCH_LINE_REQ = 4'd2, 
+      CPU_FETCH_LINE_RESP = 4'd3, 
+      CPU_TAG_MISS = 4'd4, 
+      CPU_TAG_MATCH = 4'd5, 
+      CPU_READ_MISS = 4'd6, 
+      CPU_READ_MISS_ACK = 4'd7,
+      CPU_READ_MISS_UPDATE_LINE_REQ = 4'd8, 
+      CPU_READ_MISS_UPDATE_LINE_RESP = 4'd9, 
+      CPU_READ_REQ = 4'd10, 
+      CPU_READ_RESP = 4'd11, 
+      CPU_WRITE_MISS = 4'd12, 
+      CPU_WRITE_MISS_ACK = 4'd13, 
+      CPU_WRITE_REQ = 4'd14, 
+      CPU_WRITE_RESP = 4'd15 
+  } cpu_state_t;
+
 
 
   // cache_mem wires
@@ -152,14 +176,14 @@ module cache_controller
   logic [31:0] outbound_cpu_cache_addr_i;
   logic [31:0] outbound_cpu_cache_data_i;
   logic [8:0]  outbound_cpu_cache_cmd_i;
-  logic [8:0]  outbound_cpu_cache_ready_o;
+  logic   outbound_cpu_cache_ready_o;
 
   // on_snoop_req_port
   logic        outbound_snoop_cache_valid_i;
   logic [31:0] outbound_snoop_cache_addr_i;
   logic [31:0] outbound_snoop_cache_data_i;
   logic [8:0]  outbound_snoop_cache_cmd_i;
-  logic [8:0]  outbound_snoop_cache_ready_o;
+  logic   outbound_snoop_cache_ready_o;
   
 
   outbound_arbiter outbound_ctrl (
@@ -191,21 +215,21 @@ module cache_controller
   logic       on_snnop_event_flush_o;
   on_snoop_event_state_machine u_snoop_sm (
     .current_state_i (cm_snoop_rstate_o),
-    .snoop_event_i   (snp_dircmd_q[1:0]),  // 0=RD 1=RDX 2=UPGR
+    .snoop_event_i   (snp_dircmd_q),  // 0=RD 1=RDX 2=UPGR
     .next_state_o    (on_snoop_event_state_o),
     .flush_o         (on_snnop_event_flush_o)
   );
 
   // on_processor_event_state_machine
   logic [1:0] on_processor_event_state_o;
-  logic [2:0] on_processor_event_issue_cmd_o;
+  logic [8:0] on_processor_event_issue_cmd_o;
   logic       on_processor_event_cmd_valid_o;
   on_processor_event_state_machine u_proc_sm (
     .current_state_i ((tag_match_cpu_q) ? cm_cpu_rstate_o : S_INVALID),
     .wstrb_i           (cpu_wstrb_q), // latched wrtsb
     .next_state_o      (on_processor_event_state_o),
-    .issue_cmd_o       (proc_issue_cmd),
-    .issue_cmd_valid_o (proc_cmd_valid)
+    .issue_cmd_o       (on_processor_event_issue_cmd_o),
+    .issue_cmd_valid_o (on_processor_event_cmd_valid_o)
   );
 
   // apply_wstrb instances
@@ -233,7 +257,8 @@ module cache_controller
   logic [31:0] cpu_wdata_q,     cpu_wdata_d;
   logic [3:0]  cpu_wstrb_q,     cpu_wstrb_d;
   logic [1:0]  cpu_next_state_q, cpu_next_state_d;
-  logic [2:0]  cpu_issue_cmd_q,  cpu_issue_cmd_d;
+  logic [8:0]  cpu_issue_cmd_q,  cpu_issue_cmd_d;
+  logic [1:0]  cpu_line_tag_q,   cpu_line_tag_d;   
   logic        cpu_cmd_valid_q,  cpu_cmd_valid_d;
   logic [31:0] cpu_line_data_q,  cpu_line_data_d;
   logic        tag_match_cpu_q,  tag_match_cpu_d; 
@@ -255,7 +280,7 @@ module cache_controller
       cpu_wdata_q      <= 32'b0;
       cpu_wstrb_q      <= 4'b0;
       cpu_next_state_q <= S_INVALID;
-      cpu_issue_cmd_q  <= 3'b0;
+      cpu_issue_cmd_q  <= 9'b0;
       cpu_cmd_valid_q  <= 1'b0;
       cpu_line_data_q  <= 32'b0;
       tag_match_cpu_q  <= 1'b1; 
@@ -304,7 +329,7 @@ module cache_controller
     cm_snoop_wstrb_i = '0;
     cm_snoop_wstate_i = '0;
     cm_snoop_wtag_i = '0;
-    tag_match_snoop = 1'b1;
+    tag_match_cpu_d = 1'b1;
 
     // logic to control outgoing cmd of snoop
     outbound_snoop_cache_valid_i = '0;
@@ -443,6 +468,7 @@ module cache_controller
     cpu_issue_cmd_d  = cpu_issue_cmd_q;
     cpu_cmd_valid_d  = cpu_cmd_valid_q;
     cpu_line_data_d  = cpu_line_data_q;
+    cpu_line_tag_d   = cpu_line_tag_q;    
     tag_match_cpu_d = tag_match_cpu_q;
 
     // logic to control cache mem for cpu cmd
@@ -484,14 +510,14 @@ module cache_controller
 
       CPU_FETCH_LINE_RESP: begin
         if(cm_cpu_valid_o) begin
-          if (cm_cpu_rtag_o != cpu_addr_q[31:30] && cm_cpu_rstate != S_INVALID) begin
+          if (cm_cpu_rtag_o != cpu_addr_q[31:30] && cm_cpu_rstate_o != S_INVALID) begin
             // tag miss need flush data, if tag miss and invalid it doesnt matter
             tag_match_cpu_d = 1'b0;
             cpu_state_d  = CPU_TAG_MISS;
           end
           else begin
-            cpu_Line_data_d = cm_cpu_rdata_o;
-            cpu_ling_tag_d = cm_cpu_rtag_o;
+            cpu_line_data_d = cm_cpu_rdata_o;
+            cpu_line_tag_d = cm_cpu_rtag_o;
             // state is already wired into the on_cpu_event
             cpu_state_d  = CPU_TAG_MATCH;
           end
@@ -504,10 +530,10 @@ module cache_controller
         outbound_cpu_cache_valid_i = 1'b1;
         outbound_cpu_cache_addr_i = cpu_addr_q;
         outbound_cpu_cache_data_i = cpu_line_data_q;
-        if (cm_cpu_rstate == S_SHARED) begin
+        if (cm_cpu_rstate_o == S_SHARED) begin
           outbound_cpu_cache_cmd_i = EvictClean_1h;
         end
-        else if (cm_cpu_rstate == S_MODIFIED) begin
+        else if (cm_cpu_rstate_o == S_MODIFIED) begin
           outbound_cpu_cache_cmd_i = EvictClean_1h;
         end
         else begin
@@ -530,21 +556,21 @@ module cache_controller
 
         // read 
         if (cpu_wstrb_q == 4'd0) begin
-          if (on_processor_event_issue_cmd_o == 1'b1) begin
+          if (on_processor_event_cmd_valid_o == 1'b1) begin
             cpu_state_d = CPU_READ_MISS;
           end
           else begin
-            cpu_state_d = CPU_READ_HIT;
+            cpu_state_d = CPU_READ_REQ;
           end
         end
 
         // write
         else begin
-          if (on_processor_event_issue_cmd_o == 1'b1) begin
+          if (on_processor_event_cmd_valid_o == 1'b1) begin
             cpu_state_d = CPU_WRITE_MISS;
           end
           else begin
-            cpu_state_d = CPU_WRITE_HIT;
+            cpu_state_d = CPU_WRITE_REQ;
           end
         end
       end
@@ -565,13 +591,13 @@ module cache_controller
       
       CPU_READ_MISS_ACK: begin
         if (bus_valid_i) begin
-          if (bus_dircmd_i == SnoopBusRD_Ack_1h) begin
+          if (bus_dircmd_i == BUSRD_ACK) begin
             cpu_line_data_d = bus_data_i; 
           end
-          else if (bus_dircmd_i == SnoopBusRDX_Ack_1h) begin
+          else if (bus_dircmd_i == BUSRDX_ACK) begin
             cpu_line_data_d = bus_data_i; 
           end
-          else if (bus_dircmd_i == SnoopBusUPGR_Ack_1h) begin
+          else if (bus_dircmd_i == BUSUPGR_ACK) begin
             // do nothing with data
           end
           else begin
@@ -635,21 +661,21 @@ module cache_controller
       end
 
       CPU_WRITE_MISS_ACK: begin
-          if (bus_valid_i) begin
-            if (bus_dircmd_i == SnoopBusRD_Ack_1h) begin
-              cpu_line_data_d = bus_data_i; 
-            end
-            else if (bus_dircmd_i == SnoopBusRDX_Ack_1h) begin
-              cpu_line_data_d = bus_data_i; 
-            end
-            else if (bus_dircmd_i == SnoopBusUPGR_Ack_1h) begin
-              // do nothing with data keep old
-            end
-            else begin
-              // error
-            end
-            cpu_state_d = CPU_WRITE_REQ;
+        if (bus_valid_i) begin
+          if (bus_dircmd_i == BUSRD_ACK) begin
+            cpu_line_data_d = bus_data_i; 
           end
+          else if (bus_dircmd_i == BUSRDX_ACK) begin
+            cpu_line_data_d = bus_data_i; 
+          end
+          else if (bus_dircmd_i == BUSUPGR_ACK) begin
+            // do nothing with data keep old
+          end
+          else begin
+            // error
+          end
+          cpu_state_d = CPU_WRITE_REQ;
+        end
       end
 
       CPU_WRITE_REQ: begin
@@ -676,9 +702,11 @@ module cache_controller
         end
       end      
 
-      default: snp_state_d = SNP_IDLE;
+      default: cpu_state_d = CPU_IDLE;
+
     endcase
   end
+endmodule
 
 
 
