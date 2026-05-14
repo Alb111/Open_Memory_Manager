@@ -9,5 +9,8 @@
     "directory_interface",
     "rserializer",
     "tserializer"
+  ],
+  "ignore_file": [
+    "cache_controller.sv"
   ]
 }
