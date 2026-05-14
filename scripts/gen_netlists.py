@@ -38,6 +38,10 @@ with open(Path(project_root) / 'scripts' / 'gen_netlists.json', 'r') as f:
 # 2. Extract the list into a variable
 target_modules = data["target_modules"]
 
+# ignore certain files
+file_to_remove = data["ignore_file"]
+all_files = [f for f in all_files if os.path.basename(f) not in file_to_remove]
+
 
 for design in target_modules:
     print(f"--- Synthesizing {design} with full file list ---")
