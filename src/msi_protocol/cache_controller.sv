@@ -48,10 +48,9 @@ module cache_controller
   localparam logic [1:0] S_MODIFIED = 2'b10;
 
   // snoop acks
-  localparam logic [8:0] SnoopBusRD_Ack_1h   = 9'b100000;
-  localparam logic [8:0] SnoopBusRDX_Ack_1h  = 9'b1000000;
-  localparam logic [8:0] SnoopBusUPGR_Ack_1h = 9'b10000000;
-  // localparam logic [8:0] ResetDone_1h        = 9'b10000000;
+  localparam logic [8:0] SnoopBusRD_Ack_1h   = 3'b1;
+  localparam logic [8:0] SnoopBusRDX_Ack_1h  = 3'b10;
+  localparam logic [8:0] SnoopBusUPGR_Ack_1h = 3'b100;
   
   // cohrence cmds
   localparam logic [8:0] NULLcc1h            = 9'b0;
@@ -210,22 +209,20 @@ module cache_controller
   );
 
   // apply_wstrb instances
-  logic [31:0] hit_data_written_over;   // hit write: base = existing line
-  logic [31:0] miss_data_written_over;  // miss write: base = data from directory
-
+  logic [31:0] data_to_write;  
   apply_wstrb u_apply_wstrb_hit (
-    .base_data_i (line_data_r),
+    .base_data_i (cpu_line_data_q),
     .wdata_i     (cpu_wdata_q),
     .wstrb_i     (cpu_wstrb_q),
-    .result_o    (hit_data_written_over)
+    .result_o    (data_to_write)
   );
 
-  apply_wstrb u_apply_wstrb_miss (
-    .base_data_i (bus_data_i),
-    .wdata_i     (cpu_wdata_q),
-    .wstrb_i     (cpu_wstrb_q),
-    .result_o    (miss_data_written_over)
-  );
+  // apply_wstrb u_apply_wstrb_miss (
+  //   .base_data_i (bus_data_i),
+  //   .wdata_i     (cpu_wdata_q),
+  //   .wstrb_i     (cpu_wstrb_q),
+  //   .result_o    (miss_data_written_over)
+  // );
 
 
   // Registers
@@ -309,12 +306,15 @@ module cache_controller
     cm_snoop_wtag_i = '0;
     tag_match_snoop = 1'b1;
 
-    // logic to control ouput of snoop
+    // logic to control outgoing cmd of snoop
     outbound_snoop_cache_valid_i = '0;
     outbound_snoop_cache_addr_i = '0;
     outbound_snoop_cache_data_i = '0;
     outbound_snoop_cache_cmd_i = '0;
     outbound_snoop_cache_ready_o = '0;
+
+    // logic to accept incoming cmd of snoop
+    bus_ready_o = 1'b0; 
 
     case (snp_state_q)
 
@@ -374,8 +374,9 @@ module cache_controller
         outbound_snoop_cache_data_i = snp_flush_data_q;
         outbound_snoop_cache_cmd_i = EvictDirty_1h;
 
-        // wait for it to be done
+        // wait for dir to accept req
         if (outbound_snoop_cache_ready_o == 1'b1) begin
+          // in our system evicts dont have acks so skip the waitin
           snp_state_d = SNP_UPDATE_LINE_REQ;
         end
       end      
@@ -515,6 +516,7 @@ module cache_controller
             
         // wait for it to be done
         if (outbound_cpu_cache_ready_o == 1'b1) begin
+          // evicts have no ack so go next state
           cpu_state_d = CPU_TAG_MATCH;
         end
       end
@@ -549,10 +551,71 @@ module cache_controller
 
 
       CPU_READ_MISS: begin
+        // send out coherence cmd
+        outbound_cpu_cache_valid_i = 1'b1;
+        outbound_cpu_cache_addr_i = cpu_addr_q;
+        outbound_cpu_cache_data_i = cpu_line_data_q;
+        outbound_cpu_cache_cmd_i = cpu_issue_cmd_q; 
 
+        if (outbound_cpu_cache_ready_o == 1'b1) begin
+          cpu_state_d = CPU_READ_MISS_ACK;
+        end
       end      
 
       
+      CPU_READ_MISS_ACK: begin
+        if (bus_valid_i) begin
+          if (bus_dircmd_i == SnoopBusRD_Ack_1h) begin
+            cpu_line_data_d = bus_data_i; 
+          end
+          else if (bus_dircmd_i == SnoopBusRDX_Ack_1h) begin
+            cpu_line_data_d = bus_data_i; 
+          end
+          else if (bus_dircmd_i == SnoopBusUPGR_Ack_1h) begin
+            // do nothing with data
+          end
+          else begin
+            // error
+          end
+          cpu_state_d = CPU_READ_MISS_UPDATE_LINE;
+        end
+      end
+      
+
+      CPU_READ_MISS_UPDATE_LINE: begin
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = cpu_wstrb_q; //write req
+        cm_cpu_wdata_i = data_to_write;
+        cm_cpu_wtag_i = cpu_addr_q[31:30];
+        cm_cpu_wstate_i = cpu_next_state_q;
+
+        if(cm_cpu_ready_o) begin
+          cpu_state_d  = CPU_READ;
+        end
+      end
+
+      CPU_READ_REQ: begin
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = 4'b0000; //read req
+
+        if(cm_cpu_ready_o) begin
+          cpu_state_d  = CPU_READ_RESP;
+        end
+      end      
+
+      CPU_READ_RESP: begin
+        if(cm_cpu_valid_o) begin
+          mem_rdata_o = cm_cpu_rdata_o; // feed data out to cpu 
+          mem_ready_o= 1'b1; // mark data as ready
+          cm_cpu_ready_i = 1'b1; // let cache memory know it can move on
+
+          // go back to idle
+          cpu_state_d  = CPU_IDLE;
+        end
+      end
+
       CPU_WRITE_START: begin
         // plug everything into on_proccessor event with write event
       end
@@ -560,19 +623,6 @@ module cache_controller
 
       
 
-      CPU_UPDATE_LINE_REQ: begin
-        // set up the write req for cache mem
-        cm_cpu_valid_i = 1'b1;
-        cm_cpu_addr_i  = cpu_addr_q;
-        cm_cpu_wstrb_i = '1; //write req
-        cm_cpu_wdata_i = cpu_Line_data_d;
-        cm_cpu_wtag_i = snp_tag_q;
-        cm_cpu_wstate_i = snp_next_state_q;
-
-        if(cm_snoop_ready_o) begin
-          snp_state_d  = SNP_UPDATE_LINE_RESP;
-        end
-      end
 
       default: snp_state_d = SNP_IDLE;
     endcase
