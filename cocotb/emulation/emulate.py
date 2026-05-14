@@ -2,11 +2,11 @@
 import asyncio
 
 # types
-from testcase import test_case
+from .testcase import test_case
 from typing import List
 
 # hardware emulators
-from CPU import CPU
+from .CPU import CPU
 
 
 async def write_after_read_test(): # invalid to shared to modified

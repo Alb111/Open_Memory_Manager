@@ -161,3 +161,8 @@ test-all: ## Run all cocotb testbenches via pytest
 clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
 .PHONY: clean-sim
+
+
+emulate: ## Remove all sim-build dirs in cocotb
+	python -m cocotb.emulation.emulate
+.PHONY: emulate
