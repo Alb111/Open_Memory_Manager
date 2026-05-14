@@ -9,7 +9,8 @@ module on_snoop_event_state_machine
 
   // output interface     
   output logic [1:0] next_state_o,
-  output logic [0:0] flush_o
+  output logic [0:0] flush_o,
+  output logic [0:0] is_dirty_o
 );
 
   // types
@@ -19,10 +20,10 @@ module on_snoop_event_state_machine
     MODIFIED = 2'b10
   } msi_state;
 
-  typedef enum logic [3:0] {
-    BUS_RD   = 4'b1001, 
-    BUS_RDX  = 4'b1010,
-    BUS_UPGR = 4'b1011  
+  typedef enum logic [2:0] {
+    BUS_RD   = 3'b1, 
+    BUS_RDX  = 3'b10,
+    BUS_UPGR = 3'b100  
   } snoop_event;
 
 
@@ -43,7 +44,8 @@ module on_snoop_event_state_machine
   always_comb begin
     state_d = state_q;
     flush_flag = 1'b0;
-  
+    is_dirty_o = 1'b0;  
+
     case(state_q)
 
       INVALID: begin
@@ -66,10 +68,12 @@ module on_snoop_event_state_machine
         if(snoop_event_x == BUS_RD) begin
           state_d = SHARED;
           flush_flag = 1'b1;
+          is_dirty_o = 1'b1;  
         end
         else if(snoop_event_x == BUS_RDX) begin
           state_d = INVALID;
           flush_flag = 1'b1;
+          is_dirty_o = 1'b1;  
         end
         else begin
           state_d = MODIFIED;
