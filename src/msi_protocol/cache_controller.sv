@@ -166,7 +166,7 @@ module cache_controller
     // on processor event port
     .p0_valid_i(cm_cpu_valid_i),
     .p0_ready_o(cm_cpu_ready_o),
-    .p0_addr_i({27'd0, cm_cpu_addr_i[6:0]}), // take index bits as addr
+    .p0_addr_i({25'd0, cm_cpu_addr_i[6:0]}), // take index bits as addr
     .p0_wdata_i(cm_cpu_wdata_i),
     .p0_wstrb_i(cm_cpu_wstrb_i),
     .p0_wstate_i(cm_cpu_wstate_i),
@@ -181,7 +181,7 @@ module cache_controller
     // on snoop event port
     .p1_valid_i(cm_snoop_valid_i),
     .p1_ready_o(cm_snoop_ready_o),
-    .p1_addr_i({27'd0, cm_snoop_addr_i[6:0]}),
+    .p1_addr_i({25'd0, cm_snoop_addr_i[6:0]}),
     .p1_wdata_i(cm_snoop_wdata_i),
     .p1_wstrb_i(cm_snoop_wstrb_i),
     .p1_wstate_i(cm_snoop_wstate_i),
@@ -520,7 +520,7 @@ module cache_controller
 
       CPU_FETCH_LINE_RESP: begin
         if (cm_cpu_valid_o) begin
-          if (cm_cpu_rtag_o != cpu_addr_q[31:30] && cm_cpu_rstate_o != S_INVALID) begin
+          if (cm_cpu_rtag_o != cpu_addr_q[8:7] && cm_cpu_rstate_o != S_INVALID) begin
             // tag miss with a valid line -> need to flush before refill.
             tag_match_cpu_d  = 1'b0;
             cpu_line_data_d  = cm_cpu_rdata_o;
