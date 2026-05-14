@@ -9,7 +9,7 @@ module on_processor_event_state_machine
 
   // output interface     
   output logic [1:0] next_state_o,
-  output logic [2:0] issue_cmd_o,
+  output logic [8:0] issue_cmd_o,
   output logic [0:0] issue_cmd_valid_o
 );
 
@@ -25,13 +25,13 @@ module on_processor_event_state_machine
     READ  = 1'b1  
   } processor_event;
 
-  typedef enum logic [2:0] {
-    BUS_RD      = 3'd1,        
-    BUS_RDX     = 3'd2,       
-    BUS_UPGR    = 3'd3,      
-    EVICT_CLEAN = 3'd4,   
-    EVICT_DIRTY = 3'd5,   
-    NONE        = 3'd6   
+  typedef enum logic [8:0] {
+    BUS_RD      = 9'b1,        
+    BUS_RDX     = 9'b10,       
+    BUS_UPGR    = 9'b100,      
+    EVICT_CLEAN = 9'b1000,   
+    EVICT_DIRTY = 9'b10000,   
+    NONE        = 9'b0   
   } bus_transaction;
 
   

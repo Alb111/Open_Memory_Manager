@@ -95,9 +95,9 @@ class CoherenceCmd(IntEnum):
     # Cache-to-Directory commands (values 1-5)
     BUS_RD = 1        # Read request (cache miss on read)
     BUS_RDX = 2       # Read-exclusive request (cache miss on write)
-    BUS_UPGR = 3      # Upgrade request (cache hit on write in SHARED state)
-    EVICT_CLEAN = 4   # Evict SHARED line (no data)
-    EVICT_DIRTY = 5   # Evict MODIFIED line (includes writeback data)
+    BUS_UPGR = 4      # Upgrade request (cache hit on write in SHARED state)
+    EVICT_CLEAN = 8   # Evict SHARED line (no data)
+    EVICT_DIRTY = 16   # Evict MODIFIED line (includes writeback data)
     
     # Directory-to-Cache commands (values 17-19, offset to avoid conflicts)
     SNOOP_BUS_RD = 17    # Snoop: another cache reading

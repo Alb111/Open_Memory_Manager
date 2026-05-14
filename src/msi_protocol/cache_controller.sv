@@ -202,7 +202,7 @@ module cache_controller
   logic [2:0] on_processor_event_issue_cmd_o;
   logic       on_processor_event_cmd_valid_o;
   on_processor_event_state_machine u_proc_sm (
-    .current_state_i ((!tag_match_cpu_q) ? cm_cpu_rstate_o : S_INVALID),
+    .current_state_i ((tag_match_cpu_q) ? cm_cpu_rstate_o : S_INVALID),
     .wstrb_i           (cpu_wstrb_q), // latched wrtsb
     .next_state_o      (on_processor_event_state_o),
     .issue_cmd_o       (proc_issue_cmd),
@@ -261,7 +261,7 @@ module cache_controller
       cpu_issue_cmd_q  <= 3'b0;
       cpu_cmd_valid_q  <= 1'b0;
       cpu_line_data_q  <= 32'b0;
-      tag_match_cpu_q  <= 1'b0; 
+      tag_match_cpu_q  <= 1'b1; 
       snp_addr_q       <= 32'b0;
       snp_dircmd_q     <= 3'b0;
       snp_next_state_q <= S_INVALID;
@@ -485,7 +485,7 @@ module cache_controller
         if(cm_cpu_valid_o) begin
           if (cm_cpu_rtag_o != cpu_addr_q[31:30] && cm_cpu_rstate != S_INVALID) begin
             // tag miss need flush data, if tag miss and invalid it doesnt matter
-            tag_match_cpu_d = 1'b1
+            tag_match_cpu_d = 1'b0;
             cpu_state_d  = CPU_TAG_MISS;
           end
           else begin
@@ -515,19 +515,57 @@ module cache_controller
             
         // wait for it to be done
         if (outbound_cpu_cache_ready_o == 1'b1) begin
-          cpu_state_d = CPU_UPDATE_LINE_REQ;
+          cpu_state_d = CPU_TAG_MATCH;
         end
       end
 
-      
+
+      CPU_TAG_MATCH: begin
+        // latch on to next state and issue_cmd and issue_cmd_valid
+        cpu_next_state_d = on_processor_event_state_o;
+        cpu_issue_cmd_d = on_processor_event_issue_cmd_o;
+        cpu_cmd_valid_d = on_processor_event_cmd_valid_o;
+
+        // read 
+        if (cpu_wstrb_q == 4'd0) begin
+          if (on_processor_event_issue_cmd_o == 1'b1) begin
+            cpu_state_d = CPU_READ_MISS;
+          end
+          else begin
+            cpu_state_d = CPU_READ_HIT;
+          end
+        end
+
+        // write
+        else begin
+          if (on_processor_event_issue_cmd_o == 1'b1) begin
+            cpu_state_d = CPU_WRITE_MISS;
+          end
+          else begin
+            cpu_state_d = CPU_WRITE_HIT;
+          end
+        end
+      end
+
+
+      CPU_READ_MISS: begin
+
+      end      
 
       
+      CPU_WRITE_START: begin
+        // plug everything into on_proccessor event with write event
+      end
+
+
+      
+
       CPU_UPDATE_LINE_REQ: begin
         // set up the write req for cache mem
         cm_cpu_valid_i = 1'b1;
         cm_cpu_addr_i  = cpu_addr_q;
         cm_cpu_wstrb_i = '1; //write req
-        cm_cpu_wdata_i = snp_flush_data_q;
+        cm_cpu_wdata_i = cpu_Line_data_d;
         cm_cpu_wtag_i = snp_tag_q;
         cm_cpu_wstate_i = snp_next_state_q;
 
