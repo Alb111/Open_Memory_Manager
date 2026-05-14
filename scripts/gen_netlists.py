@@ -40,7 +40,7 @@ target_modules = data["target_modules"]
 
 # ignore certain files
 file_to_remove = data["ignore_file"]
-all_files = [f for f in all_files if os.path.basename(f) not in file_to_remove]
+all_files_abs = [f for f in all_files_abs if os.path.basename(f) not in file_to_remove]
 
 
 for design in target_modules:
@@ -58,6 +58,7 @@ for design in target_modules:
         "--to", "Yosys.Synthesis"
     ]
     
+    Errors = []
     try:
         subprocess.run(cmd, check=True)
         print(f"\n    Finished {design} successfully.")
@@ -92,4 +93,10 @@ for design in target_modules:
             print(f"    Warning: Runs directory does not exist for {design}")
     except subprocess.CalledProcessError as e:
         print(f"\n  Error: Synthesis failed for {design}.")
+        Errors.append({design, str(e)})
         # The logs are saved in the run directory if it fails
+
+    if Errors:
+        print("\nErrors encountered during synthesis:")
+        for error in Errors:
+            print(error)
