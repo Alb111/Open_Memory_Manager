@@ -101,22 +101,7 @@ wave: ## TODO: make better name later
 	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
 .PHONY: wave
 
-test: ## Run all cocotb on mem
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_sram_test.py
-.PHONY: test
 
-
-test-msi: ## Run all cocotb tests on msi
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 rishi_stuff/msi_tb.py
-.PHONY: test-msi
-
-test-msi-protocol: ## Run cocotb tests on standalone msi_protocol
-	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 rishi_stuff/msi_protocol_tb.py
-.PHONY: test-msi-protocol
-
-test-cache-controller: ## Run cocotb tests for cache_controller_core
-	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_controller_tb.py
-	.PHONY: test-cache-controller
 
 test-arb: ## Run all cocotb tests on wrr arbiter
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_tb.py
@@ -178,11 +163,10 @@ clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
 .PHONY: clean-sim
 
-
 emulate: ## Remove all sim-build dirs in cocotb
 	python -m cocotb.emulation.emulate
 .PHONY: emulate
-# generate netlists for all top-level modules
+
 gen-netlists: ## Generate netlists for all top-level modules
 	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/gen_netlists.py
 .PHONY: gen-netlists
