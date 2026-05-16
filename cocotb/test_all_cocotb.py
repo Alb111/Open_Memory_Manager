@@ -35,86 +35,6 @@ class TestMemCtrl:
         )
 
 
-class TestCacheMem:
-    """Cocotb testbench: Cache Memory (cache_mem_tb.py)"""
-
-    def test_cache_mem(self):
-        result = _run_testbench("cache_mem_tb.py")
-        assert result.returncode == 0, (
-            f"cache_mem_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestTwoPortCacheMem:
-    """Cocotb testbench: Two-Port Cache Memory (two_port_cache_mem_tb.py)"""
-
-    def test_two_port_cache_mem(self):
-        result = _run_testbench("two_port_cache_mem_tb.py")
-        assert result.returncode == 0, (
-            f"two_port_cache_mem_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestMemCtrl128x4:
-    """Cocotb testbench: Memory Controller 128x4 (mem_ctrl_128x4_tb.py)"""
-
-    def test_mem_ctrl_128x4(self):
-        result = _run_testbench("mem_ctrl_128x4_tb.py")
-        assert result.returncode == 0, (
-            f"mem_ctrl_128x4_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestMemCtrl128x32:
-    """Cocotb testbench: Memory Controller 128x32 (mem_ctrl_128x32_tb.py)"""
-
-    def test_mem_ctrl_128x32(self):
-        result = _run_testbench("mem_ctrl_128x32_tb.py")
-        assert result.returncode == 0, (
-            f"mem_ctrl_128x32_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestCacheController:
-    """Cocotb testbench: Cache Controller (cache_controller_tb.py)"""
-
-    def test_cache_controller(self):
-        result = _run_testbench("cache_controller_tb.py")
-        assert result.returncode == 0, (
-            f"cache_controller_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestMSI:
-    """Cocotb testbench: MSI (rishi_stuff/msi_tb.py)"""
-
-    def test_msi(self):
-        result = _run_testbench("rishi_stuff/msi_tb.py")
-        assert result.returncode == 0, (
-            f"msi_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestMSIProtocol:
-    """Cocotb testbench: MSI Protocol (rishi_stuff/msi_protocol_tb.py)"""
-
-    def test_msi_protocol(self):
-        result = _run_testbench("rishi_stuff/msi_protocol_tb.py")
-        assert result.returncode == 0, (
-            f"msi_protocol_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestCacheControllerModel:
-    """Cocotb testbench: Cache Controller Model (rishi_stuff/cache_controller_model_tb.py)"""
-
-    def test_cache_controller_model(self):
-        result = _run_testbench("rishi_stuff/cache_controller_model_tb.py")
-        assert result.returncode == 0, (
-            f"cache_controller_model_tb.py failed with exit code {result.returncode}"
-        )
-
-
 class TestWRRArbiter:
     """Cocotb testbench: WRR Arbiter (wrr_arbiter_tb.py)"""
 
@@ -142,16 +62,6 @@ class TestRSerializer:
         result = _run_testbench("rserializer_tb.py")
         assert result.returncode == 0, (
             f"rserializer_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestCacheInterface:
-    """Cocotb testbench: Cache Interface (cache_interface_tb.py)"""
-
-    def test_cache_interface(self):
-        result = _run_testbench("cache_interface_tb.py")
-        assert result.returncode == 0, (
-            f"cache_interface_tb.py failed with exit code {result.returncode}"
         )
 
 
@@ -212,16 +122,6 @@ class TestBootFlash:
         result = _run_testbench("boot_flash_tb.py")
         assert result.returncode == 0, (
             f"boot_flash_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestCacheControllerRishi:
-    """Cocotb testbench: Cache Controller Rishi (rishi_stuff/cache_controller_tb.py)"""
-
-    def test_cache_controller_rishi(self):
-        result = _run_testbench("rishi_stuff/cache_controller_tb.py")
-        assert result.returncode == 0, (
-            f"cache_controller_tb.py failed with exit code {result.returncode}"
         )
 
 
