@@ -168,7 +168,7 @@ def test_two_port_cache_mem():
 
     runner.test(
         hdl_toplevel=hdl_toplevel,
-        test_module="test_two_port_cache_mem",
+        test_module="two_port_cache_mem_tb",
         waves=True,
     )
 

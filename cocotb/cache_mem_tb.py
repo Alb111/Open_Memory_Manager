@@ -245,7 +245,7 @@ def test_cache_mem():
     )
     runner.test(
         hdl_toplevel=hdl_toplevel,
-        test_module="test_cache_mem",
+        test_module="cache_mem_tb",
         waves=True,
     )
 

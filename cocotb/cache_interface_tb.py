@@ -478,7 +478,7 @@ def directory_interface_runner():
 
         runner.test(
             hdl_toplevel=hdl_toplevel,
-            test_module="test_cache_interface",
+            test_module="cache_interface_tb",
             waves=True,
             build_dir=f"sim_build_ci_{run_id}"
         )

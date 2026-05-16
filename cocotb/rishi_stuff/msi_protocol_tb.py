@@ -1264,5 +1264,5 @@ if _COCOTB:
 
         runner.test(
             hdl_toplevel="msi_protocol",
-            test_module="msi_protocol_test",
+            test_module="msi_protocol_tb",
         )

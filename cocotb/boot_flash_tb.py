@@ -393,7 +393,7 @@ def boot_ctrl_runner():
     )
     runner.test(
         hdl_toplevel="boot_flash_wrapper",
-        test_module="boot_flash_test",
+        test_module="boot_flash_tb",
         waves=True,
     )
  

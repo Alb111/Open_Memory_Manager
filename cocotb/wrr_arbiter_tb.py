@@ -498,7 +498,7 @@ def wrr_arbiter_runner():
 
     runner.test(
         hdl_toplevel="wrr_arbiter",
-        test_module="wrr_arbiter_test",
+        test_module="wrr_arbiter_tb",
         waves=True,
     )
 

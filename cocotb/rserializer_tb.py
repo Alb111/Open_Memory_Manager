@@ -354,7 +354,7 @@ def rserializer_runner():
 
         runner.test(
             hdl_toplevel=hdl_toplevel,
-            test_module="test_rserializer",
+            test_module="rserializer_tb",
             waves=True,
             build_dir=f"sim_build_rs_{run_id}"
         )

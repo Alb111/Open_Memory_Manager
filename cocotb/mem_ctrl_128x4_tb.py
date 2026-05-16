@@ -161,7 +161,7 @@ def mem_ctrl_runner():
 
     runner.test(
         hdl_toplevel="mem_ctrl_128x4",
-        test_module="test_mem_ctrl_128x4",
+        test_module="mem_ctrl_128x4_tb",
         waves=True,
     )
 

@@ -737,5 +737,5 @@ if __name__ == "__main__":
         build_dir=str(Path(__file__).resolve().parent / "sim_build" / "cache_controller"),
         always=True,
     )
-    runner.test(hdl_toplevel="cache_controller", test_module="test_cache_controller")
+    runner.test(hdl_toplevel="cache_controller", test_module="cache_controller_model_tb")
 

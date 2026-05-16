@@ -265,7 +265,7 @@ def mem_ctrl_runner():
 
     runner.test(
         hdl_toplevel="msi_protocol",
-        test_module="msi_test",
+        test_module="msi_tb",
         waves=True,
     )
 

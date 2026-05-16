@@ -526,7 +526,7 @@ def cache_controller_test():
     )
     runner.test(
         hdl_toplevel="cache_controller",
-        test_module="cache_controller_test",
+        test_module="cache_controller_tb",
         waves=True,
     )
 
