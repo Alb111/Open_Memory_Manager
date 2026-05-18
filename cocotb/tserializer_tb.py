@@ -40,7 +40,7 @@ async def collect_message(dut):
     NUM_PINS = len(dut.serial_o)
     captured_bits = 0
     bit_count = 0
-    while int(dut.current_state.value) == 1:
+    while int(dut.req_o.value) == 1:
         bit_count += NUM_PINS
         captured_bits <<= NUM_PINS
         captured_bits += int(dut.serial_o.value)
@@ -68,7 +68,7 @@ async def test_simple_t0(dut):
     NUM_PINS = len(dut.serial_o)
 
     msg_type = 0
-    msg_len = int(dut.MSG_LEN_0.value)
+    msg_len = 4
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
     await reset_dut(dut)
@@ -86,7 +86,7 @@ async def test_simple_t0(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -101,7 +101,7 @@ async def test_simple_t0(dut):
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -112,7 +112,7 @@ async def test_simple_t1(dut):
     NUM_PINS = len(dut.serial_o)
 
     msg_type = 1
-    msg_len = int(dut.MSG_LEN_1.value)
+    msg_len = 12
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
     await reset_dut(dut)
@@ -130,7 +130,7 @@ async def test_simple_t1(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -145,7 +145,7 @@ async def test_simple_t1(dut):
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -156,7 +156,7 @@ async def test_simple_t2(dut):
     NUM_PINS = len(dut.serial_o)
 
     msg_type = 2
-    msg_len = int(dut.MSG_LEN_2.value)
+    msg_len = 36
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
     await reset_dut(dut)
@@ -174,7 +174,7 @@ async def test_simple_t2(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -189,7 +189,7 @@ async def test_simple_t2(dut):
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -200,7 +200,7 @@ async def test_simple_t3(dut):
     NUM_PINS = len(dut.serial_o)
 
     msg_type = 3
-    msg_len = int(dut.MSG_LEN_3.value)
+    msg_len = 68
     logger = logging.getLogger("cocotb.test")
     await start_clock(dut)
     await reset_dut(dut)
@@ -218,7 +218,7 @@ async def test_simple_t3(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -233,7 +233,7 @@ async def test_simple_t3(dut):
     expected_value = test_data & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -261,7 +261,7 @@ async def test_const_send(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -270,13 +270,13 @@ async def test_const_send(dut):
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation
-    expected_bit_count = ceil(int(dut.MSG_LEN_1.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(12 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
@@ -285,13 +285,13 @@ async def test_const_send(dut):
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation (part 2)
-    expected_bit_count = ceil(int(dut.MSG_LEN_3.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(68 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count - 1 
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 @cocotb.test
@@ -318,7 +318,7 @@ async def test_single_spaced_send(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -327,33 +327,33 @@ async def test_single_spaced_send(dut):
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation
-    expected_bit_count = ceil(int(dut.MSG_LEN_1.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(12 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
 
     dut.valid_i.value = 1
-    while int(dut.current_state.value) != 1:
+    while int(dut.req_o.value) != 1:
         await RisingEdge(dut.clk_i)
 
     # Capture serial output until DONE (part 2)
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation (part 2)
-    expected_bit_count = ceil(int(dut.MSG_LEN_3.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(68 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 @cocotb.test
@@ -381,7 +381,7 @@ async def test_multi_spaced_send(dut):
     await RisingEdge(dut.clk_i)
 
     # Wait for SEND state
-    while int(dut.current_state.value) != 1: 
+    while int(dut.req_o.value) != 1: 
         await RisingEdge(dut.clk_i)
     
     logger.info("FSM entered SEND state. Capturing serial bits...")
@@ -390,36 +390,36 @@ async def test_multi_spaced_send(dut):
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation
-    expected_bit_count = ceil(int(dut.MSG_LEN_0.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(4 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count - 1
 
     expected_value = test_data0 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
     await RisingEdge(dut.clk_i)
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
 
     for _ in range(100):
         await(RisingEdge(dut.clk_i))
 
     dut.valid_i.value = 1
-    while int(dut.current_state.value) != 1:
+    while int(dut.req_o.value) != 1:
         await RisingEdge(dut.clk_i)
 
     # Capture serial output until DONE (part 2)
     bit_count, captured_bits = await collect_message(dut)
 
     # Validation (part 2)
-    expected_bit_count = ceil(int(dut.MSG_LEN_2.value) / NUM_PINS) * NUM_PINS
+    expected_bit_count = ceil(36 / NUM_PINS) * NUM_PINS
     expected_mask = 2 ** expected_bit_count -1
 
     expected_value = test_data1 & expected_mask
 
     assert bit_count == expected_bit_count, f"Expected {expected_bit_count} bits, got {bit_count}"
-    assert int(dut.current_state.value) == 0, "Should be in IDLE state"
+    assert int(dut.req_o.value) == 0, "Should be in IDLE state"
     assert captured_bits == expected_value, f"Expected data: {expected_value}, got {captured_bits}"
 
 
@@ -428,22 +428,41 @@ async def test_multi_spaced_send(dut):
 def tserializer_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/interposer_interface/tserializer.sv",
-    ]
+    sources = []
+    configs = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
 
-    configs = [
-        {"NUM_PINS": 1},
-        {"NUM_PINS": 4},
-        {"NUM_PINS": 9},
-    ]
+        configs += [
+            {"NUM_PINS": 9},
+        ]
+    else:
+        sources += [
+            proj_path / "../src/interposer_interface/tserializer.sv",
+        ]
 
+        configs += [
+            {"NUM_PINS": 1},
+            {"NUM_PINS": 4},
+            {"NUM_PINS": 9},
+        ]
     for config in configs:
         run_id = f"p{config['NUM_PINS']}"
 
         build_args = []
         if sim == "icarus":
-            build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_PINS={config['NUM_PINS']}"]
+            if not gl:
+                build_args += ["-g2012", f"-P{hdl_toplevel}.NUM_PINS={config['NUM_PINS']}"]
+            else:
+                build_args += ["-g2012"]
         if sim == "verilator":
             build_args += ["--timing", "--trace", "--trace-fst", "--trace-structs", f"-GNUM_PINS={config['NUM_PINS']}"]
         
@@ -459,7 +478,7 @@ def tserializer_runner():
 
         runner.test(
             hdl_toplevel=hdl_toplevel,
-            test_module="test_tserializer",
+            test_module="tserializer_tb",
             waves=True,
             build_dir=f"sim_build_ts_{run_id}"
         )

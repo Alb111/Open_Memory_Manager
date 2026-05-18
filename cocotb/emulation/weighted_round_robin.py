@@ -2,11 +2,11 @@
 import asyncio
 
 # types
-from axi_request_types import (axi_request, axi_and_coherence_request)
+from .axi_request_types import (axi_request, axi_and_coherence_request)
 from typing import List, Callable, Optional, Awaitable
 
 # functions
-from util import (axi_and_cohrenece_cmd_to_axi)
+from .util import (axi_and_cohrenece_cmd_to_axi)
 
 
 class WeightedRoundRobinArbiter:

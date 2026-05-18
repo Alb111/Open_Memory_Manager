@@ -53,91 +53,79 @@ module chip_core #(
     assign _unused = &bidir_in;
 
     // Instantiate mmio module
-    mmio i_mmio (
-        .clk_i     (),
-        .rst_in    (),
-        .addr_i   (),
-        .wr_data_i(),
-        .wr_en_i  (),
-        .rd_data_o(),
+    mmio
+    i_mmio (
+        .clk_i      (clk),
+        .rst_ni     (rst_n),
+        .addr_i     (),
+        .wr_data_i  (),
+        .wr_en_i    (),
+        .rd_data_o  (),
         .gpio_pins_o(),
         .gpio_pins_i(),
-        .gpio_dir_o()
+        .gpio_dir_o ()
     );
 
     // Instantiate wrr_arbiter module
     wrr_arbiter #(
-        .NUM_REQ   (),
-        .WEIGHT_W ()
+        .NUM_REQ   	(),
+        .WEIGHT_W  	()
     ) i_wrr_arbiter (
-        .clk_i       (),
-        .rst_ni     (),
+        .clk_i      (clk),
+        .rst_ni     (rst_n),
         .req_i      (),
-        .weights_i  (),
-        .weight_en_i(),
-        .grant_o   (),
-        .req_o     ()
-    );
-
-    // Instantiate cache_interface module
-    cache_interface #(
-        .NUM_PINS   (),
-        .MAX_MSG_LEN()
-    ) i_cache_interface (
-        .mem_valid      (),
-        .mem_ready     (),
-        .mem_addr      (),
-        .mem_wdata     (),
-        .mem_wstrb     (),
-        .mem_rdata     (),
-        .cache_cmd     (),
-        .directory_cmd(),
-        .rst_done     (),
-        .cpu_id       (),
-        .req_i       (),
-        .serial_i    (),
-        .req_o       (),
-        .serial_o    ()
+        .grant_o   	(),
+        .req_o     	()
     );
 
     // Instantiate directory_interface module
     directory_interface #(
-        .NUM_PINS   (),
-        .MAX_MSG_LEN()
+        .NUM_TPINS  (),
+        .NUM_RPINS  ()
     ) i_directory_interface (
-        .mem_valid      (),
-        .mem_ready     (),
-        .mem_addr      (),
-        .mem_wdata     (),
-        .mem_wstrb     (),
-        .mem_rdata     (),
-        .cache_cmd     (),
-        .directory_cmd(),
-        .rst_done     (),
-        .cpu_id       (),
-        .req_i       (),
-        .serial_i    (),
-        .req_o       (),
-        .serial_o    ()
+        .clk_i          (clk),
+        .rst_ni         (rst_n),
+        .bus_valid_o    (),
+        .bus_addr_o     (),
+        .bus_wdata_o    (),
+        .bus_cache_cmd_o(),
+        .bus_ready_i    (),
+        .snoop_valid_o  (),
+        .snoop_data_o   (),
+        .snoop_cache_cmd_o(),
+        .snoop_ready_i  (),
+        .dir_valid_i    (),
+        .dir_data_i     (),
+        .dir_addr_i     (),
+        .dir_cmd_i      (),
+        .dir_ready_o    (),
+        .rbusy_o        (),
+        .send_WhoAmI_i  (),
+        .cpu_id_i       (),
+        .reset_done_o   (),
+        .req_i          (),
+        .serial_i       (),
+        .req_o          (),
+        .serial_o       ()
     );
 
     // Instantiate tserializer module
     tserializer #(
         .NUM_PINS   (),
         .MAX_MSG_LEN(),
-        .MSG_LEN_0 (),
-        .MSG_LEN_1 (),
-        .MSG_LEN_2 (),
-        .MSG_LEN_3 ()
+        .MSG_LEN_0 	(),
+        .MSG_LEN_1 	(),
+        .MSG_LEN_2 	(),
+        .MSG_LEN_3 	()
     ) i_tserializer (
-        .clk_i     (),
-        .rst_n    (),
-        .valid_i  (),
-        .data_in  (),
-        .msg_type(),
-        .ready_o (),
-        .req_o   (),
-        .serial_o()
+        .clk_i     	(clk),
+        .rst_ni    	(rst_n),
+        .valid_i  	(),
+        .data_in  	(),
+        .msg_type	(),
+        .ready_o 	(),
+        .req_o   	(),
+        .serial_o	()
     );
 
     // Instantiate rserializer module
@@ -145,39 +133,27 @@ module chip_core #(
         .NUM_PINS   (),
         .MAX_MSG_LEN()
     ) i_rserializer (
-        .clk_i      (),
-        .rst_n     (),
-        .serial_i  (),
-        .req_i     (),
-        .valid_o   (),
-        .data_o    (),
-        .ready_i   ()
-    );
-
-    // Instantiate mem_ctrl_512x32 module
-    mem_ctrl_512x32 i_mem_ctrl_512x32 (
-        .clk_i        (),
-        .rst_ni       (),
-        .mem_valid_i (),
-        .mem_instr_i (),
-        .mem_addr_i  (),
-        .mem_wdata_i (),
-        .mem_wstrb_i (),
-        .mem_rdata_o (),
-        .mem_ready_o ()
+        .clk_i      (clk),
+        .rst_ni     (rst_n),
+        .serial_i  	(),
+        .req_i     	(),
+        .valid_o   	(),
+        .data_o    	(),
+        .ready_i   	()
     );
 
     // Instantiate mem_ctrl_2048x32 module
-    mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
-        .clk_i        (),
-        .rst_ni       (),
-        .mem_valid_i (),
-        .mem_instr_i (),
-        .mem_addr_i  (),
-        .mem_wdata_i (),
-        .mem_wstrb_i (),
-        .mem_rdata_o (),
-        .mem_ready_o ()
+    (* keep *) mem_ctrl_2048x32
+    i_mem_ctrl_2048x32 (
+        .clk_i        	(clk),
+        .rst_ni       	(rst_n),
+        .mem_valid_i 	(),
+        .mem_instr_i 	(),
+        .mem_addr_i  	(),
+        .mem_wdata_i 	(),
+        .mem_wstrb_i 	(),
+        .mem_rdata_o 	(),
+        .mem_ready_o 	()
     );
 
     assign bidir_out = '0;

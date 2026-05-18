@@ -90,7 +90,7 @@ render-image: ## Render an image from the final layout (after copy-final)
 
 # Our Commands
 test-mem: ## Run all cocotb on mem
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_test.py
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_tb.py
 .PHONY: test-mem
 
 mem-wave: ## View simulation waveforms for mem
@@ -101,41 +101,26 @@ wave: ## TODO: make better name later
 	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
 .PHONY: wave
 
-test: ## Run all cocotb on mem
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_sram_test.py
-.PHONY: test
 
 
-test-msi: ## Run all cocotb tests on msi
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_test.py
-.PHONY: test-msi
-
-test-msi-protocol: ## Run cocotb tests on standalone msi_protocol
-	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 msi_protocol_test.py
-.PHONY: test-msi-protocol
-
-test-cache-controller: ## Run cocotb tests for cache_controller_core
-	cd cocotb; SIM=icarus PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_controller_test.py
-.PHONY: test-cache-controller
-
-test-arb: ## Run all cocotb tests on msi
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_test.py
+test-arb: ## Run all cocotb tests on wrr arbiter
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_tb.py
 .PHONY: test-arb
 
 test-tserializer: ## Run all cocotb tests on tserializer
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_tserializer.py
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 tserializer_tb.py
 .PHONY: test-tserializer
 
 test-rserializer: ## Run all cocotb tests on rserializer
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_rserializer.py
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 rserializer_tb.py
 .PHONY: test-rserializer
 
 test-cache-interface: ## Run all cocotb tests on cache_interface
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_cache_interface.py
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_interface_tb.py
 .PHONY: test-cache-interface
 
 test-directory-interface: ## Run all cocotb tests on directory_interface
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 test_directory_interface.py
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_interface_tb.py
 .PHONY: test-directory-interface
 
 test-spaddr: ## Run all cocotb tests on sp_addr_handler
@@ -154,6 +139,22 @@ boot-wave: ## View simulation waveforms for boot contlr
 	gtkwave cocotb/sim_build/housekeeping_top.fst
 .PHONY: boot-wave
 
+test-boot-flash: ## Run cocotb tests for bootloader against Cypress flash model
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_flash_tb.py
+.PHONY: test-boot-flash
+
+boot-flash-wave: ## View simulation waveforms for boot flash test
+	gtkwave cocotb/sim_build/boot_wrapper.fst
+.PHONY: boot-flash-wave
+
+test-boot-mem: ## Run cocotb integration tests for boot -> mem_ctrl -> SRAM
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_mem_tb.py
+.PHONY: test-boot-mem
+
+boot-mem-wave: ## View simulation waveforms for boot mem integration test
+	gtkwave cocotb/sim_build/boot_mem_wrapper.fst
+.PHONY: boot-mem-wave
+
 test-all: ## Run all cocotb testbenches via pytest
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} pytest test_all_cocotb.py -v
 .PHONY: test-all
@@ -161,3 +162,11 @@ test-all: ## Run all cocotb testbenches via pytest
 clean-sim: ## Remove all sim-build dirs in cocotb
 	cd cocotb; rm -r sim_build*
 .PHONY: clean-sim
+
+emulate: ## Remove all sim-build dirs in cocotb
+	python -m cocotb.emulation.emulate
+.PHONY: emulate
+
+gen-netlists: ## Generate netlists for all top-level modules
+	PDK_ROOT=${PDK_ROOT} PDK=${PDK} python3 scripts/gen_netlists.py
+.PHONY: gen-netlists

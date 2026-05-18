@@ -3,12 +3,12 @@ from dataclasses import dataclass
 
 # types
 from typing import (Optional, Dict, Callable, Awaitable)
-from msi_v2 import (MSIState, CoherenceCmd)
-from axi_request_types import (axi_and_coherence_request, axi_request)
-from util import (axi_and_cohrenece_cmd_to_axi)
+from .msi_v2 import (MSIState, CoherenceCmd)
+from .axi_request_types import (axi_and_coherence_request, axi_request)
+from .util import (axi_and_cohrenece_cmd_to_axi)
 
 # helper functions
-from util import axi_and_cohrenece_cmd_to_axi
+from .util import axi_and_cohrenece_cmd_to_axi
 
 @dataclass
 class DirectoryEntry:

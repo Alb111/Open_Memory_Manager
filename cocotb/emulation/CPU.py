@@ -4,15 +4,15 @@ import asyncio
 import logging
 
 # hardware emulators
-from core import Core
-from memory_v2 import MemoryController
-from weighted_round_robin import WeightedRoundRobinArbiter
-from cache_v3 import CacheController
-from directory_v2 import DirectoryController
+from .core import Core
+from .memory_v2 import MemoryController
+from .weighted_round_robin import WeightedRoundRobinArbiter
+from .cache_v3 import CacheController
+from .directory_v2 import DirectoryController
 
 # types
-from axi_request_types import axi_request
-from testcase import test_case
+from .axi_request_types import axi_request
+from .testcase import test_case
 from typing import List, Optional
 
 
