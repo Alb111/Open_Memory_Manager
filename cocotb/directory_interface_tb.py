@@ -494,7 +494,7 @@ def directory_interface_runner():
 
         runner.test(
             hdl_toplevel=hdl_toplevel,
-            test_module="test_directory_interface",
+            test_module="directory_interface_tb",
             waves=True,
             build_dir=f"sim_build_di_{run_id}"
         )

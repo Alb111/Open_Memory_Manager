@@ -9,8 +9,8 @@ from cocotb.triggers import Timer, Edge, RisingEdge, FallingEdge, ClockCycles
 from cocotb_tools.runner import get_runner
 
 # golden model
-from emulation.msi_v2 import MSIState, SnoopEvent, TransitionResult # types
-from emulation.msi_v2 import on_snoop_event # function
+from emulation.msi_v2 import MSIState, ProcessorEvent, TransitionResult # types
+from emulation.msi_v2 import on_processor_event # function
 
 sim = os.getenv("SIM", "icarus")
 pdk_root = Path("../gf180mcu")
@@ -19,22 +19,25 @@ scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
-hdl_toplevel = "on_snoop_event_state_machine"
+hdl_toplevel = "on_processor_event_state_machine"
 
 @cocotb.test()
-async def test_snoop_against_golden(dut):
+async def test_mem_ctrl_against_golden(dut):
 
     logger = logging.getLogger("my_testbench")
 
     for state in MSIState:
-        for event in SnoopEvent:
+        for event in ProcessorEvent:
 
             # feed in inputs
             dut.current_state_i.value = int(state)
-            dut.snoop_event_i.value = int(event)
+            if event == ProcessorEvent.PR_RD:
+                dut.wstrb_i.value = 0
+            else:
+                dut.wstrb_i.value = 15
 
             # check output with golden
-            golden: TransitionResult = on_snoop_event(state, event)
+            golden: TransitionResult = on_processor_event(state, event)
 
             await Timer(1, unit="ns") # time to propagate outputs  
 
@@ -43,17 +46,24 @@ async def test_snoop_against_golden(dut):
                 f"State mismatch: DUT={dut.next_state_o.value}, GOLDEN={golden.next_state}"
 
             # check cmd issued to directory
-            assert int(dut.flush_o.value) == int(golden.flush), \
-                f"flush cmd doesnt match"
-
+            if golden.issue_cmd == None:
+                assert int(dut.issue_cmd_valid_o.value) == 0, \
+                    f"there should be no cmd issued"
+            else:
+                assert int(dut.issue_cmd_valid_o.value) == 1, \
+                    f"there should be cmd issued"
+                
+                assert int(dut.issue_cmd_o.value) == int(golden.issue_cmd), \
+                f"State mismatch: DUT={dut.issue_cmd_o.value}, GOLDEN={golden.issue_cmd}"
+            
     logger.info("Done!")
 
 
-def test_on_snoop_event_state_machine():
+def test_on_processor_event_state_machine():
     proj_path = Path(__file__).resolve().parent
 
     sources = [
-        proj_path / "../src/msi_protocol/on_snoop_event_state_machine.sv",
+        proj_path / "../src/msi_protocol/on_processor_event_state_machine.sv",
     ]
 
     build_args = []
@@ -65,19 +75,19 @@ def test_on_snoop_event_state_machine():
     runner = get_runner(sim)
     runner.build(
         sources=sources,
-        hdl_toplevel="on_snoop_event_state_machine",
+        hdl_toplevel="on_processor_event_state_machine",
         always=True,
         build_args=build_args,
         waves=True,
     )
 
     runner.test(
-        hdl_toplevel="on_snoop_event_state_machine",
-        test_module="test_on_snoop_event_state_machine",
+        hdl_toplevel="on_processor_event_state_machine",
+        test_module="on_processor_event_state_machine_tb",
         waves=True,
     )
 
 if __name__ == "__main__":
-    test_on_snoop_event_state_machine()
+    test_on_processor_event_state_machine()
 
 

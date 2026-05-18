@@ -13,7 +13,7 @@ pdk = os.getenv("PDK", "gf180mcuD")
 hdl_toplevel = "boot_mem_wrapper"
 
 # boot image, has to match what is written to boot_image.mem
-#same 512-byte xor pattern used in boot_flash_test.py
+#same 512-byte xor pattern used in boot_flash_tb.py
 BOOT_IMAGE = [(i & 0xFF) ^ 0xA5 for i in range(512)]
 
 def expected_word(word_index):
@@ -32,7 +32,7 @@ def write_boot_image_mem():
 
 #helpers
 def start_clock(dut):
-    # 10 ns period (100 MHz) same as boot_flash_test.py
+    # 10 ns period (100 MHz) same as boot_flash_tb.py
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def apply_reset(dut, cycles=40_000):
@@ -45,7 +45,7 @@ async def apply_reset(dut, cycles=40_000):
     dut.reset_ni.value = 1
     await Timer(1, unit="ns")
 
-# mem read helper, like axi_read() from mem_test.py
+# mem read helper, like axi_read() from mem_tb.py
 # drive wrapper read port directly (only valid after boot_done)
 async def mem_read(dut, addr):
     dut.mem_addr_i.value = addr
@@ -190,7 +190,7 @@ def boot_mem_runner():
     )
     runner.test(
         hdl_toplevel="boot_mem_wrapper",
-        test_module="boot_mem_test",
+        test_module="boot_mem_tb",
         waves=True,
     )
 
