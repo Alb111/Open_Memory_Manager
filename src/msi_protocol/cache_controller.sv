@@ -270,6 +270,17 @@ module cache_controller
 
 
   // ============================================================
+  // flush addr
+  // ============================================================
+  logic [31:0] evict_addr;
+  assign evict_addr = {
+      23'd0,
+      cpu_line_tag_q,
+      cpu_addr_q[6:0]
+  };
+
+
+  // ============================================================
   // Sequential state update
   // ============================================================
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -549,7 +560,8 @@ module cache_controller
       CPU_TAG_MISS: begin
         // flush out the wrong tag using LATCHED state (was cm_cpu_rstate_o, racy)
         outbound_cpu_cache_valid_i = 1'b1;
-        outbound_cpu_cache_addr_i  = cpu_addr_q;
+        // outbound_cpu_cache_addr_i  = cpu_addr_q;
+        outbound_cpu_cache_addr_i  = evict_addr;
         outbound_cpu_cache_data_i  = cpu_line_data_q;
         if (cpu_line_state_q == S_SHARED) begin
           outbound_cpu_cache_cmd_i = EvictClean_1h;
