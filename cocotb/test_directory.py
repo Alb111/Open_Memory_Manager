@@ -34,89 +34,6 @@ DIR_CMD_SNOOP_BUS_RDX = 0b010000
 DIR_CMD_SNOOP_BUS_UPGR = 0b100000
 
 
-def write_sram_stubs(proj_path: Path) -> Path:
-    stub_path = proj_path / "cocotb" / "sram_models.sv"
-    stub_path.write_text(
-        """
-`timescale 1ns/1ps
-`default_nettype none
-
-module gf180mcu_fd_ip_sram__sram512x8m8wm1 (
-  input  wire       CLK,
-  input  wire       CEN,
-  input  wire       GWEN,
-  input  wire [7:0] WEN,
-  input  wire [8:0] A,
-  input  wire [7:0] D,
-  output reg  [7:0] Q,
-  inout  wire       VDD,
-  inout  wire       VSS
-);
-  reg [7:0] mem[0:511];
-  integer i;
-
-  initial begin
-    Q = 8'h00;
-    for (i = 0; i < 512; i = i + 1) begin
-      mem[i] = 8'h00;
-    end
-  end
-
-  always @(posedge CLK) begin
-    if (!CEN) begin
-      if (!GWEN) begin
-        for (i = 0; i < 8; i = i + 1) begin
-          if (!WEN[i]) begin
-            mem[A][i] <= D[i];
-          end
-        end
-      end
-      Q <= mem[A];
-    end
-  end
-endmodule
-
-module gf180mcu_fd_ip_sram__sram64x8m8wm1 (
-  input  wire       CLK,
-  input  wire       CEN,
-  input  wire       GWEN,
-  input  wire [7:0] WEN,
-  input  wire [5:0] A,
-  input  wire [7:0] D,
-  output reg  [7:0] Q,
-  inout  wire       VDD,
-  inout  wire       VSS
-);
-  reg [7:0] mem[0:63];
-  integer i;
-
-  initial begin
-    Q = 8'h00;
-    for (i = 0; i < 64; i = i + 1) begin
-      mem[i] = 8'h00;
-    end
-  end
-
-  always @(posedge CLK) begin
-    if (!CEN) begin
-      if (!GWEN) begin
-        for (i = 0; i < 8; i = i + 1) begin
-          if (!WEN[i]) begin
-            mem[A][i] <= D[i];
-          end
-        end
-      end
-      Q <= mem[A];
-    end
-  end
-endmodule
-
-`default_nettype wire
-"""
-    )
-    return stub_path
-
-
 def find_source(proj_path: Path, candidates: list[Path]) -> Path:
     for candidate in candidates:
         if candidate.exists():
@@ -611,7 +528,17 @@ async def test_directory_response_backpressure(dut):
 
 def run_directory_controller():
     proj_path = Path(__file__).resolve().parent.parent
-    sram_stub = write_sram_stubs(proj_path)
+    pdk_root = Path(os.getenv("PDK_ROOT", str(proj_path / "gf180mcu")))
+    pdk = os.getenv("PDK", "gf180mcuD")
+
+    gf180_sram_model = (
+        pdk_root
+        / pdk
+        / "libs.ref"
+        / "gf180mcu_fd_ip_sram"
+        / "verilog"
+        / "gf180mcu_fd_ip_sram__sram512x8m8wm1.v"
+    )
     mem128x32 = find_source(
         proj_path,
         [
@@ -621,7 +548,7 @@ def run_directory_controller():
     )
 
     sources = [
-        sram_stub,
+        gf180_sram_model,
         mem128x32,
         proj_path / "src" / "directory_metadata_table.sv",
         proj_path / "src" / "directory_controller.sv",
