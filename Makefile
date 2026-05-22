@@ -123,6 +123,10 @@ test-directory-interface: ## Run all cocotb tests on directory_interface
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_interface_tb.py
 .PHONY: test-directory-interface
 
+test-directory-controller:
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_controller_tb.py
+.PHONY: test-directory-controller
+
 test-spaddr: ## Run all cocotb tests on sp_addr_handler
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 sp_handler_tb.py
 .PHONY: test-spaddr
