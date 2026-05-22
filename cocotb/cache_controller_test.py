@@ -101,7 +101,6 @@ async def reset_dut(dut):
 
     # its take very long to reset all the srams
     cycles_to_reset: int = 2 * 512 
-    # cycles_to_reset: int =  # any thing more then 511 caues a infinite block 
     for _ in range(cycles_to_reset):
         await RisingEdge(dut.clk_i)
 
@@ -129,7 +128,7 @@ async def one_read(dut):
 
     captured_dir_requests.clear()
 
-    await FallingEdge(dut.clk_i)
+
     # ── CPU request ─────────────────────────────────────────────
     dut.mem_valid_i.value = 1
     dut.mem_instr_i.value = 0
@@ -138,32 +137,43 @@ async def one_read(dut):
     dut.mem_wstrb_i.value = 0
     dut.cache_ready_i.value = 1  
 
-    await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await RisingEdge(dut.clk_i) 
+    # await FallingEdge(dut.clk_i)
+    # await FallingEdge(dut.clk_i)
+    # await FallingEdge(dut.clk_i)
 
-    # golden model
-    cache = CacheController(
-        core_id=0,
-        directory_axi_handler=dummy_directory_handler,
-    )
+    # # golden model
+    # cache = CacheController(
+    #     core_id=0,
+    #     directory_axi_handler=dummy_directory_handler,
+    # )
 
-    golden_resp = await cache.axi_handler_for_core(
-        axi_request(
-            mem_valid=True,
-            mem_ready=False,
-            mem_instr=False,
-            mem_addr=1,
-            mem_wdata=0,
-            mem_wstrb=0,
-            mem_rdata=0,
-        )
-    )
+    # golden_resp = await cache.axi_handler_for_core(
+    #     axi_request(
+    #         mem_valid=True,
+    #         mem_ready=False,
+    #         mem_instr=False,
+    #         mem_addr=1,
+    #         mem_wdata=0,
+    #         mem_wstrb=0,
+    #         mem_rdata=0,
+    #     )
+    # )
 
     # # ── Wait for DUT request to directory ───────────────────────
     for i in range(TIMEOUT_CYCLES):
         # await RisingEdge(dut.clk_i)
         await with_timeout(RisingEdge(dut.clk_i), 5000, 'ns')
         if int(dut.cache_valid_o.value) == 1:
-            return
+            break
+
         print(f"i is {i}")
 
     print("heloooooooooooooooooooooooooo")
@@ -216,7 +226,7 @@ def cache_controller_test():
     proj_path = Path(__file__).resolve().parent
     pdk_root  = Path("../gf180mcu")
 
-    sources = [
+    sources =[
         proj_path / "../src/msi_protocol/apply_wstrb.sv",
         proj_path / "../src/msi_protocol/on_processor_event_state_machine.sv",
         proj_path / "../src/msi_protocol/on_snoop_event_state_machine.sv",
@@ -239,7 +249,11 @@ def cache_controller_test():
             "--trace-fst",
             "--trace-structs",
         ]
-
+    else:
+        build_args = [
+            "-Wall",
+            "-Winfloop"
+        ]
     runner = get_runner(sim)
 
     runner.build(

@@ -362,7 +362,7 @@ module cache_controller
     // outbound_snoop_cache_ready_o = '0;
 
     // incoming bus ack (default off)
-    bus_ready_o = 1'b0;
+    // bus_ready_o = 1'b0; NOTE: commented this casue its written in CPU always comb
 
     // snoop ready handshake (default off)
     snoop_ready_o = 1'b0;
