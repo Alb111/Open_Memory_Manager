@@ -103,7 +103,11 @@ class CacheController:
 
         # print(req)
         # Send request to directory and get response
+        
+        print("data sent to dir")
+        print(req)
         resp: axi_request = await self.arbiter_port(req)
+
                 
         # Return data from directory (relevant for BUS_RD, BUS_RDX)
         return resp
@@ -118,7 +122,7 @@ class CacheController:
             mem_wdata_or_msi_payload=0,
             mem_wstrb=0,
             mem_rdata=0,
-            coherence_cmd=CoherenceCmd.BUS_RD,
+            coherence_cmd=CoherenceCmd.NULL,
             core_id=self.core_id
         )
 
@@ -369,7 +373,6 @@ class CacheController:
         """
         
         print("=== core to cache ===")
-
         print(request)
 
         # CPU memory traffic: read or write

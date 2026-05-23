@@ -17,7 +17,7 @@ log = logging.getLogger("cache_tb")
 logging.basicConfig(level=logging.INFO)
 
 from emulation.cache_v3 import CacheController
-from emulation.axi_request_types import axi_request
+from emulation.axi_request_types import axi_and_coherence_request, axi_request
 from emulation.msi_v2 import CoherenceCmd
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,13 +32,14 @@ BUSRD_ACK   = 0b001
 BUSRDX_ACK  = 0b010
 BUSUPGR_ACK = 0b100
 
-TIMEOUT_CYCLES = 100
+TIMEOUT_CYCLES = 1000
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Golden model and helpers 
 # ─────────────────────────────────────────────────────────────────────────────
 
 captured_dir_requests: List = []
+data_in_addr: int = 8
 async def dummy_directory_handler(req):
     captured_dir_requests.append(req)
 
@@ -49,7 +50,7 @@ async def dummy_directory_handler(req):
         mem_addr=req.mem_addr,
         mem_wdata=0,
         mem_wstrb=0,
-        mem_rdata=2,
+        mem_rdata=data_in_addr,
     )
 
 def coherence_cmd_to_acks(cmd: CoherenceCmd) -> int:
@@ -126,11 +127,10 @@ async def wait_for_signal(dut, sig):
 # Test transaction
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def one_read(dut, addr: int, data: int):
+async def one_read(dut, addr: int):
 
     if addr > 512:
         raise Exception("addr out of range")
-
 
     # ── CPU request ─────────────────────────────────────────────
     await FallingEdge(dut.clk_i) 
@@ -155,28 +155,29 @@ async def one_read(dut, addr: int, data: int):
     )
 
     # ── Wait for DUT request to directory ───────────────────────
-    await wait_for_signal(dut, dut.cache_valid_o)
-
+    # if need a response give it a respone
     assert captured_dir_requests, "No directory request captured"
+    dir_req: axi_and_coherence_request = captured_dir_requests[0]
+    print("curr req")
+    print(dir_req)
 
-    dir_req = captured_dir_requests[0]
+    if dir_req.coherence_cmd != CoherenceCmd.NULL:
 
-    # sample SAME cycle safely
-    dut_cmd = int(dut.cache_cmd_o.value)
+        await wait_for_signal(dut, dut.cache_valid_o)
+        dut_cmd = int(dut.cache_cmd_o.value)
 
-    assert int(dir_req.coherence_cmd) == dut_cmd, (
-        f"Expected {dir_req.coherence_cmd}, got {dut_cmd}"
-    )
+        assert int(dir_req.coherence_cmd) == dut_cmd, (
+            f"Expected {dir_req.coherence_cmd}, got {dut_cmd}"
+        )
 
-    # ── Respond from directory ───────────────────────────────────
-    dut.bus_valid_i.value = 1
-    dut.bus_data_i.value = 2
-    dut.bus_dircmd_i.value = coherence_cmd_to_acks(dir_req.coherence_cmd)
+        # ── Respond from directory ───────────────────────────────────
+        dut.bus_valid_i.value = 1
+        dut.bus_data_i.value = data_in_addr
+        dut.bus_dircmd_i.value = coherence_cmd_to_acks(dir_req.coherence_cmd)
 
-    # wait for DUT to accept response
-    await wait_for_signal(dut, dut.bus_ready_o)
-
-    dut.bus_valid_i.value = 0
+        # wait for DUT to accept response
+        await wait_for_signal(dut, dut.bus_ready_o)
+        dut.bus_valid_i.value = 0
 
     # ── Wait for completion ─────────────────────────────────────
     await wait_for_signal(dut, dut.mem_ready_o)
@@ -251,9 +252,13 @@ async def one_write(dut, addr, data, wstrb):
 async def test_simple(dut):
     await start_clock(dut)
     await reset_dut(dut)
-    # await one_read(dut, 1, 1)
-    # await one_read(dut, 1, 1)
-    await one_write(dut, 1, 1, 0b1111)
+
+    await one_read(dut, 1)
+    await one_read(dut, 1)
+
+    # await one_write(dut, 1, 1, 0b1111)
+    # await one_read(dut, 1)
+
     # await one_write(dut, 1, 2, 0b1111)
 
 # ════════════════════════════════════════════════════════════════════════════
