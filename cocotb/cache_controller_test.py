@@ -32,14 +32,13 @@ BUSRD_ACK   = 0b001
 BUSRDX_ACK  = 0b010
 BUSUPGR_ACK = 0b100
 
-TIMEOUT_CYCLES = 10
+TIMEOUT_CYCLES = 100
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Golden model hook
+# Golden model and helpers 
 # ─────────────────────────────────────────────────────────────────────────────
 
 captured_dir_requests: List = []
-
 async def dummy_directory_handler(req):
     captured_dir_requests.append(req)
 
@@ -53,7 +52,6 @@ async def dummy_directory_handler(req):
         mem_rdata=2,
     )
 
-
 def coherence_cmd_to_acks(cmd: CoherenceCmd) -> int:
     if cmd == CoherenceCmd.BUS_RD:
         return BUSRD_ACK
@@ -62,6 +60,12 @@ def coherence_cmd_to_acks(cmd: CoherenceCmd) -> int:
     elif cmd == CoherenceCmd.BUS_UPGR:
         return BUSUPGR_ACK
     return 0
+
+cache = CacheController(
+    core_id=0,
+    directory_axi_handler=dummy_directory_handler,
+)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -106,13 +110,11 @@ async def reset_dut(dut):
 
     log.info("Reset complete")
 
+    # reset captured dir req for later
+    captured_dir_requests.clear()
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Safe handshake helpers (IMPORTANT FIX)
-# ─────────────────────────────────────────────────────────────────────────────
 
 async def wait_for_signal(dut, sig):
-    """Wait until a signal becomes 1 (clock-sampled safe)."""
     for _ in range(TIMEOUT_CYCLES):
         await RisingEdge(dut.clk_i)
         if sig.value == 1:
@@ -124,88 +126,121 @@ async def wait_for_signal(dut, sig):
 # Test transaction
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def one_read(dut):
+async def one_read(dut, addr: int, data: int):
 
-    captured_dir_requests.clear()
+    if addr > 512:
+        raise Exception("addr out of range")
 
 
     # ── CPU request ─────────────────────────────────────────────
+    await FallingEdge(dut.clk_i) 
     dut.mem_valid_i.value = 1
     dut.mem_instr_i.value = 0
-    dut.mem_addr_i.value = 1
+    dut.mem_addr_i.value = addr
     dut.mem_wdata_i.value = 0
     dut.mem_wstrb_i.value = 0
     dut.cache_ready_i.value = 1  
 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await RisingEdge(dut.clk_i) 
-    # await FallingEdge(dut.clk_i)
-    # await FallingEdge(dut.clk_i)
-    # await FallingEdge(dut.clk_i)
+    # golden model
+    golden_resp = await cache.axi_handler_for_core(
+        axi_request(
+            mem_valid=True,
+            mem_ready=False,
+            mem_instr=False,
+            mem_addr=1,
+            mem_wdata=0,
+            mem_wstrb=0,
+            mem_rdata=0,
+        )
+    )
 
-    # # golden model
-    # cache = CacheController(
-    #     core_id=0,
-    #     directory_axi_handler=dummy_directory_handler,
-    # )
+    # ── Wait for DUT request to directory ───────────────────────
+    await wait_for_signal(dut, dut.cache_valid_o)
 
-    # golden_resp = await cache.axi_handler_for_core(
-    #     axi_request(
-    #         mem_valid=True,
-    #         mem_ready=False,
-    #         mem_instr=False,
-    #         mem_addr=1,
-    #         mem_wdata=0,
-    #         mem_wstrb=0,
-    #         mem_rdata=0,
-    #     )
-    # )
+    assert captured_dir_requests, "No directory request captured"
 
-    # # ── Wait for DUT request to directory ───────────────────────
-    for i in range(TIMEOUT_CYCLES):
-        # await RisingEdge(dut.clk_i)
-        await with_timeout(RisingEdge(dut.clk_i), 5000, 'ns')
-        if int(dut.cache_valid_o.value) == 1:
-            break
+    dir_req = captured_dir_requests[0]
 
-        print(f"i is {i}")
+    # sample SAME cycle safely
+    dut_cmd = int(dut.cache_cmd_o.value)
 
-    print("heloooooooooooooooooooooooooo")
-    raise TimeoutError(f"cahce_valid_o never asserted")
+    assert int(dir_req.coherence_cmd) == dut_cmd, (
+        f"Expected {dir_req.coherence_cmd}, got {dut_cmd}"
+    )
 
-    # await wait_for_signal(dut, dut.cache_valid_o)
+    # ── Respond from directory ───────────────────────────────────
+    dut.bus_valid_i.value = 1
+    dut.bus_data_i.value = 2
+    dut.bus_dircmd_i.value = coherence_cmd_to_acks(dir_req.coherence_cmd)
 
-    # assert captured_dir_requests, "No directory request captured"
+    # wait for DUT to accept response
+    await wait_for_signal(dut, dut.bus_ready_o)
 
-    # dir_req = captured_dir_requests[0]
+    dut.bus_valid_i.value = 0
 
-    # # sample SAME cycle safely
-    # dut_cmd = int(dut.cache_cmd_o.value)
+    # ── Wait for completion ─────────────────────────────────────
+    await wait_for_signal(dut, dut.mem_ready_o)
 
-    # assert int(dir_req.coherence_cmd) == dut_cmd, (
-    #     f"Expected {dir_req.coherence_cmd}, got {dut_cmd}"
-    # )
+    assert int(dut.mem_rdata_o.value) == golden_resp.mem_rdata
 
-    # # ── Respond from directory ───────────────────────────────────
-    # dut.bus_valid_i.value = 1
-    # dut.bus_data_i.value = 2
-    # dut.bus_dircmd_i.value = coherence_cmd_to_acks(dir_req.coherence_cmd)
+    # pop the dir resp we just used
+    captured_dir_requests.pop()
 
-    # # wait for DUT to accept response
-    # await wait_for_signal(dut, dut.bus_ready_o)
 
-    # dut.bus_valid_i.value = 0
+async def one_write(dut, addr, data, wstrb):
 
-    # # ── Wait for completion ─────────────────────────────────────
-    # await wait_for_signal(dut, dut.mem_ready_o)
+    if addr > 512:
+        raise Exception("addr out of range")
 
-    # assert int(dut.mem_rdata_o.value) == golden_resp.mem_rdata
+
+    # ── CPU request ─────────────────────────────────────────────
+    await FallingEdge(dut.clk_i)
+    dut.mem_valid_i.value = 1
+    dut.mem_instr_i.value = 0
+    dut.mem_addr_i.value  = addr
+    dut.mem_wdata_i.value = data
+    dut.mem_wstrb_i.value = wstrb
+    dut.cache_ready_i.value = 1
+
+    # ── Golden model ─────────────────────────────────────────────
+    golden_resp = await cache.axi_handler_for_core(
+        axi_request(
+            mem_valid=True,
+            mem_ready=False,
+            mem_instr=False,
+            mem_addr=addr,
+            mem_wdata=data,
+            mem_wstrb=wstrb,
+            mem_rdata=0,
+        )
+    )
+
+    # ── Wait for DUT to issue a coherence request to directory ───
+    await wait_for_signal(dut, dut.cache_valid_o)
+
+    assert captured_dir_requests, "No directory request captured for write"
+
+    dir_req = captured_dir_requests[0]
+    dut_cmd = int(dut.cache_cmd_o.value)
+
+    assert int(dir_req.coherence_cmd) == dut_cmd, (
+        f"Golden cmd {dir_req.coherence_cmd} != DUT cmd {dut_cmd}"
+    )
+
+    # ── Directory response ───────────────────────────────────────
+    dut.bus_valid_i.value   = 1
+    dut.bus_data_i.value    = 0          # data irrelevant for a write
+    dut.bus_dircmd_i.value  = coherence_cmd_to_acks(dir_req.coherence_cmd)
+
+    await wait_for_signal(dut, dut.bus_ready_o)
+
+    dut.bus_valid_i.value = 0
+
+    # ── Wait for completion ──────────────────────────────────────
+    await wait_for_signal(dut, dut.mem_ready_o)
+
+    log.info("Write transaction complete — data=%#010x strb=%#x", data, wstrb)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,7 +251,10 @@ async def one_read(dut):
 async def test_simple(dut):
     await start_clock(dut)
     await reset_dut(dut)
-    await one_read(dut)
+    # await one_read(dut, 1, 1)
+    # await one_read(dut, 1, 1)
+    await one_write(dut, 1, 1, 0b1111)
+    # await one_write(dut, 1, 2, 0b1111)
 
 # ════════════════════════════════════════════════════════════════════════════
 #  Runner
