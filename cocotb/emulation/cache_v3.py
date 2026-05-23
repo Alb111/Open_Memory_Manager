@@ -110,6 +110,7 @@ class CacheController:
 
                 
         # Return data from directory (relevant for BUS_RD, BUS_RDX)
+        print("yo is this hit")
         return resp
 
     async def _send_dir_cmd_invalid(self) -> axi_request:
@@ -143,6 +144,7 @@ class CacheController:
         tag_addr: int = shifted_tag | cache_line.index
 
         if cache_line.tag != request_addr_tag:
+            print("tag misatch")
             if cache_line.state == MSIState.SHARED:
                 await self._send_dir_cmd(CoherenceCmd.EVICT_CLEAN, tag_addr, cache_line.data)
             elif cache_line.state == MSIState.MODIFIED:
