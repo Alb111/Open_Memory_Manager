@@ -196,5 +196,23 @@ add_pdn_connect \
     -grid sram_macro \
     -layers "$::env(PDN_VERTICAL_LAYER) $::env(PDN_HORIZONTAL_LAYER)"
 
+if { [info exists ::env(PDN_CORE_HORIZONTAL_LAYER)] } {
+    add_pdn_connect \
+        -grid sram_macro \
+        -layers "$::env(PDN_CORE_HORIZONTAL_LAYER) $::env(PDN_VERTICAL_LAYER)"
+}
+
+if { [info exists ::env(PDN_CORE_VERTICAL_LAYER)] } {
+    add_pdn_connect \
+        -grid sram_macro \
+        -layers "$::env(PDN_CORE_VERTICAL_LAYER) $::env(PDN_HORIZONTAL_LAYER)"
+}
+
+if { [info exists ::env(PDN_CORE_VERTICAL_LAYER)] && [info exists ::env(PDN_CORE_HORIZONTAL_LAYER)] } {
+    add_pdn_connect \
+        -grid sram_macro \
+        -layers "$::env(PDN_CORE_VERTICAL_LAYER) $::env(PDN_CORE_HORIZONTAL_LAYER)"
+}
+
 # SRAM instance-to-net pin mapping is configured via PDN_MACRO_CONNECTIONS in
 # config.yaml.
