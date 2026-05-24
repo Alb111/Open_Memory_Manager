@@ -182,16 +182,19 @@ if { $::env(PDN_CORE_RING) == 1 } {
     }
 }
 
+# Restrict macro PDN generation to SRAM cells only.
+# This avoids PDN failures from decorative/ID macros that may be intentionally
+# unplaced or abstracted at this stage.
 define_pdn_grid \
     -macro \
-    -default \
-    -name macro \
+    -name sram_macro \
+    -cells {gf180mcu_fd_ip_sram__sram512x8m8wm1} \
     -starts_with POWER \
     -halo "$::env(PDN_HORIZONTAL_HALO) $::env(PDN_VERTICAL_HALO)"
 
 add_pdn_connect \
-    -grid macro \
+    -grid sram_macro \
     -layers "$::env(PDN_VERTICAL_LAYER) $::env(PDN_HORIZONTAL_LAYER)"
 
-# SRAM macros are now instantiated inside mem_ctrl_2048x32
-# The default macro PDN grid (defined above) will handle power distribution
+# SRAM instance-to-net pin mapping is configured via PDN_MACRO_CONNECTIONS in
+# config.yaml.
