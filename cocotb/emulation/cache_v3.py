@@ -104,13 +104,13 @@ class CacheController:
         # print(req)
         # Send request to directory and get response
         
-        print("data sent to dir")
-        print(req)
+        # print("data sent to dir")
+        # print(req)
         resp: axi_request = await self.arbiter_port(req)
 
                 
         # Return data from directory (relevant for BUS_RD, BUS_RDX)
-        print("yo is this hit")
+        # print("yo is this hit")
         return resp
 
     async def _send_dir_cmd_invalid(self) -> axi_request:
@@ -144,7 +144,7 @@ class CacheController:
         tag_addr: int = shifted_tag | cache_line.index
 
         if cache_line.tag != request_addr_tag:
-            print("tag misatch")
+            # print("tag misatch")
             if cache_line.state == MSIState.SHARED:
                 await self._send_dir_cmd(CoherenceCmd.EVICT_CLEAN, tag_addr, cache_line.data)
             elif cache_line.state == MSIState.MODIFIED:
@@ -164,7 +164,7 @@ class CacheController:
         """
 
         if request.mem_valid == False:
-            print("invalid request")
+            # print("invalid request")
             await self._send_dir_cmd_invalid() # need something to send to arbiter
             return request
 
@@ -218,7 +218,7 @@ class CacheController:
         """
 
         if request.mem_valid == False:
-            print("invalid request")
+            # print("invalid request")
             await self._send_dir_cmd_invalid() # need something to send to arbiter
             return request
 
@@ -300,9 +300,9 @@ class CacheController:
         request.mem_wdata_or_msi_payload = line.data if tr.flush else 0
         
         # Update state (may invalidate or downgrade to SHARED)
-        print(f" line state before snoop is {line.state}")
+        # print(f" line state before snoop is {line.state}")
         line.state = tr.next_state
-        print(f" line state after snoop is {line.state}")
+        # print(f" line state after snoop is {line.state}")
         
         # Return flush data to directory
         request.mem_ready = True
@@ -374,8 +374,8 @@ class CacheController:
 
         """
         
-        print("=== core to cache ===")
-        print(request)
+        # print("=== core to cache ===")
+        # print(request)
 
         # CPU memory traffic: read or write
         if request.mem_wstrb == 0:
@@ -386,8 +386,8 @@ class CacheController:
             request = await self._handle_cpu_write(request)
 
 
-        print("=== cache to core ===")
-        print(request)
+        # print("=== cache to core ===")
+        # print(request)
         
         # Mark response as ready
         # request.mem_ready = True
@@ -425,9 +425,9 @@ class CacheController:
 
         for index, line in enumerate(self.lines):
             print(
-                f"  Cache{self.core_id} addr:{index}"
-                f" state={line.state.name:<8}|"
-                f" data=0x{line.data}"
+              f"  Cache{self.core_id} addr:{index}"
+              f" state={line.state.name:<8}|"
+              f" data=0x{line.data}"
             )
 
     def flush_all(self) -> None:

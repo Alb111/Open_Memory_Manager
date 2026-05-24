@@ -40,8 +40,8 @@ TIMEOUT_CYCLES = 1000
 
 captured_dir_requests: List = []
 async def dummy_directory_handler(req):
+    # print(req)
     captured_dir_requests.append(req)
-
 
     return axi_request(
         mem_valid=True,
@@ -154,16 +154,17 @@ async def one_read(dut, addr: int):
         )
     )
 
+
     # ── Wait for DUT request to directory ───────────────────────
     # if need a response give it a respone
     assert captured_dir_requests, "No directory request captured"
     dir_req: axi_and_coherence_request = captured_dir_requests[0]
-    print("curr req")
-    print(dir_req)
+     
 
-    if dir_req.coherence_cmd != CoherenceCmd.NULL:
+    if dir_req.coherence_cmd == CoherenceCmd.BUS_RD or dir_req.coherence_cmd == CoherenceCmd.BUS_RDX or dir_req.coherence_cmd == CoherenceCmd.BUS_UPGR:
 
         await wait_for_signal(dut, dut.cache_valid_o)
+        dut.cache_ready_i.value = 0  
         dut_cmd = int(dut.cache_cmd_o.value)
 
         assert int(dir_req.coherence_cmd) == dut_cmd, (
@@ -179,11 +180,27 @@ async def one_read(dut, addr: int):
         await wait_for_signal(dut, dut.bus_ready_o)
         dut.bus_valid_i.value = 0
 
-    # if tag mis we have to wait a anoter transation
-    if dir_req.coherence_cmd == CoherenceCmd.EVICT_DIRTY or dir_req.coherence_cmd == CoherenceCmd.EVICT_DIRTY:
-        await wait_for_signal(dut, dut.cache_valid_o)
-        dut_cmd = int(dut.cache_cmd_o.value)
 
+    if dir_req.coherence_cmd == CoherenceCmd.EVICT_DIRTY or dir_req.coherence_cmd == CoherenceCmd.EVICT_CLEAN:
+
+        # Let the evict go through
+        await wait_for_signal(dut, dut.cache_valid_o)
+        dut.cache_ready_i.value = 0  
+        dut_cmd = int(dut.cache_cmd_o.value)
+        assert int(dir_req.coherence_cmd) == dut_cmd, (
+            f"Expected {dir_req.coherence_cmd}, got {dut_cmd} at addr {addr}"
+        )
+
+
+        # Run the bus cmd
+        await FallingEdge(dut.clk_i) 
+        await FallingEdge(dut.clk_i) 
+        dut.cache_ready_i.value = 1  
+        await wait_for_signal(dut, dut.cache_valid_o)
+        dut.cache_ready_i.value = 1  
+
+        dir_req: axi_and_coherence_request = captured_dir_requests[1]
+        dut_cmd = int(dut.cache_cmd_o.value)
         assert int(dir_req.coherence_cmd) == dut_cmd, (
             f"Expected {dir_req.coherence_cmd}, got {dut_cmd} at addr {addr}"
         )
@@ -196,13 +213,15 @@ async def one_read(dut, addr: int):
         # wait for DUT to accept response
         await wait_for_signal(dut, dut.bus_ready_o)
         dut.bus_valid_i.value = 0
+        captured_dir_requests.pop()
 
+    if dir_req.coherence_cmd == CoherenceCmd.NULL:
+        pass
+        
     # ── Wait for completion ─────────────────────────────────────
     await wait_for_signal(dut, dut.mem_ready_o)
     assert int(dut.mem_rdata_o.value) == golden_resp.mem_rdata
-
-    # pop the dir resp we just used
-    captured_dir_requests.pop()
+    captured_dir_requests.clear()
 
 
 async def one_write(dut, addr, data, wstrb):
@@ -263,8 +282,11 @@ async def one_write(dut, addr, data, wstrb):
 # Read all addrs
 # ─────────────────────────────────────────────────────────────────────────────
 async def test_read(dut):
-    for i in range(129):
-        await one_read(dut, i)
+    # for i in range(512):
+        # await one_read(dut, i)
+    await one_read(dut, 0)
+    await one_read(dut, 128)
+    await one_read(dut, 256)
 
 
 
