@@ -79,7 +79,7 @@ GRT_RESIZER_HOLD_SLACK_MARGIN: 0.3
 
 # Increase for more logic
 # on your die
-PL_TARGET_DENSITY_PCT: 20
+PL_TARGET_DENSITY_PCT: 35
 GRT_ALLOW_CONGESTION: true
 
 # Fix antenna violations after DRT
@@ -153,8 +153,8 @@ MAGIC_GDS_FLATGLOB:
 KLAYOUT_FILLER_OPTIONS:
   Metal2_ignore_active: true
 
-# Because we have multiple power pads for one power domain
-MAGIC_EXT_UNIQUE: notopports
+# Preserve extracted port identity for LVS pin matching.
+MAGIC_EXT_UNIQUE: all
 
 MACROS:
   gf180mcu_ws_ip__id:
