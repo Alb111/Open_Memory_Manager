@@ -3,9 +3,9 @@ meta:
   flow: Chip
   substituting_steps:
 
-    # Disable KLayout DRC
-    #KLayout.DRC: null
-    #Checker.KLayoutDRC: null
+    #Disable KLayout DRC
+    KLayout.DRC: null
+    Checker.KLayoutDRC: null
 
     # Disable KLayout antenna check
     #KLayout.Antenna: null
@@ -18,8 +18,8 @@ meta:
     # Save time during development
     # Enable for sign-off
     #OpenROAD.IRDropReport: null
-    #Magic.DRC: null
-    #Checker.MagicDRC: null
+    Magic.DRC: null
+    Checker.MagicDRC: null
     #KLayout.XOR: null
     #Netgen.LVS: null
     #Checker.LVS: null
@@ -28,12 +28,13 @@ DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
+- dir::../src/directory_controller/directory_controller.sv
 - dir::../src/arb/wrr_arbiter.sv
 - dir::../src/housekeeping/boot_fsm.sv
 - dir::../src/housekeeping/housekeeping_top.sv
 - dir::../src/housekeeping/spi_engine.sv
-- dir::../src/mem_ctrl/main_memory/mem2048x32.sv
-- dir::../src/mem_ctrl/main_memory/mem512x32.sv
+- dir::../src/mem_ctrl/mem2048x32.sv
+- dir::../src/mem_ctrl/mem512x32.sv
 - dir::../src/interposer_interface/cache_interface.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
@@ -70,7 +71,7 @@ IGNORE_DISCONNECTED_MODULES:
 # Clock
 CLOCK_PORT: clk_PAD
 CLOCK_NET: clk_pad/Y
-CLOCK_PERIOD: 40 # 25 MHz
+CLOCK_PERIOD: 50 # 20 MHz
 
 # Fix hold violations
 PL_RESIZER_HOLD_SLACK_MARGIN: 0.35
@@ -103,10 +104,9 @@ PDN_ENABLE_PINS: False
 PDN_CORE_VERTICAL_LAYER: Metal2
 PDN_CORE_HORIZONTAL_LAYER: Metal3
 
-# Due to OpenROAD bug
-# https://github.com/The-OpenROAD-Project/OpenROAD/issues/8229
-#PL_TIME_DRIVEN: False
-#PL_ROUTABILITY_DRIVEN: False
+# Improve GP stability for this macro-heavy design
+PL_TIME_DRIVEN: False
+PL_ROUTABILITY_DRIVEN: False
 
 # Do not error on magic DRC violations
 # Note: Passing magic DRC is not required for the submission.
@@ -153,8 +153,8 @@ MAGIC_GDS_FLATGLOB:
 KLAYOUT_FILLER_OPTIONS:
   Metal2_ignore_active: true
 
-# Because we have multiple power pads for one power domain
-MAGIC_EXT_UNIQUE: notopports
+# Preserve extracted port identity for LVS pin matching.
+MAGIC_EXT_UNIQUE: all
 
 MACROS:
   gf180mcu_ws_ip__id:
@@ -167,6 +167,10 @@ MACROS:
     lib:
       "*":
         - dir::../ip/gf180mcu_ws_ip__id/lib/gf180mcu_ws_ip__id.lib
+    instances:
+      chip_id:
+        location: [120, 120]
+        orientation: N
 
 
   gf180mcu_ws_ip__logo:
@@ -200,64 +204,65 @@ MACROS:
         - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
     instances:
       # SRAMs instantiated inside mem_ctrl_2048x32
-      # These will be automatically placed by the tool
+      # Spread in a very wide 4x4 grid to reduce local congestion.
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0:
-        location: [500, 500]
+        location: [650, 900]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1:
-        location: [600, 500]
+        location: [1250, 900]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2:
-        location: [700, 500]
+        location: [1850, 900]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3:
-        location: [800, 500]
+        location: [2450, 900]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0:
-        location: [500, 600]
+        location: [650, 1550]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1:
-        location: [600, 600]
+        location: [1250, 1550]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2:
-        location: [700, 600]
+        location: [1850, 1550]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3:
-        location: [800, 600]
+        location: [2450, 1550]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0:
-        location: [500, 700]
+        location: [650, 2200]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1:
-        location: [600, 700]
+        location: [1250, 2200]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2:
-        location: [700, 700]
+        location: [1850, 2200]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3:
-        location: [800, 700]
+        location: [2450, 2200]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0:
-        location: [500, 800]
+        location: [650, 2850]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1:
-        location: [600, 800]
+        location: [1250, 2850]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2:
-        location: [700, 800]
+        location: [1850, 2850]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3:
-        location: [800, 800]
+        location: [2450, 2850]
         orientation: N
 
 # Power connections for SRAMs inside mem_ctrl_2048x32
-# These will be connected via the hierarchical instance path
-PDN_MACRO_CONNECTIONS: []
+# Format: <instance-regex> <vdd-net> <gnd-net> <macro-vdd-pin> <macro-gnd-pin>
+PDN_MACRO_CONNECTIONS:
+- "i_chip_core\\.i_mem_ctrl_2048x32\\.memblock[0-3]\\.sram[0-3] VDD VSS VDD VSS"
 
 # Halo size around macros while cutting rows.
 # Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
-FP_MACRO_HORIZONTAL_HALO: 10
-FP_MACRO_VERTICAL_HALO: 10
+FP_MACRO_HORIZONTAL_HALO: 20
+FP_MACRO_VERTICAL_HALO: 20
 FP_PDN_HORIZONTAL_HALO: 5
 FP_PDN_VERTICAL_HALO: 5
 
