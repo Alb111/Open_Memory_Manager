@@ -182,37 +182,63 @@ if { $::env(PDN_CORE_RING) == 1 } {
     }
 }
 
-# Restrict macro PDN generation to SRAM cells only.
-# This avoids PDN failures from decorative/ID macros that may be intentionally
-# unplaced or abstracted at this stage.
+set sram_macros_NS [list \
+    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2 \
+    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3 \
+]
+
+# SRAM macros. All configured SRAM instances are north-oriented.
 define_pdn_grid \
     -macro \
-    -name sram_macro \
-    -cells {gf180mcu_fd_ip_sram__sram512x8m8wm1} \
+    -instances $sram_macros_NS \
+    -name sram_macros_NS \
     -starts_with POWER \
     -halo "$::env(PDN_HORIZONTAL_HALO) $::env(PDN_VERTICAL_HALO)"
 
 add_pdn_connect \
-    -grid sram_macro \
+    -grid sram_macros_NS \
     -layers "$::env(PDN_VERTICAL_LAYER) $::env(PDN_HORIZONTAL_LAYER)"
 
-if { [info exists ::env(PDN_CORE_HORIZONTAL_LAYER)] } {
-    add_pdn_connect \
-        -grid sram_macro \
-        -layers "$::env(PDN_CORE_HORIZONTAL_LAYER) $::env(PDN_VERTICAL_LAYER)"
-}
+add_pdn_connect \
+    -grid sram_macros_NS \
+    -layers "$::env(PDN_VERTICAL_LAYER) Metal3"
 
-if { [info exists ::env(PDN_CORE_VERTICAL_LAYER)] } {
-    add_pdn_connect \
-        -grid sram_macro \
-        -layers "$::env(PDN_CORE_VERTICAL_LAYER) $::env(PDN_HORIZONTAL_LAYER)"
-}
+# Add stripes on W/E edges of SRAM.
+add_pdn_stripe \
+    -grid sram_macros_NS \
+    -layer Metal4 \
+    -width 2.36 \
+    -offset 1.18 \
+    -spacing 0.28 \
+    -pitch 426.86 \
+    -starts_with GROUND \
+    -number_of_straps 2
 
-if { [info exists ::env(PDN_CORE_VERTICAL_LAYER)] && [info exists ::env(PDN_CORE_HORIZONTAL_LAYER)] } {
-    add_pdn_connect \
-        -grid sram_macro \
-        -layers "$::env(PDN_CORE_VERTICAL_LAYER) $::env(PDN_CORE_HORIZONTAL_LAYER)"
-}
+# Since the above stripes block the top level PDN at Metal4, add some more
+# stripes to improve the PDN's integrity and ensure better macro connections.
+add_pdn_stripe \
+    -grid sram_macros_NS \
+    -layer Metal4 \
+    -width 4.00 \
+    -offset 65.93 \
+    -spacing 0.28 \
+    -pitch 50 \
+    -starts_with GROUND \
+    -number_of_straps 7
 
 # SRAM instance-to-net pin mapping is configured via PDN_MACRO_CONNECTIONS in
 # config.yaml.
