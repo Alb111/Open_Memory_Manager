@@ -3,11 +3,11 @@ name: CI
 # Events that trigger the workflow
 on:
   # Runs on all pushes to branches
-  # push:
-  #   branches:
-  #     - "**"
-  #   tags-ignore:
-  #     - "**"
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "**"
   # Runs on all PRs
   pull_request:
   # Manual Dispatch
@@ -89,7 +89,6 @@ jobs:
         if: success() || failure()
         run: |
           nix develop --command make librelane
-          make copy-final
           nix develop --command make render-image
       - name: Create summary
         if: success() || failure()
