@@ -84,7 +84,7 @@ GRT_ALLOW_CONGESTION: true
 
 # Fix antenna violations after DRT
 DRT_ANTENNA_REPAIR_ITERS: 10
-DRT_ANTENNA_MARGIN: 10 # %
+DRT_ANTENNA_REPAIR_MARGIN: 10 # %
 
 # PDN - Straps
 PDN_VWIDTH: 5
@@ -204,54 +204,54 @@ MACROS:
         - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
     instances:
       # SRAMs instantiated inside mem_ctrl_2048x32
-      # Spread in a very wide 4x4 grid to reduce local congestion.
+      # Spread across the core in a wide 4x4 grid to reduce local congestion.
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0:
-        location: [650, 900]
+        location: [470, 520]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1:
-        location: [1250, 900]
+        location: [1325, 520]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2:
-        location: [1850, 900]
+        location: [2180, 520]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3:
-        location: [2450, 900]
+        location: [3030, 520]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0:
-        location: [650, 1550]
+        location: [470, 1740]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1:
-        location: [1250, 1550]
+        location: [1325, 1740]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2:
-        location: [1850, 1550]
+        location: [2180, 1740]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3:
-        location: [2450, 1550]
+        location: [3030, 1740]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0:
-        location: [650, 2200]
+        location: [470, 2960]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1:
-        location: [1250, 2200]
+        location: [1325, 2960]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2:
-        location: [1850, 2200]
+        location: [2180, 2960]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3:
-        location: [2450, 2200]
+        location: [3030, 2960]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0:
-        location: [650, 2850]
+        location: [470, 4170]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1:
-        location: [1250, 2850]
+        location: [1325, 4170]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2:
-        location: [1850, 2850]
+        location: [2180, 4170]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3:
-        location: [2450, 2850]
+        location: [3030, 4170]
         orientation: N
 
 # Power connections for SRAMs inside mem_ctrl_2048x32
@@ -263,8 +263,8 @@ PDN_MACRO_CONNECTIONS:
 # Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
 FP_MACRO_HORIZONTAL_HALO: 20
 FP_MACRO_VERTICAL_HALO: 20
-FP_PDN_HORIZONTAL_HALO: 5
-FP_PDN_VERTICAL_HALO: 5
+PDN_HORIZONTAL_HALO: 5
+PDN_VERTICAL_HALO: 5
 
 PDN_CFG: dir::pdn_cfg.tcl
 
