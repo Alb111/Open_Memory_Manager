@@ -204,60 +204,75 @@ MACROS:
         - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
     instances:
       # SRAMs instantiated inside mem_ctrl_2048x32
-      # Spread across the core in a wide 4x4 grid to reduce local congestion.
+      # Keep them in a centered 4x4 grid with routing channels between macros.
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0:
-        location: [470, 520]
+        location: [620, 720]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1:
-        location: [1325, 520]
+        location: [1375, 720]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2:
-        location: [2180, 520]
+        location: [2130, 720]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3:
-        location: [3030, 520]
+        location: [2885, 720]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0:
-        location: [470, 1740]
+        location: [620, 1805]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1:
-        location: [1325, 1740]
+        location: [1375, 1805]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2:
-        location: [2180, 1740]
+        location: [2130, 1805]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3:
-        location: [3030, 1740]
+        location: [2885, 1805]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0:
-        location: [470, 2960]
+        location: [620, 2890]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1:
-        location: [1325, 2960]
+        location: [1375, 2890]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2:
-        location: [2180, 2960]
+        location: [2130, 2890]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3:
-        location: [3030, 2960]
+        location: [2885, 2890]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0:
-        location: [470, 4170]
+        location: [620, 3975]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1:
-        location: [1325, 4170]
+        location: [1375, 3975]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2:
-        location: [2180, 4170]
+        location: [2130, 3975]
         orientation: N
       i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3:
-        location: [3030, 4170]
+        location: [2885, 3975]
         orientation: N
 
 # Power connections for SRAMs inside mem_ctrl_2048x32
 # Format: <instance-regex> <vdd-net> <gnd-net> <macro-vdd-pin> <macro-gnd-pin>
 PDN_MACRO_CONNECTIONS:
-- "i_chip_core\\.i_mem_ctrl_2048x32\\.memblock[0-3]\\.sram[0-3] VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3 VDD VSS VDD VSS"
 
 # Halo size around macros while cutting rows.
 # Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
