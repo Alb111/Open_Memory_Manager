@@ -158,41 +158,6 @@ module chip_core #(
     assign bidir_out = bidir_out_int;
     assign bidir_oe = bidir_oe_int;
 
-    mmio i_mmio (
-        .clk_i      (clk),
-        .rst_ni     (rst_n),
-        .addr_i     (32'h8000_0010),
-        .wr_data_i  (32'h0),
-        .wr_en_i    (1'b0),
-        .rd_data_o  (mmio_rd_data),
-        .gpio_pins_o(mmio_gpio_pins_o),
-        .gpio_pins_i(mmio_gpio_pins_i),
-        .gpio_dir_o (mmio_gpio_dir_o)
-    );
-
-    sp_addr_handler i_sp_addr_handler (
-        .clk_i          (clk),
-        .rst_ni         (rst_n),
-        .mem_valid      (1'b0),
-        .mem_ready      (sp_mem_ready),
-        .mem_addr       (32'h0),
-        .mem_wdata      (32'h0),
-        .mem_wstrb      (4'h0),
-        .mem_rdata      (sp_mem_rdata),
-        .pass_mem_valid (sp_pass_mem_valid),
-        .pass_mem_ready (1'b1),
-        .pass_mem_addr  (sp_pass_mem_addr),
-        .pass_mem_wdata (sp_pass_mem_wdata),
-        .pass_mem_wstrb (sp_pass_mem_wstrb),
-        .pass_mem_rdata (32'h0),
-        .flush_ready_i  (1'b1),
-        .flush_addr_o   (sp_flush_addr),
-        .flush_valid_o  (sp_flush_valid),
-        .gpio_pins_o    (),
-        .gpio_pins_i    (8'h00),
-        .gpio_dir_o     (),
-        .cpu_id_i       (8'h00)
-    );
 
     wrr_arbiter #(
         .NUM_REQ    (2),
