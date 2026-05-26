@@ -7,7 +7,7 @@ PDK_ROOT ?= $(MAKEFILE_DIR)/gf180mcu
 PDK ?= gf180mcuD
 PDK_TAG ?= 1.8.0
 
-AVAILABLE_SLOTS = 1x1 0p5x1 1x0p5 0p5x0p5
+AVAILABLE_SLOTS = 1x1
 DEFAULT_SLOT = 1x1
 
 # Slot can be any of AVAILABLE_SLOTS
@@ -100,8 +100,6 @@ mem-wave: ## View simulation waveforms for mem
 wave: ## TODO: make better name later
 	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
 .PHONY: wave
-
-
 
 test-arb: ## Run all cocotb tests on wrr arbiter
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_tb.py
