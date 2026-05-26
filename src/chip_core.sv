@@ -36,6 +36,14 @@ module chip_core #(
 );
 
     localparam int SER_PINS = 9;
+    localparam int PIN_BOOT_MISO = 0;
+    localparam int PIN_DEBUG_MODE = 1;
+    localparam int PIN_DFT_IN = 2;
+    localparam int PIN_TRAP_LED = 0;
+    localparam int PIN_BOOT_SCLK = 1;
+    localparam int PIN_BOOT_MOSI = 2;
+    localparam int PIN_BOOT_CS = 3;
+    localparam int PIN_DFT_OUT = 4;
 
     assign input_pu = '0;
     assign input_pd = '0;
@@ -45,11 +53,6 @@ module chip_core #(
     assign bidir_ie = ~bidir_oe;
     assign bidir_pu = '0;
     assign bidir_pd = '0;
-
-    logic [31:0] mmio_rd_data;
-    logic [7:0]  mmio_gpio_pins_o;
-    logic [7:0]  mmio_gpio_pins_i;
-    logic [7:0]  mmio_gpio_dir_o;
 
     logic [1:0] arb_req;
     logic [1:0] arb_grant;
@@ -98,15 +101,26 @@ module chip_core #(
     logic [0:0]  mem_valid_i;
     logic [0:0]  mem_instr_i;
     logic [0:0]  mem_ready_o;
+    logic [31:0] mem_addr_i;
+    logic [31:0] mem_wdata_i;
+    logic [3:0]  mem_wstrb_i;
 
-    logic        sp_mem_ready;
-    logic [31:0] sp_mem_rdata;
-    logic        sp_pass_mem_valid;
-    logic [31:0] sp_pass_mem_addr;
-    logic [31:0] sp_pass_mem_wdata;
-    logic [3:0]  sp_pass_mem_wstrb;
-    logic [31:0] sp_flush_addr;
-    logic        sp_flush_valid;
+    logic        boot_mem_valid;
+    logic        boot_mem_instr;
+    logic [31:0] boot_mem_addr;
+    logic [31:0] boot_mem_wdata;
+    logic [3:0]  boot_mem_wstrb;
+    logic        boot_spi_sck;
+    logic        boot_spi_mosi;
+    logic        boot_flash_csb;
+    logic        boot_done;
+    logic        cores_en;
+    logic        debug_mode;
+    logic        core_mem_select;
+    logic        core_rst_n;
+    logic        trap_led;
+    logic        dft_in;
+    logic        dft_out;
 
     logic        ts_ready;
     logic        ts_req;
@@ -126,73 +140,66 @@ module chip_core #(
     logic [NUM_BIDIR_PADS-1:0] bidir_out_int;
     logic [NUM_BIDIR_PADS-1:0] bidir_oe_int;
 
-    always_comb begin
-        mmio_gpio_pins_i = '0;
-        for (int i = 0; i < 8; i++) begin
-            if (i < NUM_BIDIR_PADS) begin
-                mmio_gpio_pins_i[i] = bidir_in[i];
-            end
-        end
-    end
+    assign debug_mode = input_in[PIN_DEBUG_MODE];
+    assign dft_in = input_in[PIN_DFT_IN];
+    assign dft_out = dft_in;
+    assign trap_led = 1'b0;
+    assign core_mem_select = debug_mode | boot_done;
+    assign core_rst_n = rst_n & (debug_mode | cores_en);
+
     assign arb_req = {c1_bus_valid, c0_bus_valid};
     assign c0_serial_rx = c1_serial_tx;
     assign c1_serial_rx = c0_serial_tx;
     assign c0_req_rx = c1_req_tx;
     assign c1_req_rx = c0_req_tx;
 
-    assign mem_valid_i = dir_mem_valid;
-    assign mem_instr_i = dir_mem_instr;
-    assign dir_mem_ready = mem_ready_o[0];
+    assign mem_valid_i = core_mem_select ? dir_mem_valid : boot_mem_valid;
+    assign mem_instr_i = core_mem_select ? dir_mem_instr : boot_mem_instr;
+    assign mem_addr_i = core_mem_select ? dir_mem_addr : boot_mem_addr;
+    assign mem_wdata_i = core_mem_select ? dir_mem_wdata : boot_mem_wdata;
+    assign mem_wstrb_i = core_mem_select ? dir_mem_wstrb : boot_mem_wstrb;
+    assign dir_mem_ready = core_mem_select ? mem_ready_o[0] : 1'b0;
 
     always_comb begin
         bidir_out_int = '0;
         bidir_oe_int = '0;
-        for (int i = 0; i < NUM_BIDIR_PADS; i++) begin
-            if (i < 8) begin
-                bidir_out_int[i] = mmio_gpio_pins_o[i];
-                bidir_oe_int[i] = mmio_gpio_dir_o[i];
-            end
-        end
+
+        bidir_out_int[PIN_TRAP_LED] = trap_led;
+        bidir_oe_int[PIN_TRAP_LED] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_SCLK] = boot_spi_sck;
+        bidir_oe_int[PIN_BOOT_SCLK] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_MOSI] = boot_spi_mosi;
+        bidir_oe_int[PIN_BOOT_MOSI] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_CS] = boot_flash_csb;
+        bidir_oe_int[PIN_BOOT_CS] = 1'b1;
+
+        bidir_out_int[PIN_DFT_OUT] = dft_out;
+        bidir_oe_int[PIN_DFT_OUT] = 1'b1;
     end
 
     assign bidir_out = bidir_out_int;
     assign bidir_oe = bidir_oe_int;
 
-    mmio i_mmio (
-        .clk_i      (clk),
-        .rst_ni     (rst_n),
-        .addr_i     (32'h8000_0010),
-        .wr_data_i  (32'h0),
-        .wr_en_i    (1'b0),
-        .rd_data_o  (mmio_rd_data),
-        .gpio_pins_o(mmio_gpio_pins_o),
-        .gpio_pins_i(mmio_gpio_pins_i),
-        .gpio_dir_o (mmio_gpio_dir_o)
+    housekeeping_top i_housekeeping_top (
+        .clk_i          (clk),
+        .reset_ni       (rst_n),
+        .spi_sck_o      (boot_spi_sck),
+        .spi_mosi_o     (boot_spi_mosi),
+        .spi_miso_i     (input_in[PIN_BOOT_MISO]),
+        .flash_csb_o    (boot_flash_csb),
+        .pass_thru_en_i (debug_mode),
+        .mem_valid_o    (boot_mem_valid),
+        .mem_addr_o     (boot_mem_addr),
+        .mem_wdata_o    (boot_mem_wdata),
+        .mem_wstrb_o    (boot_mem_wstrb),
+        .mem_instr_o    (boot_mem_instr),
+        .cores_en_o     (cores_en),
+        .boot_done_o    (boot_done)
     );
 
-    sp_addr_handler i_sp_addr_handler (
-        .clk_i          (clk),
-        .rst_ni         (rst_n),
-        .mem_valid      (1'b0),
-        .mem_ready      (sp_mem_ready),
-        .mem_addr       (32'h0),
-        .mem_wdata      (32'h0),
-        .mem_wstrb      (4'h0),
-        .mem_rdata      (sp_mem_rdata),
-        .pass_mem_valid (sp_pass_mem_valid),
-        .pass_mem_ready (1'b1),
-        .pass_mem_addr  (sp_pass_mem_addr),
-        .pass_mem_wdata (sp_pass_mem_wdata),
-        .pass_mem_wstrb (sp_pass_mem_wstrb),
-        .pass_mem_rdata (32'h0),
-        .flush_ready_i  (1'b1),
-        .flush_addr_o   (sp_flush_addr),
-        .flush_valid_o  (sp_flush_valid),
-        .gpio_pins_o    (),
-        .gpio_pins_i    (8'h00),
-        .gpio_dir_o     (),
-        .cpu_id_i       (8'h00)
-    );
 
     wrr_arbiter #(
         .NUM_REQ    (2),
@@ -200,7 +207,7 @@ module chip_core #(
         .WEIGHTS    ({3'd1, 3'd1})
     ) i_wrr_arbiter (
         .clk_i      (clk),
-        .rst_ni     (rst_n),
+        .rst_ni     (core_rst_n),
         .req_i      (arb_req),
         .grant_o    (arb_grant),
         .req_o      (arb_req_passthrough)
@@ -211,7 +218,7 @@ module chip_core #(
         .NUM_RPINS  (SER_PINS)
     ) i_directory_interface_0 (
         .clk_i          (clk),
-        .rst_ni         (rst_n),
+        .rst_ni         (core_rst_n),
         .bus_valid_o    (c0_bus_valid),
         .bus_addr_o     (c0_bus_addr),
         .bus_wdata_o    (c0_bus_wdata),
@@ -241,7 +248,7 @@ module chip_core #(
         .NUM_RPINS  (SER_PINS)
     ) i_directory_interface_1 (
         .clk_i          (clk),
-        .rst_ni         (rst_n),
+        .rst_ni         (core_rst_n),
         .bus_valid_o    (c1_bus_valid),
         .bus_addr_o     (c1_bus_addr),
         .bus_wdata_o    (c1_bus_wdata),
@@ -275,7 +282,7 @@ module chip_core #(
         .MSG_LEN_3  (68)
     ) i_t_serializer (
         .clk_i      (clk),
-        .rst_ni     (rst_n),
+        .rst_ni     (core_rst_n),
         .valid_i    (1'b0),
         .data_in    (72'h0),
         .msg_type   (2'b00),
@@ -289,7 +296,7 @@ module chip_core #(
         .MAX_MSG_LEN(68)
     ) i_r_serializer (
         .clk_i      (clk),
-        .rst_ni     (rst_n),
+        .rst_ni     (core_rst_n),
         .serial_i   (ts_serial),
         .req_i      (ts_req),
         .valid_o    (rs_valid),
@@ -299,7 +306,7 @@ module chip_core #(
 
     directory_controller i_directory_controller (
         .clk_i             (clk),
-        .rst_ni            (rst_n),
+        .rst_ni            (core_rst_n),
         .c0_bus_valid_i    (c0_bus_valid),
         .c0_bus_addr_i     (c0_bus_addr),
         .c0_bus_wdata_i    (c0_bus_wdata),
@@ -342,9 +349,9 @@ module chip_core #(
         .rst_ni       (rst_n),
         .mem_valid_i  (mem_valid_i),
         .mem_instr_i  (mem_instr_i),
-        .mem_addr_i   (dir_mem_addr),
-        .mem_wdata_i  (dir_mem_wdata),
-        .mem_wstrb_i  (dir_mem_wstrb),
+        .mem_addr_i   (mem_addr_i),
+        .mem_wdata_i  (mem_wdata_i),
+        .mem_wstrb_i  (mem_wstrb_i),
         .mem_rdata_o  (dir_mem_rdata),
         .mem_ready_o  (mem_ready_o)
         `ifdef USE_POWER_PINS
@@ -354,9 +361,7 @@ module chip_core #(
     );
 
     logic _unused;
-    assign _unused = &{input_in, analog, bidir_in, mmio_rd_data[0], arb_grant, arb_req_passthrough,
-                       sp_mem_ready, sp_mem_rdata[0], sp_pass_mem_valid, sp_pass_mem_addr[0],
-                       sp_pass_mem_wdata[0], sp_pass_mem_wstrb[0], sp_flush_addr[0], sp_flush_valid,
+    assign _unused = &{input_in, analog, bidir_in, arb_grant, arb_req_passthrough,
                        ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
 
 endmodule

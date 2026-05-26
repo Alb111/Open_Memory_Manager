@@ -40,8 +40,6 @@ VERILOG_FILES:
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv
 - dir::../src/interposer_interface/tserializer.sv
-- dir::../src/mmio/mmio.sv
-- dir::../src/mmio/sp_addr_handler.sv
 
 # Enable plugin for better SystemVerilog support
 USE_SLANG: True
@@ -83,6 +81,8 @@ PL_TARGET_DENSITY_PCT: 35
 GRT_ALLOW_CONGESTION: true
 
 # Fix antenna violations after DRT
+GRT_ANTENNA_REPAIR_ITERS: 10
+GRT_ANTENNA_REPAIR_MARGIN: 25 # %
 DRT_ANTENNA_REPAIR_ITERS: 10
 DRT_ANTENNA_REPAIR_MARGIN: 10 # %
 
