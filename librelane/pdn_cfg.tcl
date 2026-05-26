@@ -238,7 +238,4 @@ add_pdn_stripe \
     -spacing 0.28 \
     -pitch 50 \
     -starts_with GROUND \
-    -number_of_straps 7
-
-# SRAM instance-to-net pin mapping is configured via PDN_MACRO_CONNECTIONS in
-# config.yaml.
+    -number_of_straps 9
