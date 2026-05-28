@@ -169,7 +169,7 @@ MACROS:
         - dir::../ip/gf180mcu_ws_ip__id/lib/gf180mcu_ws_ip__id.lib
     instances:
       chip_id:
-        location: [120, 120]
+        location: [26, 26]
         orientation: N
 
 

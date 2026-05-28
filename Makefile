@@ -101,8 +101,6 @@ wave: ## TODO: make better name later
 	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
 .PHONY: wave
 
-
-
 test-arb: ## Run all cocotb tests on wrr arbiter
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_tb.py
 .PHONY: test-arb
