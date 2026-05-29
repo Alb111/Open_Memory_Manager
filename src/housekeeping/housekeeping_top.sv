@@ -24,7 +24,9 @@ module housekeeping_top #(
     
    //core control
    output logic cores_en_o,
-   output logic boot_done_o
+   output logic boot_done_o,
+
+   output logic whoami_pulse_o
 );
    
    // wires between spi and fsm
@@ -35,17 +37,21 @@ module housekeeping_top #(
    logic [7:0] spi_data_in;
 
    // internal wires from boot_fsm to mem controller adapter
-    logic boot_wr_en;
-    logic [31:0] boot_addr;
-    logic [31:0] boot_data;
+   logic boot_wr_en;
+   logic [31:0] boot_addr;
+   logic [31:0] boot_data;
 
-    //boot_fsm signals to memory controller interface
-    assign mem_valid_o = boot_wr_en;
-    assign mem_addr_o = boot_addr;
-    assign mem_wdata_o = boot_data;
-    assign mem_wstrb_o = boot_wr_en ? 4'b1111 : 4'b0000;
-    assign mem_instr_o = 1'b0;
-      
+   logic boot_started;
+   logic boot_started_prev;
+   logic whoami_pulse;
+
+   //boot_fsm signals to memory controller interface
+   assign mem_valid_o = boot_wr_en;
+   assign mem_addr_o = boot_addr;
+   assign mem_wdata_o = boot_data;
+   assign mem_wstrb_o = boot_wr_en ? 4'b1111 : 4'b0000;
+   assign mem_instr_o = 1'b0;
+
    // spi engine
    spi_engine spi_master (
       .clk_i(clk_i),
@@ -77,7 +83,18 @@ module housekeeping_top #(
       .sram_addr_o(boot_addr),
       .sram_data_o(boot_data),
       .cores_en_o(cores_en_o),
-      .boot_done_o(boot_done_o)
+      .boot_done_o(boot_done_o),
+      .boot_started_o(boot_started)
    );
+
+   always_ff @(posedge clk_i) begin
+      if (!reset_ni)
+         boot_started_prev <= 1'b0;
+      else
+         boot_started_prev <= boot_started;
+   end
+
+   assign whoami_pulse = boot_started && !boot_started_prev;
+   assign whoami_pulse_o = whoami_pulse;
 
 endmodule

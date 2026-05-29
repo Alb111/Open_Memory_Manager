@@ -34,6 +34,7 @@ module boot_flash_wrapper #(
     wire sram_wr_en;
     wire [31:0] sram_addr;
     wire [31:0] sram_data;
+    wire whoami_pulse;
 
     //boot DUT
     housekeeping_top #(
@@ -53,7 +54,8 @@ module boot_flash_wrapper #(
         .mem_wstrb_o    (),              // not needed in boot_wrapper
         .mem_instr_o    (),              // not needed in boot_wrapper
         .cores_en_o     (cores_en_o),
-        .boot_done_o    (boot_done_o)
+        .boot_done_o    (boot_done_o),
+        .whoami_pulse_o (whoami_pulse)
     );
 
     assign sram_wr_en_o = sram_wr_en;

@@ -360,6 +360,141 @@ async def test_reset_mid_transaction(dut):
  
     print("\n  *** PASS — FSM recovered cleanly from mid-transaction reset")
 
+
+#test 6 — whoami_pulse fires exactly once at the start of boot
+@cocotb.test()
+async def test_whoami_pulse_timing(dut):
+    print("\n=== TEST 6: whoami_pulse fires once at boot start ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
+    pulse_count        = 0
+    pulse_cycle        = None
+    boot_done_cycle    = None
+    timed_out          = False
+    cycle              = 0
+
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        cycle += 1
+
+        whoami = dut.dut.whoami_pulse_o.value
+        if whoami.is_resolvable and int(whoami) == 1:
+            pulse_count += 1
+            if pulse_cycle is None:
+                pulse_cycle = cycle
+                print(f"  whoami_pulse fired at cycle {cycle}")
+
+        if dut.boot_done_o.value == 1:
+            boot_done_cycle = cycle
+            break
+    else:
+        timed_out = True
+
+    assert not timed_out, "boot_done never asserted"
+    assert pulse_count == 1, \
+        (f"whoami_pulse fired {pulse_count} times — expected exactly 1. "
+         f"It must be a single one-cycle pulse.")
+    assert pulse_cycle is not None, \
+        "whoami_pulse never fired"
+
+    cycles_before_boot_done = boot_done_cycle - pulse_cycle
+    print(f"  pulse at cycle {pulse_cycle}, boot_done at cycle {boot_done_cycle}")
+    print(f"  cycles between pulse and boot_done: {cycles_before_boot_done}")
+    print(f"  (directory interface has {cycles_before_boot_done} cycles to process WhoAmI)")
+
+    assert cycles_before_boot_done > 1000, \
+        (f"whoami_pulse fired only {cycles_before_boot_done} cycles before boot_done. "
+         f"Expected it to fire near the START of boot, not the end. "
+         f"Check boot_started_o logic in boot_fsm.sv.")
+
+    assert pulse_cycle <= 500, \
+        (f"whoami_pulse fired at cycle {pulse_cycle} — expected within first 500 cycles. "
+         f"Should fire at the very start of boot.")
+
+    print(f"\n  *** PASS — whoami_pulse fired once at cycle {pulse_cycle}, "
+          f"{cycles_before_boot_done} cycles before boot_done")
+
+
+#test 7 — whoami_pulse does not fire during reset
+@cocotb.test()
+async def test_whoami_pulse_no_fire_during_reset(dut):
+    print("\n=== TEST 7: whoami_pulse stays low during reset ===")
+    start_clock(dut)
+    dut.reset_ni.value       = 0
+    dut.pass_thru_en_i.value = 0
+
+    spurious_pulses = 0
+    for _ in range(100):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        whoami = dut.dut.whoami_pulse_o.value
+        if whoami.is_resolvable and int(whoami) == 1:
+            spurious_pulses += 1
+
+    print(f"  whoami_pulse pulses during reset: {spurious_pulses}  (expected 0)")
+    assert spurious_pulses == 0, \
+        "whoami_pulse fired during reset — must stay low while reset_ni=0"
+
+    print("  *** PASS — whoami_pulse correctly suppressed during reset")
+
+
+#test 8 — boot_started_o goes high on first cycle out of IDLE
+@cocotb.test()
+async def test_boot_started_timing(dut):
+    print("\n=== TEST 8: boot_started_o timing ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
+    boot_started_cycle  = None
+    boot_started_drops  = 0
+    prev_started        = 0
+    timed_out           = False
+    cycle               = 0
+
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        cycle += 1
+
+        started = dut.dut.boot_controller.boot_started_o.value   # housekeeping -> boot_fsm instance
+        if not started.is_resolvable:
+            prev_started = 0
+            continue
+
+        curr_started = int(started)
+
+        if curr_started == 1 and prev_started == 0:
+            if boot_started_cycle is None:
+                boot_started_cycle = cycle
+                print(f"  boot_started_o went high at cycle {cycle}")
+
+        if boot_started_cycle is not None and curr_started == 0:
+            boot_started_drops += 1
+            print(f"  WARNING: boot_started_o dropped at cycle {cycle}")
+
+        prev_started = curr_started
+
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+
+    assert not timed_out, "boot_done never asserted"
+    assert boot_started_cycle is not None, \
+        "boot_started_o never went high"
+    assert boot_started_cycle <= 10, \
+        (f"boot_started_o went high at cycle {boot_started_cycle} — "
+         f"expected within first 10 cycles after reset release. "
+         f"FSM should leave IDLE immediately.")
+    assert boot_started_drops == 0, \
+        (f"boot_started_o dropped {boot_started_drops} time(s) during boot. "
+         f"FSM may have unexpectedly returned to IDLE.")
+
+    print(f"  boot_started_o went high at cycle {boot_started_cycle} ✓")
+    print(f"  boot_started_o stayed high continuously until boot_done ✓")
+    print("\n  *** PASS — boot_started_o timing correct")
+
+
  
 # runner
 def boot_ctrl_runner():
