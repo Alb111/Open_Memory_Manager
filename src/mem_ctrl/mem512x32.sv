@@ -17,6 +17,11 @@ module mem_ctrl_512x32
 
 	output wire [31:0] mem_rdata_o,
 	output wire [0:0]  mem_ready_o
+
+  `ifdef USE_POWER_PINS
+	    ,input wire VDD //adding these for librelane
+	    ,input wire VSS
+  `endif
 );
 
 	wire sram_enable_n;

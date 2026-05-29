@@ -15,99 +15,182 @@ module chip_core #(
     inout  wire VDD,
     inout  wire VSS,
     `endif
-    
-    input  wire clk,       // clock
-    input  wire rst_n,     // reset (active low)
-    
-    input  wire [NUM_INPUT_PADS-1:0] input_in,   // Input value
-    output wire [NUM_INPUT_PADS-1:0] input_pu,   // Pull-up
-    output wire [NUM_INPUT_PADS-1:0] input_pd,   // Pull-down
 
-    input  wire [NUM_BIDIR_PADS-1:0] bidir_in,   // Input value
-    output wire [NUM_BIDIR_PADS-1:0] bidir_out,  // Output value
-    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,   // Output enable
-    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,   // Input type (0=CMOS Buffer, 1=Schmitt Trigger)
-    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,   // Slew rate (0=fast, 1=slow)
-    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,   // Input enable
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,   // Pull-up
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pd,   // Pull-down
+    input  wire clk,
+    input  wire rst_n,
 
-    inout  wire [NUM_ANALOG_PADS-1:0] analog  // Analog
+    input  wire [NUM_INPUT_PADS-1:0] input_in,
+    output wire [NUM_INPUT_PADS-1:0] input_pu,
+    output wire [NUM_INPUT_PADS-1:0] input_pd,
+
+    input  wire [NUM_BIDIR_PADS-1:0] bidir_in,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_out,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pd,
+
+    inout  wire [NUM_ANALOG_PADS-1:0] analog
 );
 
-    // See here for usage: https://gf180mcu-pdk.readthedocs.io/en/latest/IPs/IO/gf180mcu_fd_io/digital.html
-    
-    // Disable pull-up and pull-down for input
-    // assign input_pu = '0;
-    // assign input_pd = '0;
+    localparam int SER_PINS = 9;
+    localparam int PIN_BOOT_MISO = 0;
+    localparam int PIN_DEBUG_MODE = 1;
+    localparam int PIN_DFT_IN = 2;
+    localparam int PIN_TRAP_LED = 0;
+    localparam int PIN_BOOT_SCLK = 1;
+    localparam int PIN_BOOT_MOSI = 2;
+    localparam int PIN_BOOT_CS = 3;
+    localparam int PIN_DFT_OUT = 4;
 
-    // // Set the bidir as output
-    // assign bidir_oe = '1;
-    // assign bidir_cs = '0;
-    // assign bidir_sl = '0;
-    // assign bidir_ie = ~bidir_oe;
-    // assign bidir_pu = '0;
-    // assign bidir_pd = '0;
-    
-    // logic _unused;
-    // assign _unused = &bidir_in;
+    assign input_pu = '0;
+    assign input_pd = '0;
 
-    logic [NUM_INPUT_PADS-1:0] input_pu_r, input_pd_r;
-    logic [NUM_BIDIR_PADS-1:0] bidir_out_r, bidir_oe_r, bidir_cs_r;
-    logic [NUM_BIDIR_PADS-1:0] bidir_sl_r, bidir_ie_r, bidir_pu_r, bidir_pd_r;
+    assign bidir_cs = '0;
+    assign bidir_sl = '0;
+    assign bidir_ie = ~bidir_oe;
+    assign bidir_pu = '0;
+    assign bidir_pd = '0;
 
-    assign input_pu  = input_pu_r;
-    assign input_pd  = input_pd_r;
-    assign bidir_out = bidir_out_r;
-    assign bidir_oe  = bidir_oe_r;
-    assign bidir_cs  = bidir_cs_r;
-    assign bidir_sl  = bidir_sl_r;
-    assign bidir_ie  = bidir_ie_r;
-    assign bidir_pu  = bidir_pu_r;
-    assign bidir_pd  = bidir_pd_r;
+    logic [1:0] arb_req;
+    logic [1:0] arb_grant;
+    logic [1:0] arb_req_passthrough;
 
-    // =========================================================================
-    // pad index definitions
-    // update when we finalize pins
-    localparam PAD_PASS_THRU_EN = 0;   // input_in[0]  — pass_thru_en from PCB
-    localparam PAD_MISO = 1;   // input_in[1]  — flash MISO (always input)
- 
-    localparam PAD_SCK = 8;   // bidir[8]  — flash SCK
-    localparam PAD_MOSI = 9;   // bidir[9]  — flash MOSI
-    localparam PAD_CSB = 10;  // bidir[10] — flash CSB
+    logic        c0_bus_valid;
+    logic [31:0] c0_bus_addr;
+    logic [31:0] c0_bus_wdata;
+    logic [4:0]  c0_bus_cache_cmd;
+    logic        c0_bus_ready;
+    logic        c0_snoop_valid;
+    logic [31:0] c0_snoop_data;
+    logic [2:0]  c0_snoop_cache_cmd;
+    logic        c0_snoop_ready;
+    logic        c0_dir_valid;
+    logic [31:0] c0_dir_data;
+    logic [31:0] c0_dir_addr;
+    logic [5:0]  c0_dir_cmd;
+    logic        c0_dir_ready;
+    logic        c0_reset_done;
 
+    logic        c1_bus_valid;
+    logic [31:0] c1_bus_addr;
+    logic [31:0] c1_bus_wdata;
+    logic [4:0]  c1_bus_cache_cmd;
+    logic        c1_bus_ready;
+    logic        c1_snoop_valid;
+    logic [31:0] c1_snoop_data;
+    logic [2:0]  c1_snoop_cache_cmd;
+    logic        c1_snoop_ready;
+    logic        c1_dir_valid;
+    logic [31:0] c1_dir_data;
+    logic [31:0] c1_dir_addr;
+    logic [5:0]  c1_dir_cmd;
+    logic        c1_dir_ready;
+    logic        c1_reset_done;
 
-    // =========================================================================
-    // boot controller signals
-    wire pass_thru_en;
-    wire boot_sck;
-    wire boot_mosi;
-    wire boot_miso;
-    wire boot_csb;
-    wire boot_mem_valid;
-    wire [31:0] boot_mem_addr;
-    wire [31:0] boot_mem_wdata;
-    wire [3:0] boot_mem_wstrb;
-    wire boot_mem_instr;
-    wire boot_done;
-    wire cores_en;
- 
-    assign pass_thru_en = input_in[PAD_PASS_THRU_EN];
-    assign boot_miso = input_in[PAD_MISO];
+    logic        dir_mem_valid;
+    logic        dir_mem_instr;
+    logic [31:0] dir_mem_addr;
+    logic [31:0] dir_mem_wdata;
+    logic [3:0]  dir_mem_wstrb;
+    logic [31:0] dir_mem_rdata;
+    logic        dir_mem_ready;
 
-    // =========================================================================
-    // housekeeping_top instantiation
-    housekeeping_top #(
-        .BOOT_SIZE      (512),
-        .SRAM_BASE_ADDR (32'h0000_0000)
-    ) i_housekeeping (
+    logic [0:0]  mem_valid_i;
+    logic [0:0]  mem_instr_i;
+    logic [0:0]  mem_ready_o;
+    logic [31:0] mem_addr_i;
+    logic [31:0] mem_wdata_i;
+    logic [3:0]  mem_wstrb_i;
+
+    logic        boot_mem_valid;
+    logic        boot_mem_instr;
+    logic [31:0] boot_mem_addr;
+    logic [31:0] boot_mem_wdata;
+    logic [3:0]  boot_mem_wstrb;
+    logic        boot_spi_sck;
+    logic        boot_spi_mosi;
+    logic        boot_flash_csb;
+    logic        boot_done;
+    logic        cores_en;
+    logic        debug_mode;
+    logic        core_mem_select;
+    logic        core_rst_n;
+    logic        trap_led;
+    logic        dft_in;
+    logic        dft_out;
+
+    logic        ts_ready;
+    logic        ts_req;
+    logic [SER_PINS-1:0] ts_serial;
+    logic        rs_valid;
+    logic [71:0] rs_data;
+
+    logic [SER_PINS-1:0] c0_serial_tx;
+    logic [SER_PINS-1:0] c1_serial_tx;
+    logic [SER_PINS-1:0] c0_serial_rx;
+    logic [SER_PINS-1:0] c1_serial_rx;
+    logic                c0_req_tx;
+    logic                c1_req_tx;
+    logic                c0_req_rx;
+    logic                c1_req_rx;
+
+    logic [NUM_BIDIR_PADS-1:0] bidir_out_int;
+    logic [NUM_BIDIR_PADS-1:0] bidir_oe_int;
+
+    assign debug_mode = input_in[PIN_DEBUG_MODE];
+    assign dft_in = input_in[PIN_DFT_IN];
+    assign dft_out = dft_in;
+    assign trap_led = 1'b0;
+    assign core_mem_select = debug_mode | boot_done;
+    assign core_rst_n = rst_n & (debug_mode | cores_en);
+
+    assign arb_req = {c1_bus_valid, c0_bus_valid};
+    assign c0_serial_rx = c1_serial_tx;
+    assign c1_serial_rx = c0_serial_tx;
+    assign c0_req_rx = c1_req_tx;
+    assign c1_req_rx = c0_req_tx;
+
+    assign mem_valid_i = core_mem_select ? dir_mem_valid : boot_mem_valid;
+    assign mem_instr_i = core_mem_select ? dir_mem_instr : boot_mem_instr;
+    assign mem_addr_i = core_mem_select ? dir_mem_addr : boot_mem_addr;
+    assign mem_wdata_i = core_mem_select ? dir_mem_wdata : boot_mem_wdata;
+    assign mem_wstrb_i = core_mem_select ? dir_mem_wstrb : boot_mem_wstrb;
+    assign dir_mem_ready = core_mem_select ? mem_ready_o[0] : 1'b0;
+
+    always_comb begin
+        bidir_out_int = '0;
+        bidir_oe_int = '0;
+
+        bidir_out_int[PIN_TRAP_LED] = trap_led;
+        bidir_oe_int[PIN_TRAP_LED] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_SCLK] = boot_spi_sck;
+        bidir_oe_int[PIN_BOOT_SCLK] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_MOSI] = boot_spi_mosi;
+        bidir_oe_int[PIN_BOOT_MOSI] = 1'b1;
+
+        bidir_out_int[PIN_BOOT_CS] = boot_flash_csb;
+        bidir_oe_int[PIN_BOOT_CS] = 1'b1;
+
+        bidir_out_int[PIN_DFT_OUT] = dft_out;
+        bidir_oe_int[PIN_DFT_OUT] = 1'b1;
+    end
+
+    assign bidir_out = bidir_out_int;
+    assign bidir_oe = bidir_oe_int;
+
+    housekeeping_top i_housekeeping_top (
         .clk_i          (clk),
         .reset_ni       (rst_n),
-        .pass_thru_en_i (pass_thru_en),
-        .spi_sck_o      (boot_sck),
-        .spi_mosi_o     (boot_mosi),
-        .spi_miso_i     (boot_miso),
-        .flash_csb_o    (boot_csb),
+        .spi_sck_o      (boot_spi_sck),
+        .spi_mosi_o     (boot_spi_mosi),
+        .spi_miso_i     (input_in[PIN_BOOT_MISO]),
+        .flash_csb_o    (boot_flash_csb),
+        .pass_thru_en_i (debug_mode),
         .mem_valid_o    (boot_mem_valid),
         .mem_addr_o     (boot_mem_addr),
         .mem_wdata_o    (boot_mem_wdata),
@@ -118,191 +201,168 @@ module chip_core #(
     );
 
 
-    // =========================================================================
-    // cpu reset gating
-    // connect cpu_resetn to picorv32 resetn ports once instantiated
-    wire cpu_resetn;
-    assign cpu_resetn = rst_n && cores_en;
-
-
-
-    // =========================================================================
-    // boot mux — memory controller bus arbitration
-    // during boot (boot_done=0): boot controller owns memory bus.
-    // after boot (boot_done=1): CPU/cache path owns memory bus.
-    // cpu_mem_* wires left undriven
-    wire cpu_mem_valid;
-    wire [31:0] cpu_mem_addr;
-    wire [31:0] cpu_mem_wdata;
-    wire [3:0] cpu_mem_wstrb;
-    wire cpu_mem_instr;
-    wire [31:0] mem_rdata;
-    wire mem_ready;
- 
-    wire muxed_mem_valid;
-    wire [31:0] muxed_mem_addr;
-    wire [31:0] muxed_mem_wdata;
-    wire [3:0] muxed_mem_wstrb;
-    wire muxed_mem_instr;
- 
-    assign muxed_mem_valid = boot_done ? cpu_mem_valid : boot_mem_valid;
-    assign muxed_mem_addr = boot_done ? cpu_mem_addr : boot_mem_addr;
-    assign muxed_mem_wdata = boot_done ? cpu_mem_wdata : boot_mem_wdata;
-    assign muxed_mem_wstrb = boot_done ? cpu_mem_wstrb : boot_mem_wstrb;
-    assign muxed_mem_instr = boot_done ? cpu_mem_instr : boot_mem_instr;
-
-    // Instantiate mmio module
-    mmio
-    i_mmio (
-        .clk_i      (clk),
-        .rst_ni     (rst_n),
-        .addr_i     (),
-        .wr_data_i  (),
-        .wr_en_i    (),
-        .rd_data_o  (),
-        .gpio_pins_o(),
-        .gpio_pins_i(),
-        .gpio_dir_o ()
-    );
-
-    // Instantiate wrr_arbiter module
     wrr_arbiter #(
-        .NUM_REQ   	(),
-        .WEIGHT_W  	()
+        .NUM_REQ    (2),
+        .WEIGHT_W   (3),
+        .WEIGHTS    ({3'd1, 3'd1})
     ) i_wrr_arbiter (
         .clk_i      (clk),
-        .rst_ni     (rst_n),
-        .req_i      (),
-        .grant_o   	(),
-        .req_o     	()
+        .rst_ni     (core_rst_n),
+        .req_i      (arb_req),
+        .grant_o    (arb_grant),
+        .req_o      (arb_req_passthrough)
     );
 
-    // Instantiate directory_interface module
     directory_interface #(
-        .NUM_TPINS  (),
-        .NUM_RPINS  ()
-    ) i_directory_interface (
+        .NUM_TPINS  (SER_PINS),
+        .NUM_RPINS  (SER_PINS)
+    ) i_directory_interface_0 (
         .clk_i          (clk),
-        .rst_ni         (rst_n),
-        .bus_valid_o    (),
-        .bus_addr_o     (),
-        .bus_wdata_o    (),
-        .bus_cache_cmd_o(),
-        .bus_ready_i    (),
-        .snoop_valid_o  (),
-        .snoop_data_o   (),
-        .snoop_cache_cmd_o(),
-        .snoop_ready_i  (),
-        .dir_valid_i    (),
-        .dir_data_i     (),
-        .dir_addr_i     (),
-        .dir_cmd_i      (),
-        .dir_ready_o    (),
+        .rst_ni         (core_rst_n),
+        .bus_valid_o    (c0_bus_valid),
+        .bus_addr_o     (c0_bus_addr),
+        .bus_wdata_o    (c0_bus_wdata),
+        .bus_cache_cmd_o(c0_bus_cache_cmd),
+        .bus_ready_i    (c0_bus_ready),
+        .snoop_valid_o  (c0_snoop_valid),
+        .snoop_data_o   (c0_snoop_data),
+        .snoop_cache_cmd_o(c0_snoop_cache_cmd),
+        .snoop_ready_i  (c0_snoop_ready),
+        .dir_valid_i    (c0_dir_valid),
+        .dir_data_i     (c0_dir_data),
+        .dir_addr_i     (c0_dir_addr),
+        .dir_cmd_i      (c0_dir_cmd),
+        .dir_ready_o    (c0_dir_ready),
         .rbusy_o        (),
-        .send_WhoAmI_i  (),
-        .cpu_id_i       (),
-        .reset_done_o   (),
-        .req_i          (),
-        .serial_i       (),
-        .req_o          (),
-        .serial_o       ()
+        .send_WhoAmI_i  (1'b0),
+        .cpu_id_i       (8'h00),
+        .reset_done_o   (c0_reset_done),
+        .req_i          (c0_req_rx),
+        .serial_i       (c0_serial_rx),
+        .req_o          (c0_req_tx),
+        .serial_o       (c0_serial_tx)
     );
 
-    // Instantiate tserializer module
+    directory_interface #(
+        .NUM_TPINS  (SER_PINS),
+        .NUM_RPINS  (SER_PINS)
+    ) i_directory_interface_1 (
+        .clk_i          (clk),
+        .rst_ni         (core_rst_n),
+        .bus_valid_o    (c1_bus_valid),
+        .bus_addr_o     (c1_bus_addr),
+        .bus_wdata_o    (c1_bus_wdata),
+        .bus_cache_cmd_o(c1_bus_cache_cmd),
+        .bus_ready_i    (c1_bus_ready),
+        .snoop_valid_o  (c1_snoop_valid),
+        .snoop_data_o   (c1_snoop_data),
+        .snoop_cache_cmd_o(c1_snoop_cache_cmd),
+        .snoop_ready_i  (c1_snoop_ready),
+        .dir_valid_i    (c1_dir_valid),
+        .dir_data_i     (c1_dir_data),
+        .dir_addr_i     (c1_dir_addr),
+        .dir_cmd_i      (c1_dir_cmd),
+        .dir_ready_o    (c1_dir_ready),
+        .rbusy_o        (),
+        .send_WhoAmI_i  (1'b0),
+        .cpu_id_i       (8'h01),
+        .reset_done_o   (c1_reset_done),
+        .req_i          (c1_req_rx),
+        .serial_i       (c1_serial_rx),
+        .req_o          (c1_req_tx),
+        .serial_o       (c1_serial_tx)
+    );
+
     tserializer #(
-        .NUM_PINS   (),
-        .MAX_MSG_LEN(),
-        .MSG_LEN_0 	(),
-        .MSG_LEN_1 	(),
-        .MSG_LEN_2 	(),
-        .MSG_LEN_3 	()
-    ) i_tserializer (
-        .clk_i     	(clk),
-        .rst_ni    	(rst_n),
-        .valid_i  	(),
-        .data_in  	(),
-        .msg_type	(),
-        .ready_o 	(),
-        .req_o   	(),
-        .serial_o	()
-    );
-
-    // Instantiate rserializer module
-    rserializer #(
-        .NUM_PINS   (),
-        .MAX_MSG_LEN()
-    ) i_rserializer (
+        .NUM_PINS   (SER_PINS),
+        .MAX_MSG_LEN(68),
+        .MSG_LEN_0  (4),
+        .MSG_LEN_1  (12),
+        .MSG_LEN_2  (36),
+        .MSG_LEN_3  (68)
+    ) i_t_serializer (
         .clk_i      (clk),
-        .rst_ni     (rst_n),
-        .serial_i  	(),
-        .req_i     	(),
-        .valid_o   	(),
-        .data_o    	(),
-        .ready_i   	()
+        .rst_ni     (core_rst_n),
+        .valid_i    (1'b0),
+        .data_in    (72'h0),
+        .msg_type   (2'b00),
+        .ready_o    (ts_ready),
+        .req_o      (ts_req),
+        .serial_o   (ts_serial)
     );
 
-    // Instantiate mem_ctrl_2048x32 module
-    (* keep *) mem_ctrl_2048x32
-    i_mem_ctrl_2048x32 (
-        .clk_i        	(clk),
-        .rst_ni       	(rst_n),
-        .mem_valid_i 	(muxed_mem_valid),
-        .mem_instr_i 	(muxed_mem_instr),
-        .mem_addr_i  	(muxed_mem_addr),
-        .mem_wdata_i 	(muxed_mem_wdata),
-        .mem_wstrb_i 	(muxed_mem_wstrb),
-        .mem_rdata_o 	(mem_rdata),
-        .mem_ready_o 	(mem_ready)
+    rserializer #(
+        .NUM_PINS   (SER_PINS),
+        .MAX_MSG_LEN(68)
+    ) i_r_serializer (
+        .clk_i      (clk),
+        .rst_ni     (core_rst_n),
+        .serial_i   (ts_serial),
+        .req_i      (ts_req),
+        .valid_o    (rs_valid),
+        .data_o     (rs_data),
+        .ready_i    (1'b1)
     );
 
-    //assign bidir_out = '0;
+    directory_controller i_directory_controller (
+        .clk_i             (clk),
+        .rst_ni            (core_rst_n),
+        .c0_bus_valid_i    (c0_bus_valid),
+        .c0_bus_addr_i     (c0_bus_addr),
+        .c0_bus_wdata_i    (c0_bus_wdata),
+        .c0_bus_cache_cmd_i(c0_bus_cache_cmd),
+        .c0_bus_ready_o    (c0_bus_ready),
+        .c0_snoop_valid_i  (c0_snoop_valid),
+        .c0_snoop_data_i   (c0_snoop_data),
+        .c0_snoop_cache_cmd_i(c0_snoop_cache_cmd),
+        .c0_snoop_ready_o  (c0_snoop_ready),
+        .c0_dir_valid_o    (c0_dir_valid),
+        .c0_dir_data_o     (c0_dir_data),
+        .c0_dir_addr_o     (c0_dir_addr),
+        .c0_dir_cmd_o      (c0_dir_cmd),
+        .c0_dir_ready_i    (c0_dir_ready),
+        .c1_bus_valid_i    (c1_bus_valid),
+        .c1_bus_addr_i     (c1_bus_addr),
+        .c1_bus_wdata_i    (c1_bus_wdata),
+        .c1_bus_cache_cmd_i(c1_bus_cache_cmd),
+        .c1_bus_ready_o    (c1_bus_ready),
+        .c1_snoop_valid_i  (c1_snoop_valid),
+        .c1_snoop_data_i   (c1_snoop_data),
+        .c1_snoop_cache_cmd_i(c1_snoop_cache_cmd),
+        .c1_snoop_ready_o  (c1_snoop_ready),
+        .c1_dir_valid_o    (c1_dir_valid),
+        .c1_dir_data_o     (c1_dir_data),
+        .c1_dir_addr_o     (c1_dir_addr),
+        .c1_dir_cmd_o      (c1_dir_cmd),
+        .c1_dir_ready_i    (c1_dir_ready),
+        .dir_mem_valid_o   (dir_mem_valid),
+        .dir_mem_instr_o   (dir_mem_instr),
+        .dir_mem_addr_o    (dir_mem_addr),
+        .dir_mem_wdata_o   (dir_mem_wdata),
+        .dir_mem_wstrb_o   (dir_mem_wstrb),
+        .dir_mem_rdata_i   (dir_mem_rdata),
+        .dir_mem_ready_i   (dir_mem_ready)
+    );
 
-    // =========================================================================
-    // pad ring assignments 
-    // input pads: no pull-up or pull-down on any pin
-    always_comb begin
-        input_pu_r = '0;
-        input_pd_r = '0;
-    end
- 
-    // bidir pad defaults: all driven low, output enabled, no pull
-    // induv pins override these below
-    always_comb begin
-        bidir_out_r = '0;
-        bidir_oe_r = '1;   // default all bidir to output
-        bidir_cs_r = '0;
-        bidir_sl_r = '0;
-        bidir_pu_r = '0;
-        bidir_pd_r = '0;
- 
-        // input enable is inverse of output enable
-        bidir_ie_r = ~bidir_oe_r;
- 
-        // flash SPI pins
-        // drive SCK, MOSI, CSB from boot controller
-        // tri-state all three when pass_thru_en=1 so programmer can drive them
-        bidir_out_r[PAD_SCK] = boot_sck;
-        bidir_out_r[PAD_MOSI] = boot_mosi;
-        bidir_out_r[PAD_CSB] = boot_csb;
- 
-        bidir_oe_r[PAD_SCK] = ~pass_thru_en;
-        bidir_oe_r[PAD_MOSI] = ~pass_thru_en;
-        bidir_oe_r[PAD_CSB] = ~pass_thru_en;
- 
-        // input enable follows output enable inversion for flash pins
-        bidir_ie_r[PAD_SCK] = pass_thru_en;
-        bidir_ie_r[PAD_MOSI] = pass_thru_en;
-        bidir_ie_r[PAD_CSB] = pass_thru_en;
-    end
- 
-    // =========================================================================
-    // suppress unused signal warnings
-    // remove as connections get filled
+    mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
+        .clk_i        (clk),
+        .rst_ni       (rst_n),
+        .mem_valid_i  (mem_valid_i),
+        .mem_instr_i  (mem_instr_i),
+        .mem_addr_i   (mem_addr_i),
+        .mem_wdata_i  (mem_wdata_i),
+        .mem_wstrb_i  (mem_wstrb_i),
+        .mem_rdata_o  (dir_mem_rdata),
+        .mem_ready_o  (mem_ready_o)
+        `ifdef USE_POWER_PINS
+ 		,.VDD(VDD)
+ 		,.VSS(VSS)
+ 		`endif
+    );
+
     logic _unused;
-    assign _unused = &{bidir_in, analog, mem_rdata, mem_ready, cpu_resetn,
-                       cpu_mem_valid, cpu_mem_addr, cpu_mem_wdata,
-                       cpu_mem_wstrb, cpu_mem_instr};
- 
+    assign _unused = &{input_in, analog, bidir_in, arb_grant, arb_req_passthrough,
+                       ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
 
 endmodule
 
