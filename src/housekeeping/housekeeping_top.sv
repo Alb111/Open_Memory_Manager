@@ -15,6 +15,8 @@ module housekeeping_top #(
 
    input logic pass_thru_en_i,   // switch: 0 = boot, 1 = pass thru
     
+   input logic whoami_ready_i,   // dir_ready_o from directory interface
+
    // output writing
    output logic mem_valid_o,
    output logic [31:0] mem_addr_o,
@@ -42,8 +44,7 @@ module housekeeping_top #(
    logic [31:0] boot_data;
 
    logic boot_started;
-   logic boot_started_prev;
-   logic whoami_pulse;
+   logic whoami_sent;
 
    //boot_fsm signals to memory controller interface
    assign mem_valid_o = boot_wr_en;
@@ -87,14 +88,15 @@ module housekeeping_top #(
       .boot_started_o(boot_started)
    );
 
+   // hold whoami_pulse high until the directory interface accepts it
    always_ff @(posedge clk_i) begin
       if (!reset_ni)
-         boot_started_prev <= 1'b0;
-      else
-         boot_started_prev <= boot_started;
+         whoami_sent <= 1'b0;
+      else if (whoami_pulse_o && whoami_ready_i)
+         whoami_sent <= 1'b1;   // accepted — latch so we don't send again
    end
 
-   assign whoami_pulse = boot_started && !boot_started_prev;
-   assign whoami_pulse_o = whoami_pulse;
+   // assert pulse once boot starts, hold until accepted, never repeat
+   assign whoami_pulse_o = boot_started && !whoami_sent;
 
 endmodule

@@ -35,6 +35,7 @@ module boot_flash_wrapper #(
     wire [31:0] sram_addr;
     wire [31:0] sram_data;
     wire whoami_pulse;
+    wire whoami_ready;
 
     //boot DUT
     housekeeping_top #(
@@ -47,6 +48,7 @@ module boot_flash_wrapper #(
         .spi_sck_o      (spi_sck),
         .spi_mosi_o     (spi_mosi),
         .spi_miso_i     (flash_so),
+        .whoami_ready_i (whoami_ready),
         .flash_csb_o    (flash_csb),
         .mem_valid_o    (sram_wr_en),    // renamed from sram_wr_en_o
         .mem_addr_o     (sram_addr),     // renamed from sram_addr_o
