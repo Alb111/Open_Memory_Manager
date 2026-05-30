@@ -68,7 +68,6 @@ cache = CacheController(
 )
 
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Clock
 # ─────────────────────────────────────────────────────────────────────────────
@@ -222,6 +221,7 @@ async def one_read(dut, addr: int):
     await wait_for_signal(dut, dut.mem_ready_o)
     assert int(dut.mem_rdata_o.value) == golden_resp.mem_rdata
     captured_dir_requests.clear()
+    dut._log.info(f"Read complete: data=%#010x", dut.mem_rdata_o.value)
 
 
 async def one_write(dut, addr, data, wstrb):
@@ -269,7 +269,6 @@ async def one_write(dut, addr, data, wstrb):
     dut.bus_dircmd_i.value  = coherence_cmd_to_acks(dir_req.coherence_cmd)
 
     await wait_for_signal(dut, dut.bus_ready_o)
-
     dut.bus_valid_i.value = 0
 
     # ── Wait for completion ──────────────────────────────────────
@@ -282,11 +281,11 @@ async def one_write(dut, addr, data, wstrb):
 # Read all addrs
 # ─────────────────────────────────────────────────────────────────────────────
 async def test_read(dut):
-    # for i in range(512):
-        # await one_read(dut, i)
-    await one_read(dut, 0)
-    await one_read(dut, 128)
-    await one_read(dut, 256)
+    for i in range(512):
+      await one_read(dut, i)
+    # await one_read(dut, 0)
+    # await one_read(dut, 128)
+    # await one_read(dut, 256)
 
 
 
