@@ -97,10 +97,6 @@ mem-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/mem_ctrl_2048x32.fst
 .PHONY: mem-wave
 
-wave: ## TODO: make better name later
-	gtkwave cocotb/sim_build/mem_ctrl_512x56.fst
-.PHONY: wave
-
 test-arb: ## Run all cocotb tests on wrr arbiter
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 wrr_arbiter_tb.py
 .PHONY: test-arb
@@ -113,10 +109,6 @@ test-rserializer: ## Run all cocotb tests on rserializer
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 rserializer_tb.py
 .PHONY: test-rserializer
 
-test-cache-interface: ## Run all cocotb tests on cache_interface
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 cache_interface_tb.py
-.PHONY: test-cache-interface
-
 test-directory-interface: ## Run all cocotb tests on directory_interface
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_interface_tb.py
 .PHONY: test-directory-interface
@@ -124,10 +116,6 @@ test-directory-interface: ## Run all cocotb tests on directory_interface
 test-directory-controller:
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_controller_tb.py
 .PHONY: test-directory-controller
-
-test-spaddr: ## Run all cocotb tests on sp_addr_handler
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 sp_handler_tb.py
-.PHONY: test-spaddr
 
 arb-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/wrr_arbiter.fst
@@ -144,10 +132,6 @@ boot-wave: ## View simulation waveforms for boot contlr
 test-boot-flash: ## Run cocotb tests for bootloader against Cypress flash model
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_flash_tb.py
 .PHONY: test-boot-flash
-
-boot-flash-wave: ## View simulation waveforms for boot flash test
-	gtkwave cocotb/sim_build/boot_wrapper.fst
-.PHONY: boot-flash-wave
 
 test-boot-mem: ## Run cocotb integration tests for boot -> mem_ctrl -> SRAM
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 boot_mem_tb.py
