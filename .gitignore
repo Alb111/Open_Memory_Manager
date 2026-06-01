@@ -8,3 +8,4 @@ img/
 *.lyrdb
 debug.txt
 ip/picorv32/
+llm_context.txt
