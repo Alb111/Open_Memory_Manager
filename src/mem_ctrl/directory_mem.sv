@@ -174,8 +174,8 @@ module directory_mem
   assign ready_o = (state_q == StIdle) ||
                    (((state_q == StMetaResp) || (state_q == StMainResp)) && ready_i);
 
-  // Mirror the mem128x4-style address mux: registered address by default,
-  // direct request address while issuing a same-cycle SRAM command.
+  // Keep the SRAM command asserted through the response state so the GF180
+  // macro sees stable controls across its delayed internal clock path.
   always_comb begin
     sram_enable_n = 1'b1;
     sram_gwen     = 3'b111;
@@ -194,6 +194,18 @@ module directory_mem
           pack_lane({w_valid_data_i[0], w_owner_i[0]}, addr_i[0]),
           pack_lane(w_sharers_i, addr_i[0]),
           pack_lane(w_state_i, addr_i[0])
+        };
+      end
+    end else if (state_q == StMetaResp) begin
+      sram_enable_n = 1'b0;
+
+      if (wstrb_q != 4'b0000) begin
+        sram_gwen  = 3'b000;
+        sram_wen   = {lane_wen(addr_q[0]), lane_wen(addr_q[0]), lane_wen(addr_q[0])};
+        sram_wdata = {
+          pack_lane({w_valid_data_q, w_owner_q}, addr_q[0]),
+          pack_lane(w_sharers_q, addr_q[0]),
+          pack_lane(w_state_q, addr_q[0])
         };
       end
     end

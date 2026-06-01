@@ -10,10 +10,9 @@ from cocotb_tools.runner import get_runner
 
 # golden model
 from emulation.memory_v2 import MemoryController
+from sram_models import find_sram_model
 
 sim = os.getenv("SIM", "icarus")
-# pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
-pdk_root = Path("../gf180mcu")
 pdk = os.getenv("PDK", "gf180mcuD")
 scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
@@ -113,6 +112,7 @@ def mem_ctrl_runner():
 
     sources = []
     if gl:
+        pdk_root = Path(os.getenv("PDK_ROOT", "../gf180mcu"))
         pdk_lib = os.path.join(
             pdk_root, 
             pdk, 
@@ -122,20 +122,20 @@ def mem_ctrl_runner():
         )
         sources += [proj_path / "../src/netlists/mem_ctrl_2048x32.nl.v"]
         sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
-        sources += [Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v"]
+        sources += [find_sram_model(512)]
     else:
         sources = [
             # SRAM macro
-            Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
+            find_sram_model(512),
             # SRAM bank 
-            proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
+            proj_path / "../src/mem_ctrl/mem512x32.sv",
             # memory with sram bank muxing
-            proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv"
+            proj_path / "../src/mem_ctrl/mem2048x32.sv"
         ]
 
     build_args = []
     if sim == "icarus":
-        pass
+        build_args = ["-g2012"]
     if sim == "verilator":
         build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
         
@@ -156,5 +156,4 @@ def mem_ctrl_runner():
 
 if __name__ == "__main__":
     mem_ctrl_runner()
-
 

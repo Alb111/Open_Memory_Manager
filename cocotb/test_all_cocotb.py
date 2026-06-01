@@ -35,6 +35,27 @@ class TestMemCtrl:
         )
 
 
+class TestMetadataSram64x8Array:
+    """Cocotb testbench: Metadata SRAM array (metadata_sram64x8_array_tb.py)"""
+
+    def test_metadata_sram64x8_array(self):
+        result = _run_testbench("metadata_sram64x8_array_tb.py")
+        assert result.returncode == 0, (
+            "metadata_sram64x8_array_tb.py failed with exit code "
+            f"{result.returncode}"
+        )
+
+
+class TestDirectoryMem:
+    """Cocotb testbench: Directory memory wrapper (directory_mem_tb.py)"""
+
+    def test_directory_mem(self):
+        result = _run_testbench("directory_mem_tb.py")
+        assert result.returncode == 0, (
+            f"directory_mem_tb.py failed with exit code {result.returncode}"
+        )
+
+
 class TestWRRArbiter:
     """Cocotb testbench: WRR Arbiter (wrr_arbiter_tb.py)"""
 

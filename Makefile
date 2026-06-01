@@ -93,6 +93,14 @@ test-mem: ## Run all cocotb on mem
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_tb.py
 .PHONY: test-mem
 
+test-metadata-sram: ## Run cocotb tests on directory metadata SRAM array
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 metadata_sram64x8_array_tb.py
+.PHONY: test-metadata-sram
+
+test-directory-mem: ## Run cocotb tests on directory memory wrapper
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 directory_mem_tb.py
+.PHONY: test-directory-mem
+
 mem-wave: ## View simulation waveforms for mem
 	gtkwave cocotb/sim_build/mem_ctrl_2048x32.fst
 .PHONY: mem-wave
