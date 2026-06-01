@@ -175,13 +175,13 @@ module chip_core #(
         bidir_oe_int[PIN_TRAP_LED] = 1'b1;
 
         bidir_out_int[PIN_BOOT_SCLK] = boot_spi_sck;
-        bidir_oe_int[PIN_BOOT_SCLK] = 1'b1;
+        bidir_oe_int[PIN_BOOT_SCLK] = !debug_mode;
 
         bidir_out_int[PIN_BOOT_MOSI] = boot_spi_mosi;
-        bidir_oe_int[PIN_BOOT_MOSI] = 1'b1;
+        bidir_oe_int[PIN_BOOT_MOSI] = !debug_mode;
 
         bidir_out_int[PIN_BOOT_CS] = boot_flash_csb;
-        bidir_oe_int[PIN_BOOT_CS] = 1'b1;
+        bidir_oe_int[PIN_BOOT_CS] = !debug_mode;
 
         bidir_out_int[PIN_DFT_OUT] = dft_out;
         bidir_oe_int[PIN_DFT_OUT] = 1'b1;
@@ -245,7 +245,7 @@ module chip_core #(
   	.dir_data_i         (c0_dir_data),
   	.dir_addr_i         (c0_dir_addr),
   	.dir_cmd_i          (c0_dir_cmd),
-  	.dir_ready_o        (c0_dir_ready),
+    .dir_ready_o        (c0_tser_ready),
 
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
@@ -280,7 +280,7 @@ module chip_core #(
   	.dir_data_i         (c1_dir_data),
   	.dir_addr_i         (c1_dir_addr),
   	.dir_cmd_i          (c1_dir_cmd),
-  	.dir_ready_o        (c1_dir_ready),
+    .dir_ready_o        (c1_tser_ready),
 
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
@@ -343,7 +343,7 @@ module chip_core #(
   	.c0_dir_data_o          (c0_dir_data),
   	.c0_dir_addr_o          (c0_dir_addr),
   	.c0_dir_cmd_o           (c0_dir_cmd),
-  	.c0_dir_ready_i         (c0_dir_ready),
+    .c0_dir_ready_i         (c0_tser_ready),
 
   	.c1_bus_valid_i         (c1_bus_valid),
   	.c1_bus_addr_i          (c1_bus_addr),
@@ -360,7 +360,7 @@ module chip_core #(
   	.c1_dir_data_o          (c1_dir_data),
   	.c1_dir_addr_o          (c1_dir_addr),
   	.c1_dir_cmd_o           (c1_dir_cmd),
-  	.c1_dir_ready_i         (c1_dir_ready),
+    .c1_dir_ready_i         (c1_tser_ready),
 	
   	.dir_mem_valid_o        (dir_mem_valid),
   	.dir_mem_ready_i        (dir_mem_ready),
