@@ -53,10 +53,24 @@ module housekeeping_top #(
    assign mem_wstrb_o = boot_wr_en ? 4'b1111 : 4'b0000;
    assign mem_instr_o = 1'b0;
 
+   localparam CLEAR_CYCLES = 1000;
+   logic [$clog2(CLEAR_CYCLES+1)-1:0] clear_counter;
+   logic clear_done;
+
+   always_ff @(posedge clk_i) begin
+      if (!reset_ni)
+         clear_counter <= '0;
+      else if (!clear_done)
+         clear_counter <= clear_counter + 1'b1;
+   end
+
+   assign clear_done = (clear_counter == CLEAR_CYCLES);
+
+
    // spi engine
    spi_engine spi_master (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i),   //keep spi idle during pass thur
+      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),   //keep spi idle during pass thur
       .start_i(spi_start),
       .data_in_i(spi_data_out),
       .data_out_o(spi_data_in),
@@ -73,7 +87,7 @@ module housekeeping_top #(
       .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
    ) boot_controller (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i),   //fsm idle during pass thru
+      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),   //fsm idle during pass thru
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),
