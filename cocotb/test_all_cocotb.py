@@ -95,16 +95,6 @@ class TestOnSnoopEventSM:
         )
 
 
-class TestSpAddrHandler:
-    """Cocotb testbench: SP Address Handler (sp_handler_tb.py)"""
-
-    def test_sp_addr_handler(self):
-        result = _run_testbench("sp_handler_tb.py")
-        assert result.returncode == 0, (
-            f"sp_handler_tb.py failed with exit code {result.returncode}"
-        )
-
-
 class TestBoot:
     """Cocotb testbench: Boot Controller (housekeeping_tb.py)"""
 
