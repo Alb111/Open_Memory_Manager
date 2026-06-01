@@ -140,6 +140,13 @@ module chip_core #(
     logic [NUM_BIDIR_PADS-1:0] bidir_out_int;
     logic [NUM_BIDIR_PADS-1:0] bidir_oe_int;
 
+    wire whoami_pulse;
+    wire whoami_ready;
+    wire c0_tser_ready;
+    wire c1_tser_ready;
+
+    assign whoami_ready = c0_tser_ready && c1_tser_ready;
+
     assign debug_mode = input_in[PIN_DEBUG_MODE];
     assign dft_in = input_in[PIN_DFT_IN];
     assign dft_out = dft_in;
@@ -191,13 +198,15 @@ module chip_core #(
         .spi_miso_i     (input_in[PIN_BOOT_MISO]),
         .flash_csb_o    (boot_flash_csb),
         .pass_thru_en_i (debug_mode),
+        .whoami_ready_i (whoami_ready),
         .mem_valid_o    (boot_mem_valid),
         .mem_addr_o     (boot_mem_addr),
         .mem_wdata_o    (boot_mem_wdata),
         .mem_wstrb_o    (boot_mem_wstrb),
         .mem_instr_o    (boot_mem_instr),
         .cores_en_o     (cores_en),
-        .boot_done_o    (boot_done)
+        .boot_done_o    (boot_done),
+        .whoami_pulse_o (whoami_pulse)
     );
 
 
@@ -232,9 +241,9 @@ module chip_core #(
         .dir_data_i     (c0_dir_data),
         .dir_addr_i     (c0_dir_addr),
         .dir_cmd_i      (c0_dir_cmd),
-        .dir_ready_o    (c0_dir_ready),
+        .dir_ready_o    (c0_tser_ready),
         .rbusy_o        (),
-        .send_WhoAmI_i  (1'b0),
+        .send_WhoAmI_i  (whoami_pulse),
         .cpu_id_i       (8'h00),
         .reset_done_o   (c0_reset_done),
         .req_i          (c0_req_rx),
@@ -262,9 +271,9 @@ module chip_core #(
         .dir_data_i     (c1_dir_data),
         .dir_addr_i     (c1_dir_addr),
         .dir_cmd_i      (c1_dir_cmd),
-        .dir_ready_o    (c1_dir_ready),
+        .dir_ready_o    (c1_tser_ready),
         .rbusy_o        (),
-        .send_WhoAmI_i  (1'b0),
+        .send_WhoAmI_i  (whoami_pulse),
         .cpu_id_i       (8'h01),
         .reset_done_o   (c1_reset_done),
         .req_i          (c1_req_rx),

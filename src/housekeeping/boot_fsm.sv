@@ -1,7 +1,7 @@
 `timescale 1ns/1ps
 
 module boot_fsm #(
-    parameter BOOT_SIZE = 32,
+    parameter BOOT_SIZE = 512,
     parameter SRAM_BASE_ADDR = 32'h0000_0000
 )(
     input logic clk_i,
@@ -17,8 +17,9 @@ module boot_fsm #(
 
     output logic sram_wr_en_o,
     output logic [31:0] sram_addr_o,
-    output logic [31:0] sram_data_o
+    output logic [31:0] sram_data_o,
 
+    output logic boot_started_o
 );
 
     typedef enum logic [3:0] {
@@ -100,6 +101,7 @@ module boot_fsm #(
         sram_data_o = word_buffer;
         cores_en_o = 1'b0;
         boot_done_o = 1'b0;
+        boot_started_o = (curr_state != IDLE);
         
         case(curr_state)
             IDLE: begin
