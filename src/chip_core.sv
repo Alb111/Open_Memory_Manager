@@ -360,6 +360,13 @@ module chip_core #(
  		`endif
     );
 
+    metadata_sram64x8_array i_metadata_sram64x8_array (
+        `ifdef USE_POWER_PINS
+        .VDD (VDD),
+        .VSS (VSS)
+        `endif
+    );
+
     logic _unused;
     assign _unused = &{input_in, analog, bidir_in, arb_grant, arb_req_passthrough,
                        ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
