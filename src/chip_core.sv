@@ -71,7 +71,6 @@ module chip_core #(
     logic [31:0] c0_dir_data;
     logic [31:0] c0_dir_addr;
     logic [5:0]  c0_dir_cmd;
-    logic        c0_dir_ready;
     logic        c0_reset_done;
 
     logic        c1_bus_valid;
@@ -87,7 +86,6 @@ module chip_core #(
     logic [31:0] c1_dir_data;
     logic [31:0] c1_dir_addr;
     logic [5:0]  c1_dir_cmd;
-    logic        c1_dir_ready;
     logic        c1_reset_done;
 
     logic        dir_mem_valid;
@@ -329,7 +327,7 @@ module chip_core #(
         .c0_dir_data_o     (c0_dir_data),
         .c0_dir_addr_o     (c0_dir_addr),
         .c0_dir_cmd_o      (c0_dir_cmd),
-        .c0_dir_ready_i    (c0_dir_ready),
+        .c0_dir_ready_i    (c0_tser_ready),
         .c1_bus_valid_i    (c1_bus_valid),
         .c1_bus_addr_i     (c1_bus_addr),
         .c1_bus_wdata_i    (c1_bus_wdata),
@@ -343,7 +341,7 @@ module chip_core #(
         .c1_dir_data_o     (c1_dir_data),
         .c1_dir_addr_o     (c1_dir_addr),
         .c1_dir_cmd_o      (c1_dir_cmd),
-        .c1_dir_ready_i    (c1_dir_ready),
+        .c1_dir_ready_i    (c1_tser_ready),
         .dir_mem_valid_o   (dir_mem_valid),
         .dir_mem_instr_o   (dir_mem_instr),
         .dir_mem_addr_o    (dir_mem_addr),
