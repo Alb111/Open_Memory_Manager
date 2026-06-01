@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Directory controller.
+// Metadata only MSI directory controller.
 //
-// Memory accesses are intentionally stretched for two accepted cycles so the
-// GF180-backed memory path has time to present stable read data and commit writes.
+// This controller accepts decoded cache side coherence requests from two
+// directory_interface blocks, tracks MSI metadata for 128 coherent line
+// indices, sends decoded snoop and acknowledgement commands, and updates a
+// separate 128 by 6 metadata RAM.
 //
-// Production directory controller only.
-//
-// The controller accepts decoded cache-side coherence requests from two
-// directory_interface instances, performs MSI directory actions, accesses
-// reserved directory metadata/data memory, and returns decoded responses.
-//
-// This standalone version has no full-path test wrapper and no external arbiter
-// dependency. A small internal two-request round-robin selector chooses between
-// cache 0 and cache 1 requests when both arrive together.
+// The controller does not connect to main memory. It does not read, write,
+// store, or forward 32 bit cache line data. The data fields on directory
+// responses are kept for interface compatibility and are driven with zero.
 
 `timescale 1ns/1ps
 `default_nettype none
@@ -56,66 +52,56 @@ module directory_controller (
   output logic [5:0]  c1_dir_cmd_o,
   input  logic        c1_dir_ready_i,
 
-  output logic        dir_mem_valid_o,
-  output logic        dir_mem_instr_o,
-  output logic [31:0] dir_mem_addr_o,
-  output logic [31:0] dir_mem_wdata_o,
-  output logic [3:0]  dir_mem_wstrb_o,
-  input  logic [31:0] dir_mem_rdata_i,
-  input  logic        dir_mem_ready_i
+  output logic        meta_ram_valid_o,
+  output logic        meta_ram_instr_o,
+  output logic [6:0]  meta_ram_addr_o,
+  output logic [5:0]  meta_ram_wdata_o,
+  output logic        meta_ram_wstrb_o,
+  input  logic [5:0]  meta_ram_rdata_i,
+  input  logic        meta_ram_ready_i,
+
+  output logic        dir_state_invalidated_o
 );
 
-  localparam logic [4:0] CacheCmdNone       = 5'b00000;
-  localparam logic [4:0] CacheCmdBusRd      = 5'b00001;
-  localparam logic [4:0] CacheCmdBusRdx     = 5'b00010;
-  localparam logic [4:0] CacheCmdBusUpgr    = 5'b00100;
-  localparam logic [4:0] CacheCmdEvictClean = 5'b01000;
-  localparam logic [4:0] CacheCmdEvictDirty = 5'b10000;
+  localparam logic [4:0] cache_cmd_none_c        = 5'b00000;
+  localparam logic [4:0] cache_cmd_bus_rd_c      = 5'b00001;
+  localparam logic [4:0] cache_cmd_bus_rdx_c     = 5'b00010;
+  localparam logic [4:0] cache_cmd_bus_upgr_c    = 5'b00100;
+  localparam logic [4:0] cache_cmd_evict_clean_c = 5'b01000;
+  localparam logic [4:0] cache_cmd_evict_dirty_c = 5'b10000;
 
-  localparam logic [2:0] SnoopAckNone    = 3'b000;
-  localparam logic [2:0] SnoopAckBusRd   = 3'b001;
-  localparam logic [2:0] SnoopAckBusRdx  = 3'b010;
-  localparam logic [2:0] SnoopAckBusUpgr = 3'b100;
+  localparam logic [2:0] snoop_ack_none_c     = 3'b000;
+  localparam logic [2:0] snoop_ack_bus_rd_c   = 3'b001;
+  localparam logic [2:0] snoop_ack_bus_rdx_c  = 3'b010;
+  localparam logic [2:0] snoop_ack_bus_upgr_c = 3'b100;
 
-  localparam logic [5:0] DirCmdNone         = 6'b000000;
-  localparam logic [5:0] DirCmdBusRdAck     = 6'b000001;
-  localparam logic [5:0] DirCmdBusRdxAck    = 6'b000010;
-  localparam logic [5:0] DirCmdBusUpgrAck   = 6'b000100;
-  localparam logic [5:0] DirCmdSnoopBusRd   = 6'b001000;
-  localparam logic [5:0] DirCmdSnoopBusRdx  = 6'b010000;
-  localparam logic [5:0] DirCmdSnoopBusUpgr = 6'b100000;
+  localparam logic [5:0] dir_cmd_none_c          = 6'b000000;
+  localparam logic [5:0] dir_cmd_bus_rd_ack_c    = 6'b000001;
+  localparam logic [5:0] dir_cmd_bus_rdx_ack_c   = 6'b000010;
+  localparam logic [5:0] dir_cmd_bus_upgr_ack_c  = 6'b000100;
+  localparam logic [5:0] dir_cmd_snoop_bus_rd_c  = 6'b001000;
+  localparam logic [5:0] dir_cmd_snoop_bus_rdx_c = 6'b010000;
+  localparam logic [5:0] dir_cmd_snoop_bus_upgr_c = 6'b100000;
 
-  localparam logic [1:0] LineInvalid  = 2'b00;
-  localparam logic [1:0] LineShared   = 2'b01;
-  localparam logic [1:0] LineModified = 2'b10;
+  localparam logic [1:0] line_invalid_c  = 2'b00;
+  localparam logic [1:0] line_shared_c   = 2'b01;
+  localparam logic [1:0] line_modified_c = 2'b10;
 
-  localparam logic [10:0] DirMetaBaseWord = 11'd1792;
-  localparam logic [10:0] DirDataBaseWord = 11'd1920;
-  localparam logic [6:0]  LastIndex       = 7'd127;
+  localparam logic [6:0] last_index_c = 7'd127;
 
-  typedef enum logic [4:0] {
-    StInitMetaReq,
-    StInitMetaResp,
-    StInitDataReq,
-    StInitDataResp,
-    StIdle,
-    StReadMetaReq,
-    StReadMetaResp,
-    StReadDirDataReq,
-    StReadDirDataResp,
-    StReadBackingReq,
-    StReadBackingResp,
-    StLookup,
-    StSendSnoop,
-    StWaitSnoop,
-    StSendAck,
-    StWriteBackingReq,
-    StWriteBackingResp,
-    StWriteMetaReq,
-    StWriteMetaResp,
-    StWriteDirDataReq,
-    StWriteDirDataResp,
-    StDone
+  typedef enum logic [3:0] {
+    st_init_meta_req,
+    st_init_meta_resp,
+    st_idle,
+    st_read_meta_req,
+    st_read_meta_resp,
+    st_lookup,
+    st_send_snoop,
+    st_wait_snoop,
+    st_send_ack,
+    st_write_meta_req,
+    st_write_meta_resp,
+    st_done
   } dir_state_e;
 
   dir_state_e state_q;
@@ -124,64 +110,53 @@ module directory_controller (
   logic [6:0] init_index_q;
   logic [6:0] init_index_d;
 
+  logic dir_state_invalidated_q;
+  logic dir_state_invalidated_d;
+
   logic request_cache_q;
   logic request_cache_d;
-
   logic [31:0] request_addr_q;
   logic [31:0] request_addr_d;
   logic [31:0] request_data_q;
   logic [31:0] request_data_d;
-  logic [4:0]  request_cmd_q;
-  logic [4:0]  request_cmd_d;
+  logic [4:0] request_cmd_q;
+  logic [4:0] request_cmd_d;
 
-  logic [1:0]  line_state_q;
-  logic [1:0]  line_state_d;
-  logic [1:0]  line_sharers_q;
-  logic [1:0]  line_sharers_d;
-  logic        line_owner_q;
-  logic        line_owner_d;
-  logic        line_data_valid_q;
-  logic        line_data_valid_d;
-  logic [31:0] line_data_q;
-  logic [31:0] line_data_d;
+  logic [1:0] line_state_q;
+  logic [1:0] line_state_d;
+  logic [1:0] line_sharers_q;
+  logic [1:0] line_sharers_d;
+  logic line_owner_q;
+  logic line_owner_d;
+  logic line_valid_q;
+  logic line_valid_d;
 
-  logic        pending_ack_cache_q;
-  logic        pending_ack_cache_d;
-  logic [5:0]  pending_ack_cmd_q;
-  logic [5:0]  pending_ack_cmd_d;
+  logic pending_ack_cache_q;
+  logic pending_ack_cache_d;
+  logic [5:0] pending_ack_cmd_q;
+  logic [5:0] pending_ack_cmd_d;
   logic [31:0] pending_ack_data_q;
   logic [31:0] pending_ack_data_d;
 
-  logic        pending_snoop_cache_q;
-  logic        pending_snoop_cache_d;
-  logic [5:0]  pending_snoop_cmd_q;
-  logic [5:0]  pending_snoop_cmd_d;
+  logic pending_snoop_cache_q;
+  logic pending_snoop_cache_d;
+  logic [5:0] pending_snoop_cmd_q;
+  logic [5:0] pending_snoop_cmd_d;
 
-  logic        pending_write_q;
-  logic        pending_write_d;
-  logic [1:0]  pending_write_state_q;
-  logic [1:0]  pending_write_state_d;
-  logic [1:0]  pending_write_sharers_q;
-  logic [1:0]  pending_write_sharers_d;
-  logic        pending_write_owner_q;
-  logic        pending_write_owner_d;
-  logic        pending_write_data_valid_q;
-  logic        pending_write_data_valid_d;
-  logic [31:0] pending_write_data_q;
-  logic [31:0] pending_write_data_d;
-  logic        pending_write_backing_q;
-  logic        pending_write_backing_d;
-  logic [31:0] pending_write_backing_data_q;
-  logic [31:0] pending_write_backing_data_d;
+  logic pending_write_q;
+  logic pending_write_d;
+  logic [1:0] pending_write_state_q;
+  logic [1:0] pending_write_state_d;
+  logic [1:0] pending_write_sharers_q;
+  logic [1:0] pending_write_sharers_d;
+  logic pending_write_owner_q;
+  logic pending_write_owner_d;
+  logic pending_write_valid_q;
+  logic pending_write_valid_d;
 
-  logic        flush_seen_q;
-  logic        flush_seen_d;
-  logic [31:0] flush_data_q;
-  logic [31:0] flush_data_d;
-
-  logic request_priority_q;
-  logic request_priority_d;
-
+  logic [1:0] arb_req;
+  logic [1:0] arb_grant;
+  logic [1:0] arb_req_passthrough;
   logic selected_cache;
   logic selected_valid;
 
@@ -190,51 +165,42 @@ module directory_controller (
   logic other_is_sharer;
   logic remote_modified_owner;
 
-  logic [6:0]  request_index;
-  logic [10:0] meta_addr;
-  logic [10:0] data_addr;
-  logic [10:0] backing_addr;
-  logic [31:0] packed_metadata;
+  logic [6:0] request_index;
+  logic [5:0] packed_metadata;
 
   logic snoop_send_ready;
   logic ack_send_ready;
   logic dirty_flush_accept;
   logic snoop_ack_accept;
-  logic [31:0] snoop_ack_data;
-  logic [31:0] finish_data;
 
-  always_comb begin
-    selected_valid = 1'b0;
-    selected_cache = 1'b0;
+  assign arb_req = {c1_bus_valid_i, c0_bus_valid_i};
 
-    if (c0_bus_valid_i && c1_bus_valid_i) begin
-      selected_valid = 1'b1;
-      selected_cache = request_priority_q;
-    end else if (c0_bus_valid_i) begin
-      selected_valid = 1'b1;
-      selected_cache = 1'b0;
-    end else if (c1_bus_valid_i) begin
-      selected_valid = 1'b1;
-      selected_cache = 1'b1;
-    end
-  end
+  wrr_arbiter #(
+    .NUM_REQ(2),
+    .WEIGHT_W(3),
+    .WEIGHTS({3'd1, 3'd1})
+  ) u_wrr_arbiter (
+    .clk_i(clk_i),
+    .rst_ni(rst_ni),
+    .req_i(arb_req),
+    .grant_o(arb_grant),
+    .req_o(arb_req_passthrough)
+  );
+
+  assign selected_valid = |arb_grant;
+  assign selected_cache = arb_grant[1];
 
   assign request_index = request_addr_q[6:0];
-  assign meta_addr = DirMetaBaseWord + {4'b0000, request_index};
-  assign data_addr = DirDataBaseWord + {4'b0000, request_index};
-  assign backing_addr = request_addr_q[10:0];
 
   assign requester_bit = request_cache_q;
   assign other_bit = !request_cache_q;
-
   assign other_is_sharer = line_sharers_q[other_bit];
 
   assign remote_modified_owner =
-      (line_state_q == LineModified) && (line_owner_q != request_cache_q);
+      (line_state_q == line_modified_c) && (line_owner_q != request_cache_q);
 
   assign packed_metadata = {
-    26'b0,
-    pending_write_data_valid_q,
+    pending_write_valid_q,
     pending_write_owner_q,
     pending_write_sharers_q,
     pending_write_state_q
@@ -247,91 +213,53 @@ module directory_controller (
       pending_ack_cache_q ? c1_dir_ready_i : c0_dir_ready_i;
 
   assign dirty_flush_accept =
-      (state_q == StWaitSnoop) &&
+      (state_q == st_wait_snoop) &&
       (pending_snoop_cache_q ? c1_bus_valid_i : c0_bus_valid_i) &&
       ((pending_snoop_cache_q ? c1_bus_cache_cmd_i : c0_bus_cache_cmd_i) ==
-       CacheCmdEvictDirty);
+       cache_cmd_evict_dirty_c);
 
   assign snoop_ack_accept =
-      (state_q == StWaitSnoop) &&
+      (state_q == st_wait_snoop) &&
       (pending_snoop_cache_q ? c1_snoop_valid_i : c0_snoop_valid_i) &&
       ((pending_snoop_cache_q ? c1_snoop_cache_cmd_i : c0_snoop_cache_cmd_i) !=
-       SnoopAckNone);
+       snoop_ack_none_c);
 
-  assign snoop_ack_data =
-      pending_snoop_cache_q ? c1_snoop_data_i : c0_snoop_data_i;
-
-  assign finish_data =
-      dirty_flush_accept ? (pending_snoop_cache_q ? c1_bus_wdata_i :
-                                                    c0_bus_wdata_i) :
-      snoop_ack_accept   ? snoop_ack_data :
-      flush_seen_q       ? flush_data_q :
-                            line_data_q;
+  assign dir_state_invalidated_o = dir_state_invalidated_q;
 
   always_comb begin
-    dir_mem_valid_o = 1'b0;
-    dir_mem_instr_o = 1'b0;
-    dir_mem_addr_o = 32'b0;
-    dir_mem_wdata_o = 32'b0;
-    dir_mem_wstrb_o = 4'b0000;
+    meta_ram_valid_o = 1'b0;
+    meta_ram_instr_o = 1'b0;
+    meta_ram_addr_o = 7'b0;
+    meta_ram_wdata_o = 6'b0;
+    meta_ram_wstrb_o = 1'b0;
 
     unique case (state_q)
-      StInitMetaReq, StInitMetaResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, DirMetaBaseWord + {4'b0000, init_index_q}};
-        dir_mem_wdata_o = 32'b0;
-        dir_mem_wstrb_o = 4'b1111;
+      st_init_meta_req, st_init_meta_resp: begin
+        meta_ram_valid_o = 1'b1;
+        meta_ram_addr_o = init_index_q;
+        meta_ram_wdata_o = 6'b000000;
+        meta_ram_wstrb_o = 1'b1;
       end
 
-      StInitDataReq, StInitDataResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, DirDataBaseWord + {4'b0000, init_index_q}};
-        dir_mem_wdata_o = 32'b0;
-        dir_mem_wstrb_o = 4'b1111;
+      st_read_meta_req, st_read_meta_resp: begin
+        meta_ram_valid_o = 1'b1;
+        meta_ram_addr_o = request_index;
+        meta_ram_wstrb_o = 1'b0;
       end
 
-      StReadMetaReq, StReadMetaResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, meta_addr};
-      end
-
-      StReadDirDataReq, StReadDirDataResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, data_addr};
-      end
-
-      StReadBackingReq, StReadBackingResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, backing_addr};
-      end
-
-      StWriteBackingReq, StWriteBackingResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, backing_addr};
-        dir_mem_wdata_o = pending_write_backing_data_q;
-        dir_mem_wstrb_o = 4'b1111;
-      end
-
-      StWriteMetaReq, StWriteMetaResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, meta_addr};
-        dir_mem_wdata_o = packed_metadata;
-        dir_mem_wstrb_o = 4'b1111;
-      end
-
-      StWriteDirDataReq, StWriteDirDataResp: begin
-        dir_mem_valid_o = 1'b1;
-        dir_mem_addr_o = {21'b0, data_addr};
-        dir_mem_wdata_o = pending_write_data_q;
-        dir_mem_wstrb_o = 4'b1111;
+      st_write_meta_req, st_write_meta_resp: begin
+        meta_ram_valid_o = 1'b1;
+        meta_ram_addr_o = request_index;
+        meta_ram_wdata_o = packed_metadata;
+        meta_ram_wstrb_o = 1'b1;
       end
 
       default: begin
-        dir_mem_valid_o = 1'b0;
-        dir_mem_instr_o = 1'b0;
-        dir_mem_addr_o = 32'b0;
-        dir_mem_wdata_o = 32'b0;
-        dir_mem_wstrb_o = 4'b0000;
+        meta_ram_valid_o = 1'b0;
+        meta_ram_instr_o = 1'b0;
+        meta_ram_addr_o = 7'b0;
+        meta_ram_wdata_o = 6'b0;
+        meta_ram_wstrb_o = 1'b0;
       end
     endcase
   end
@@ -346,14 +274,14 @@ module directory_controller (
     c0_dir_valid_o = 1'b0;
     c0_dir_data_o = 32'b0;
     c0_dir_addr_o = 32'b0;
-    c0_dir_cmd_o = DirCmdNone;
+    c0_dir_cmd_o = dir_cmd_none_c;
 
     c1_dir_valid_o = 1'b0;
     c1_dir_data_o = 32'b0;
     c1_dir_addr_o = 32'b0;
-    c1_dir_cmd_o = DirCmdNone;
+    c1_dir_cmd_o = dir_cmd_none_c;
 
-    if (state_q == StIdle && selected_valid) begin
+    if ((state_q == st_idle) && selected_valid) begin
       if (selected_cache) begin
         c1_bus_ready_o = 1'b1;
       end else begin
@@ -361,21 +289,21 @@ module directory_controller (
       end
     end
 
-    if (state_q == StSendSnoop || state_q == StWaitSnoop) begin
+    if ((state_q == st_send_snoop) || (state_q == st_wait_snoop)) begin
       if (pending_snoop_cache_q) begin
         c1_dir_valid_o = 1'b1;
-        c1_dir_data_o = line_data_q;
+        c1_dir_data_o = 32'b0;
         c1_dir_addr_o = request_addr_q;
         c1_dir_cmd_o = pending_snoop_cmd_q;
       end else begin
         c0_dir_valid_o = 1'b1;
-        c0_dir_data_o = line_data_q;
+        c0_dir_data_o = 32'b0;
         c0_dir_addr_o = request_addr_q;
         c0_dir_cmd_o = pending_snoop_cmd_q;
       end
     end
 
-    if (state_q == StSendAck) begin
+    if (state_q == st_send_ack) begin
       if (pending_ack_cache_q) begin
         c1_dir_valid_o = 1'b1;
         c1_dir_data_o = pending_ack_data_q;
@@ -409,7 +337,7 @@ module directory_controller (
   always_comb begin
     state_d = state_q;
     init_index_d = init_index_q;
-    request_priority_d = request_priority_q;
+    dir_state_invalidated_d = dir_state_invalidated_q;
 
     request_cache_d = request_cache_q;
     request_addr_d = request_addr_q;
@@ -419,8 +347,7 @@ module directory_controller (
     line_state_d = line_state_q;
     line_sharers_d = line_sharers_q;
     line_owner_d = line_owner_q;
-    line_data_valid_d = line_data_valid_q;
-    line_data_d = line_data_q;
+    line_valid_d = line_valid_q;
 
     pending_ack_cache_d = pending_ack_cache_q;
     pending_ack_cmd_d = pending_ack_cmd_q;
@@ -433,47 +360,32 @@ module directory_controller (
     pending_write_state_d = pending_write_state_q;
     pending_write_sharers_d = pending_write_sharers_q;
     pending_write_owner_d = pending_write_owner_q;
-    pending_write_data_valid_d = pending_write_data_valid_q;
-    pending_write_data_d = pending_write_data_q;
-    pending_write_backing_d = pending_write_backing_q;
-    pending_write_backing_data_d = pending_write_backing_data_q;
-
-    flush_seen_d = flush_seen_q;
-    flush_data_d = flush_data_q;
+    pending_write_valid_d = pending_write_valid_q;
 
     unique case (state_q)
-      StInitMetaReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StInitMetaResp;
+      st_init_meta_req: begin
+        if (meta_ram_ready_i) begin
+          state_d = st_init_meta_resp;
         end
       end
 
-      StInitMetaResp: begin
-        if (dir_mem_ready_i) begin
-          state_d = StInitDataReq;
-        end
-      end
-
-      StInitDataReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StInitDataResp;
-        end
-      end
-
-      StInitDataResp: begin
-        if (dir_mem_ready_i) begin
-          if (init_index_q == LastIndex) begin
-            state_d = StIdle;
+      st_init_meta_resp: begin
+        if (meta_ram_ready_i) begin
+          if (init_index_q == last_index_c) begin
+            dir_state_invalidated_d = 1'b1;
+            state_d = st_idle;
           end else begin
             init_index_d = init_index_q + 7'd1;
-            state_d = StInitMetaReq;
+            state_d = st_init_meta_req;
           end
         end
       end
 
-      StIdle: begin
+      st_idle: begin
         pending_write_d = 1'b0;
-        flush_seen_d = 1'b0;
+        pending_ack_cmd_d = dir_cmd_none_c;
+        pending_ack_data_d = 32'b0;
+        pending_snoop_cmd_d = dir_cmd_none_c;
 
         if (selected_valid) begin
           request_cache_d = selected_cache;
@@ -481,344 +393,250 @@ module directory_controller (
           request_data_d = selected_cache ? c1_bus_wdata_i : c0_bus_wdata_i;
           request_cmd_d = selected_cache ? c1_bus_cache_cmd_i :
                                             c0_bus_cache_cmd_i;
-          request_priority_d = ~selected_cache;
-          state_d = StReadMetaReq;
+          state_d = st_read_meta_req;
         end
       end
 
-      StReadMetaReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StReadMetaResp;
+      st_read_meta_req: begin
+        if (meta_ram_ready_i) begin
+          state_d = st_read_meta_resp;
         end
       end
 
-      StReadMetaResp: begin
-        if (dir_mem_ready_i) begin
-          line_state_d = dir_mem_rdata_i[1:0];
-          line_sharers_d = dir_mem_rdata_i[3:2];
-          line_owner_d = dir_mem_rdata_i[4];
-          line_data_valid_d = dir_mem_rdata_i[5];
-          state_d = StReadDirDataReq;
+      st_read_meta_resp: begin
+        if (meta_ram_ready_i) begin
+          line_state_d = meta_ram_rdata_i[1:0];
+          line_sharers_d = meta_ram_rdata_i[3:2];
+          line_owner_d = meta_ram_rdata_i[4];
+          line_valid_d = meta_ram_rdata_i[5];
+          state_d = st_lookup;
         end
       end
 
-      StReadDirDataReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StReadDirDataResp;
-        end
-      end
-
-      StReadDirDataResp: begin
-        if (dir_mem_ready_i) begin
-          line_data_d = dir_mem_rdata_i;
-          if (line_data_valid_q) begin
-            state_d = StLookup;
-          end else begin
-            state_d = StReadBackingReq;
-          end
-        end
-      end
-
-      StReadBackingReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StReadBackingResp;
-        end
-      end
-
-      StReadBackingResp: begin
-        if (dir_mem_ready_i) begin
-          line_data_d = dir_mem_rdata_i;
-          state_d = StLookup;
-        end
-      end
-
-      StLookup: begin
+      st_lookup: begin
         pending_ack_cache_d = request_cache_q;
-        pending_ack_cmd_d = DirCmdNone;
+        pending_ack_cmd_d = dir_cmd_none_c;
         pending_ack_data_d = 32'b0;
 
         pending_snoop_cache_d = other_bit;
-        pending_snoop_cmd_d = DirCmdNone;
+        pending_snoop_cmd_d = dir_cmd_none_c;
 
         pending_write_d = 1'b0;
         pending_write_state_d = line_state_q;
         pending_write_sharers_d = line_sharers_q;
         pending_write_owner_d = line_owner_q;
-        pending_write_data_valid_d = line_data_valid_q;
-        pending_write_data_d = line_data_q;
-        pending_write_backing_d = 1'b0;
-        pending_write_backing_data_d = 32'b0;
+        pending_write_valid_d = line_valid_q;
 
         unique case (request_cmd_q)
-          CacheCmdBusRd: begin
+          cache_cmd_bus_rd_c: begin
             if (remote_modified_owner) begin
               pending_snoop_cache_d = line_owner_q;
-              pending_snoop_cmd_d = DirCmdSnoopBusRd;
-              state_d = StSendSnoop;
+              pending_snoop_cmd_d = dir_cmd_snoop_bus_rd_c;
+              state_d = st_send_snoop;
             end else begin
-              pending_ack_cmd_d = DirCmdBusRdAck;
-              pending_ack_data_d = line_data_q;
-
-              pending_write_d = 1'b1;
-              pending_write_state_d = LineShared;
-              pending_write_sharers_d =
-                  line_sharers_q | (request_cache_q ? 2'b10 : 2'b01);
-              pending_write_owner_d = 1'b0;
-              pending_write_data_valid_d = 1'b1;
-              pending_write_data_d = line_data_q;
-              state_d = StSendAck;
-            end
-          end
-
-          CacheCmdBusRdx: begin
-            if (remote_modified_owner) begin
-              pending_snoop_cache_d = line_owner_q;
-              pending_snoop_cmd_d = DirCmdSnoopBusRdx;
-              state_d = StSendSnoop;
-            end else if ((line_state_q == LineShared) && other_is_sharer) begin
-              pending_snoop_cache_d = other_bit;
-              pending_snoop_cmd_d = DirCmdSnoopBusUpgr;
-              state_d = StSendSnoop;
-            end else begin
-              pending_ack_cmd_d = DirCmdBusRdxAck;
-              pending_ack_data_d = line_data_q;
-
-              pending_write_d = 1'b1;
-              pending_write_state_d = LineModified;
-              pending_write_sharers_d = 2'b00;
-              pending_write_owner_d = request_cache_q;
-              pending_write_data_valid_d = 1'b1;
-              pending_write_data_d = line_data_q;
-              state_d = StSendAck;
-            end
-          end
-
-          CacheCmdBusUpgr: begin
-            if ((line_state_q == LineShared) && other_is_sharer) begin
-              pending_snoop_cache_d = other_bit;
-              pending_snoop_cmd_d = DirCmdSnoopBusUpgr;
-              state_d = StSendSnoop;
-            end else begin
-              pending_ack_cmd_d = DirCmdBusUpgrAck;
+              pending_ack_cmd_d = dir_cmd_bus_rd_ack_c;
               pending_ack_data_d = 32'b0;
 
               pending_write_d = 1'b1;
-              pending_write_state_d = LineModified;
-              pending_write_sharers_d = 2'b00;
-              pending_write_owner_d = request_cache_q;
-              pending_write_data_valid_d = line_data_valid_q;
-              pending_write_data_d = line_data_q;
-              state_d = StSendAck;
+              pending_write_state_d = line_shared_c;
+              pending_write_sharers_d =
+                  line_sharers_q | (request_cache_q ? 2'b10 : 2'b01);
+              pending_write_owner_d = 1'b0;
+              pending_write_valid_d = 1'b1;
+              state_d = st_send_ack;
             end
           end
 
-          CacheCmdEvictClean: begin
-            // If this clean eviction removes the last sharer, invalidate both
-            // metadata and cached directory data so the next BusRd reads the
-            // normal backing memory again.
+          cache_cmd_bus_rdx_c: begin
+            if (remote_modified_owner) begin
+              pending_snoop_cache_d = line_owner_q;
+              pending_snoop_cmd_d = dir_cmd_snoop_bus_rdx_c;
+              state_d = st_send_snoop;
+            end else if ((line_state_q == line_shared_c) && other_is_sharer) begin
+              pending_snoop_cache_d = other_bit;
+              pending_snoop_cmd_d = dir_cmd_snoop_bus_upgr_c;
+              state_d = st_send_snoop;
+            end else begin
+              pending_ack_cmd_d = dir_cmd_bus_rdx_ack_c;
+              pending_ack_data_d = 32'b0;
+
+              pending_write_d = 1'b1;
+              pending_write_state_d = line_modified_c;
+              pending_write_sharers_d = 2'b00;
+              pending_write_owner_d = request_cache_q;
+              pending_write_valid_d = 1'b1;
+              state_d = st_send_ack;
+            end
+          end
+
+          cache_cmd_bus_upgr_c: begin
+            if ((line_state_q == line_shared_c) && other_is_sharer) begin
+              pending_snoop_cache_d = other_bit;
+              pending_snoop_cmd_d = dir_cmd_snoop_bus_upgr_c;
+              state_d = st_send_snoop;
+            end else begin
+              pending_ack_cmd_d = dir_cmd_bus_upgr_ack_c;
+              pending_ack_data_d = 32'b0;
+
+              pending_write_d = 1'b1;
+              pending_write_state_d = line_modified_c;
+              pending_write_sharers_d = 2'b00;
+              pending_write_owner_d = request_cache_q;
+              pending_write_valid_d = 1'b1;
+              state_d = st_send_ack;
+            end
+          end
+
+          cache_cmd_evict_clean_c: begin
             pending_write_d = 1'b1;
             pending_write_sharers_d =
                 line_sharers_q & ~(request_cache_q ? 2'b10 : 2'b01);
             pending_write_owner_d = 1'b0;
-            pending_write_backing_d = 1'b0;
-            pending_write_backing_data_d = 32'b0;
 
             if (pending_write_sharers_d == 2'b00) begin
-              pending_write_state_d = LineInvalid;
-              pending_write_data_valid_d = 1'b0;
-              pending_write_data_d = 32'b0;
+              pending_write_state_d = line_invalid_c;
+              pending_write_valid_d = 1'b0;
             end else begin
-              pending_write_state_d = LineShared;
-              pending_write_data_valid_d = line_data_valid_q;
-              pending_write_data_d = line_data_q;
+              pending_write_state_d = line_shared_c;
+              pending_write_valid_d = 1'b1;
             end
 
-            state_d = StWriteMetaReq;
+            state_d = st_write_meta_req;
           end
 
-          CacheCmdEvictDirty: begin
+          cache_cmd_evict_dirty_c: begin
             pending_write_d = 1'b1;
-            pending_write_state_d = LineInvalid;
+            pending_write_state_d = line_invalid_c;
             pending_write_sharers_d = 2'b00;
             pending_write_owner_d = 1'b0;
-            pending_write_data_valid_d = 1'b0;
-            pending_write_data_d = 32'b0;
-            pending_write_backing_d = 1'b1;
-            pending_write_backing_data_d = request_data_q;
-            state_d = StWriteBackingReq;
+            pending_write_valid_d = 1'b0;
+            state_d = st_write_meta_req;
           end
 
           default: begin
-            state_d = StIdle;
+            state_d = st_idle;
           end
         endcase
       end
 
-      StSendSnoop: begin
+      st_send_snoop: begin
         if (snoop_send_ready) begin
-          state_d = StWaitSnoop;
+          state_d = st_wait_snoop;
         end
       end
 
-      StWaitSnoop: begin
-        if (dirty_flush_accept) begin
-          flush_seen_d = 1'b1;
-          flush_data_d = pending_snoop_cache_q ? c1_bus_wdata_i :
-                                                c0_bus_wdata_i;
-        end
-
+      st_wait_snoop: begin
         if (snoop_ack_accept) begin
           pending_ack_cache_d = request_cache_q;
+          pending_ack_data_d = 32'b0;
 
           unique case (request_cmd_q)
-            CacheCmdBusRd: begin
-              pending_ack_cmd_d = DirCmdBusRdAck;
-              pending_ack_data_d = finish_data;
+            cache_cmd_bus_rd_c: begin
+              pending_ack_cmd_d = dir_cmd_bus_rd_ack_c;
 
               pending_write_d = 1'b1;
-              pending_write_state_d = LineShared;
+              pending_write_state_d = line_shared_c;
               pending_write_sharers_d =
                   (request_cache_q ? 2'b10 : 2'b01) |
                   (pending_snoop_cache_q ? 2'b10 : 2'b01);
               pending_write_owner_d = 1'b0;
-              pending_write_data_valid_d = 1'b1;
-              pending_write_data_d = finish_data;
+              pending_write_valid_d = 1'b1;
             end
 
-            CacheCmdBusRdx: begin
-              pending_ack_cmd_d = DirCmdBusRdxAck;
-              pending_ack_data_d = finish_data;
+            cache_cmd_bus_rdx_c: begin
+              pending_ack_cmd_d = dir_cmd_bus_rdx_ack_c;
 
               pending_write_d = 1'b1;
-              pending_write_state_d = LineModified;
+              pending_write_state_d = line_modified_c;
               pending_write_sharers_d = 2'b00;
               pending_write_owner_d = request_cache_q;
-              pending_write_data_valid_d = 1'b1;
-              pending_write_data_d = finish_data;
+              pending_write_valid_d = 1'b1;
             end
 
-            CacheCmdBusUpgr: begin
-              pending_ack_cmd_d = DirCmdBusUpgrAck;
-              pending_ack_data_d = 32'b0;
+            cache_cmd_bus_upgr_c: begin
+              pending_ack_cmd_d = dir_cmd_bus_upgr_ack_c;
 
               pending_write_d = 1'b1;
-              pending_write_state_d = LineModified;
+              pending_write_state_d = line_modified_c;
               pending_write_sharers_d = 2'b00;
               pending_write_owner_d = request_cache_q;
-              pending_write_data_valid_d = line_data_valid_q;
-              pending_write_data_d = line_data_q;
+              pending_write_valid_d = 1'b1;
             end
 
             default: begin
-              pending_ack_cmd_d = DirCmdNone;
-              pending_ack_data_d = 32'b0;
+              pending_ack_cmd_d = dir_cmd_none_c;
               pending_write_d = 1'b0;
             end
           endcase
 
-          state_d = StSendAck;
+          state_d = st_send_ack;
         end
       end
 
-      StSendAck: begin
+      st_send_ack: begin
         if (ack_send_ready) begin
           if (pending_write_q) begin
-            if (pending_write_backing_q) begin
-              state_d = StWriteBackingReq;
-            end else begin
-              state_d = StWriteMetaReq;
-            end
+            state_d = st_write_meta_req;
           end else begin
-            state_d = StIdle;
+            state_d = st_idle;
           end
         end
       end
 
-      StWriteBackingReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StWriteBackingResp;
+      st_write_meta_req: begin
+        if (meta_ram_ready_i) begin
+          state_d = st_write_meta_resp;
         end
       end
 
-      StWriteBackingResp: begin
-        if (dir_mem_ready_i) begin
-          state_d = StWriteMetaReq;
+      st_write_meta_resp: begin
+        if (meta_ram_ready_i) begin
+          state_d = st_done;
         end
       end
 
-      StWriteMetaReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StWriteMetaResp;
-        end
-      end
-
-      StWriteMetaResp: begin
-        if (dir_mem_ready_i) begin
-          state_d = StWriteDirDataReq;
-        end
-      end
-
-      StWriteDirDataReq: begin
-        if (dir_mem_ready_i) begin
-          state_d = StWriteDirDataResp;
-        end
-      end
-
-      StWriteDirDataResp: begin
-        if (dir_mem_ready_i) begin
-          state_d = StDone;
-        end
-      end
-
-      StDone: begin
-        state_d = StIdle;
+      st_done: begin
+        state_d = st_idle;
       end
 
       default: begin
-        state_d = StIdle;
+        state_d = st_idle;
       end
     endcase
   end
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      state_q <= StInitMetaReq;
+      state_q <= st_init_meta_req;
       init_index_q <= 7'd0;
-      request_priority_q <= 1'b0;
+      dir_state_invalidated_q <= 1'b0;
 
       request_cache_q <= 1'b0;
       request_addr_q <= 32'b0;
       request_data_q <= 32'b0;
-      request_cmd_q <= CacheCmdNone;
+      request_cmd_q <= cache_cmd_none_c;
 
-      line_state_q <= LineInvalid;
+      line_state_q <= line_invalid_c;
       line_sharers_q <= 2'b00;
       line_owner_q <= 1'b0;
-      line_data_valid_q <= 1'b0;
-      line_data_q <= 32'b0;
+      line_valid_q <= 1'b0;
 
       pending_ack_cache_q <= 1'b0;
-      pending_ack_cmd_q <= DirCmdNone;
+      pending_ack_cmd_q <= dir_cmd_none_c;
       pending_ack_data_q <= 32'b0;
 
       pending_snoop_cache_q <= 1'b0;
-      pending_snoop_cmd_q <= DirCmdNone;
+      pending_snoop_cmd_q <= dir_cmd_none_c;
 
       pending_write_q <= 1'b0;
-      pending_write_state_q <= LineInvalid;
+      pending_write_state_q <= line_invalid_c;
       pending_write_sharers_q <= 2'b00;
       pending_write_owner_q <= 1'b0;
-      pending_write_data_valid_q <= 1'b0;
-      pending_write_data_q <= 32'b0;
-      pending_write_backing_q <= 1'b0;
-      pending_write_backing_data_q <= 32'b0;
-
-      flush_seen_q <= 1'b0;
-      flush_data_q <= 32'b0;
+      pending_write_valid_q <= 1'b0;
     end else begin
       state_q <= state_d;
       init_index_q <= init_index_d;
-      request_priority_q <= request_priority_d;
+      dir_state_invalidated_q <= dir_state_invalidated_d;
 
       request_cache_q <= request_cache_d;
       request_addr_q <= request_addr_d;
@@ -828,8 +646,7 @@ module directory_controller (
       line_state_q <= line_state_d;
       line_sharers_q <= line_sharers_d;
       line_owner_q <= line_owner_d;
-      line_data_valid_q <= line_data_valid_d;
-      line_data_q <= line_data_d;
+      line_valid_q <= line_valid_d;
 
       pending_ack_cache_q <= pending_ack_cache_d;
       pending_ack_cmd_q <= pending_ack_cmd_d;
@@ -842,13 +659,7 @@ module directory_controller (
       pending_write_state_q <= pending_write_state_d;
       pending_write_sharers_q <= pending_write_sharers_d;
       pending_write_owner_q <= pending_write_owner_d;
-      pending_write_data_valid_q <= pending_write_data_valid_d;
-      pending_write_data_q <= pending_write_data_d;
-      pending_write_backing_q <= pending_write_backing_d;
-      pending_write_backing_data_q <= pending_write_backing_data_d;
-
-      flush_seen_q <= flush_seen_d;
-      flush_data_q <= flush_data_d;
+      pending_write_valid_q <= pending_write_valid_d;
     end
   end
 
