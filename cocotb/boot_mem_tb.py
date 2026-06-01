@@ -164,8 +164,8 @@ def boot_mem_runner():
         # sram macro
         sram_macro,
         #mem ctrl
-        proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
-        proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv",
+        proj_path / "../src/mem_ctrl/mem512x32.sv",
+        proj_path / "../src/mem_ctrl/mem2048x32.sv",
         # boot controller
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
