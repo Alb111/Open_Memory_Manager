@@ -21,7 +21,7 @@ BOOT_IMAGE = [(i & 0xFF) ^ 0xA5 for i in range(512)]
 JEDEC_MANUF = 0x01
 JEDEC_MEM_TYPE = 0x60
 JEDEC_CAPACITY = 0x18
-CLEAR_CYCLES = 1000
+CLEAR_CYCLES = 4100
  
 def write_boot_image_mem():
     sim_build = Path(__file__).resolve().parent / "sim_build"

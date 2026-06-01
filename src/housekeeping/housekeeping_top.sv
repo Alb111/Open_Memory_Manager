@@ -53,7 +53,7 @@ module housekeeping_top #(
    assign mem_wstrb_o = boot_wr_en ? 4'b1111 : 4'b0000;
    assign mem_instr_o = 1'b0;
 
-   localparam CLEAR_CYCLES = 1000;
+   localparam CLEAR_CYCLES = 4100;
    logic [$clog2(CLEAR_CYCLES+1)-1:0] clear_counter;
    logic clear_done;
 
