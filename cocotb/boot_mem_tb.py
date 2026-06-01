@@ -45,8 +45,6 @@ async def apply_reset(dut, cycles=40_000):
     dut.reset_ni.value = 1
     await Timer(1, unit="ns")
 
-# mem read helper, like axi_read() from mem_tb.py
-# drive wrapper read port directly (only valid after boot_done)
 async def mem_read(dut, addr):
     dut.mem_addr_i.value = addr
     dut.mem_wstrb_i.value = 0
@@ -65,7 +63,6 @@ async def test_boot_writes_reach_sram(dut):
     print("\n=== INTEGRATION TEST 1: full boot and sram readback ===")
     start_clock(dut)
     await apply_reset(dut)
-    #wait for boot to complete
     timed_out = False
     for _ in range(500_000):
         await RisingEdge(dut.clk_i)
@@ -98,7 +95,6 @@ async def test_boot_writes_reach_sram(dut):
         ok = (actual == expected)
         if not ok:
             all_ok = False
-        # print every word
         print(f"  {i:<6} {hex(addr):<12} {hex(actual):<14} {hex(expected):<14} "
               f"{'PASS' if ok else 'FAIL'}")
 
@@ -164,8 +160,8 @@ def boot_mem_runner():
         # sram macro
         sram_macro,
         #mem ctrl
-        proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
-        proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv",
+        proj_path / "../src/mem_ctrl/mem512x32.sv",
+        proj_path / "../src/mem_ctrl/mem2048x32.sv",
         # boot controller
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
