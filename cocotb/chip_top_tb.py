@@ -111,6 +111,7 @@ def chip_top_runner():
         sources.append(proj_path / "../src/mmio/sp_addr_handler.sv")
         sources.append(proj_path / "../src/mem_ctrl/mem2048x32.sv")
         sources.append(proj_path / "../src/mem_ctrl/mem512x32.sv")
+        sources.append(proj_path / "../src/mem_ctrl/directory_mem.sv")
         sources.append(proj_path / "../src/mem_ctrl/metadata_sram64x8_array.sv")
         sources.append(proj_path / "../src/housekeeping/boot_fsm.sv")
         sources.append(proj_path / "../src/housekeeping/housekeeping_top.sv")

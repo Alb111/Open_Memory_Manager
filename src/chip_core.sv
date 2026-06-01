@@ -439,6 +439,10 @@ module chip_core #(
   	.main_mem_wstrb_o  (dir_main_mem_wstrb),
   	.main_mem_rdata_i  (dir_main_mem_rdata),
   	.main_mem_ready_i  (dir_main_mem_ready)
+    `ifdef USE_POWER_PINS
+      ,.VDD            (VDD)
+      ,.VSS            (VSS)
+    `endif
     );
     
     mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
@@ -455,13 +459,6 @@ module chip_core #(
   	,.VDD        (VDD)
   	,.VSS        (VSS)
 	`endif
-    );
-
-    metadata_sram64x8_array i_metadata_sram64x8_array (
-        `ifdef USE_POWER_PINS
-        .VDD (VDD),
-        .VSS (VSS)
-        `endif
     );
 
     logic _unused;

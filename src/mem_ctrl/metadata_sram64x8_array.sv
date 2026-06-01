@@ -4,24 +4,28 @@
 `default_nettype none
 
 module metadata_sram64x8_array (
+  input  wire        clk_i,
+  input  wire        enable_n_i,
+  input  wire [2:0]  gwen_i,
+  input  wire [23:0] wen_i,
+  input  wire [5:0]  addr_i,
+  input  wire [23:0] wdata_i,
+  output wire [23:0] rdata_o
+
   `ifdef USE_POWER_PINS
-    inout wire VDD,
+    ,inout wire VDD,
     inout wire VSS
   `endif
 );
 
-    wire [7:0] spare_q0;
-    wire [7:0] spare_q1;
-    wire [7:0] spare_q2;
-
     (* keep *) gf180mcu_fd_ip_sram__sram64x8m8wm1 sram0 (
-        .CLK  (1'b0),
-        .CEN  (1'b1),
-        .GWEN (1'b1),
-        .WEN  (8'hff),
-        .A    (6'h00),
-        .D    (8'h00),
-        .Q    (spare_q0)
+        .CLK  (clk_i),
+        .CEN  (enable_n_i),
+        .GWEN (gwen_i[0]),
+        .WEN  (wen_i[7:0]),
+        .A    (addr_i),
+        .D    (wdata_i[7:0]),
+        .Q    (rdata_o[7:0])
         `ifdef USE_POWER_PINS
         ,.VDD (VDD)
         ,.VSS (VSS)
@@ -29,13 +33,13 @@ module metadata_sram64x8_array (
     );
 
     (* keep *) gf180mcu_fd_ip_sram__sram64x8m8wm1 sram1 (
-        .CLK  (1'b0),
-        .CEN  (1'b1),
-        .GWEN (1'b1),
-        .WEN  (8'hff),
-        .A    (6'h00),
-        .D    (8'h00),
-        .Q    (spare_q1)
+        .CLK  (clk_i),
+        .CEN  (enable_n_i),
+        .GWEN (gwen_i[1]),
+        .WEN  (wen_i[15:8]),
+        .A    (addr_i),
+        .D    (wdata_i[15:8]),
+        .Q    (rdata_o[15:8])
         `ifdef USE_POWER_PINS
         ,.VDD (VDD)
         ,.VSS (VSS)
@@ -43,21 +47,18 @@ module metadata_sram64x8_array (
     );
 
     (* keep *) gf180mcu_fd_ip_sram__sram64x8m8wm1 sram2 (
-        .CLK  (1'b0),
-        .CEN  (1'b1),
-        .GWEN (1'b1),
-        .WEN  (8'hff),
-        .A    (6'h00),
-        .D    (8'h00),
-        .Q    (spare_q2)
+        .CLK  (clk_i),
+        .CEN  (enable_n_i),
+        .GWEN (gwen_i[2]),
+        .WEN  (wen_i[23:16]),
+        .A    (addr_i),
+        .D    (wdata_i[23:16]),
+        .Q    (rdata_o[23:16])
         `ifdef USE_POWER_PINS
         ,.VDD (VDD)
         ,.VSS (VSS)
         `endif
     );
-
-    wire _unused;
-    assign _unused = &{spare_q0, spare_q1, spare_q2};
 
 endmodule
 
