@@ -70,7 +70,7 @@ module housekeeping_top #(
    // spi engine
    spi_engine spi_master (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),   //keep spi idle during pass thur
+      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),
       .start_i(spi_start),
       .data_in_i(spi_data_out),
       .data_out_o(spi_data_in),
@@ -87,7 +87,7 @@ module housekeeping_top #(
       .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
    ) boot_controller (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),   //fsm idle during pass thru
+      .reset_ni(reset_ni && !pass_thru_en_i && clear_done), 
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),
@@ -107,7 +107,7 @@ module housekeeping_top #(
       if (!reset_ni)
          whoami_sent <= 1'b0;
       else if (whoami_pulse_o && whoami_ready_i)
-         whoami_sent <= 1'b1;   // accepted — latch so we don't send again
+         whoami_sent <= 1'b1;
    end
 
    // assert pulse once boot starts, hold until accepted, never repeat

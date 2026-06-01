@@ -45,7 +45,6 @@ async def apply_reset(dut, cycles=40_000):
 
 
 async def receive_serial_packet(req_signal, serial_signal, clk, timeout=10_000):
-    # wait for req to go high
     for _ in range(timeout):
         await RisingEdge(clk)
         await Timer(1, unit="ns")
@@ -53,7 +52,6 @@ async def receive_serial_packet(req_signal, serial_signal, clk, timeout=10_000):
             break
     else:
         return None
-    # shift in serial words while req is high
     shift_chunks = []
     for _ in range(timeout):
         await RisingEdge(clk)
@@ -69,9 +67,9 @@ def decode_whoami_packet(shift_chunks, num_pins=SER_PINS):
     if len(shift_chunks) < 1:
         return None, None
     # use the last received chunk which is shift_arr[0] (the lowest bits)
-    raw = shift_chunks[-1] & 0x1FF   # 9 bits
-    opcode = raw & 0xF          # bits [3:0]
-    cpu_id = (raw >> 4) & 0x1F  # bits [8:4] — 5 bits sufficient for cpu_id 0 and 1
+    raw = shift_chunks[-1] & 0x1FF   
+    opcode = raw & 0xF          
+    cpu_id = (raw >> 4) & 0x1F  
     return opcode, cpu_id
 
 
@@ -87,7 +85,6 @@ async def test_whoami_transmitted_cpu0(dut):
             dut.req_o_0, dut.serial_o_0, dut.clk_i, timeout=500_000
         )
     )
-    # wait for boot_done or packet received
     boot_done_cycle = None
     cycle = 0
     for _ in range(500_000):
@@ -201,7 +198,7 @@ async def test_whoami_pulse_deasserts(dut):
         ("whoami_pulse never went low — handshake never completed. "
          "Check whoami_ready_i path and c0/c1_tser_ready wiring.")
 
-    # verify it stays low — no re-transmission
+    # verify it stays low — no retransmission
     extra_pulses = 0
     for _ in range(1000):
         await RisingEdge(dut.clk_i)

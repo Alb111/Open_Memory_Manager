@@ -50,11 +50,11 @@ module boot_flash_wrapper #(
         .spi_miso_i     (flash_so),
         .whoami_ready_i (whoami_ready),
         .flash_csb_o    (flash_csb),
-        .mem_valid_o    (sram_wr_en),    // renamed from sram_wr_en_o
-        .mem_addr_o     (sram_addr),     // renamed from sram_addr_o
-        .mem_wdata_o    (sram_data),     // renamed from sram_data_o
-        .mem_wstrb_o    (),              // not needed in boot_wrapper
-        .mem_instr_o    (),              // not needed in boot_wrapper
+        .mem_valid_o    (sram_wr_en),    
+        .mem_addr_o     (sram_addr),     
+        .mem_wdata_o    (sram_data),     
+        .mem_wstrb_o    (),             
+        .mem_instr_o    (),              
         .cores_en_o     (cores_en_o),
         .boot_done_o    (boot_done_o),
         .whoami_pulse_o (whoami_pulse)

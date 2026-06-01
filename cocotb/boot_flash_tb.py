@@ -149,7 +149,6 @@ async def test_full_boot_real_flash(dut):
     start_clock(dut)
     # long reset: must outlast the flash power-up delay (SPEEDSIM ~300us)
     await apply_reset(dut, cycles=40_000)
-    #capture every SRAM write in order
     sram_writes = []
     timed_out = False
  
@@ -159,7 +158,6 @@ async def test_full_boot_real_flash(dut):
         if dut.sram_wr_en_o.value == 1:
             addr = dut.sram_addr_o.value
             data = dut.sram_data_o.value
-            #skip any cycle where signals haven't resolved yet
             if addr.is_resolvable and data.is_resolvable:
                 sram_writes.append((int(addr), int(data)))
         if dut.boot_done_o.value == 1:
@@ -169,13 +167,11 @@ async def test_full_boot_real_flash(dut):
     assert not timed_out, \
         "boot_done never asserted — boot did not complete within timeout"
  
-    #check write count 
     BOOT_WORDS = len(BOOT_IMAGE) // 4 
     print(f"\n  SRAM writes: {len(sram_writes)}  (expected {BOOT_WORDS})")
     assert len(sram_writes) == BOOT_WORDS, \
         f"Expected {BOOT_WORDS} word writes, got {len(sram_writes)}"
  
-    #check each words address and data
     print(f"\n  {'Word':<6} {'Addr got':<14} {'Addr exp':<14} "
           f"{'Data got':<14} {'Data exp':<14} {'OK'}")
     for i, (addr, data) in enumerate(sram_writes):
@@ -189,13 +185,12 @@ async def test_full_boot_real_flash(dut):
         assert data == exp_data, \
             f"Word {i}: wrong data — got {hex(data)}, expected {hex(exp_data)}"
  
-    # check handoff signals
     print(f"\n  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
     print(f"  cores_en_o = {int(dut.cores_en_o.value)}  (expected 1)")
     assert dut.boot_done_o.value == 1, "boot_done must be high after boot"
     assert dut.cores_en_o.value  == 1, "cores_en must be high after boot"
  
-    # fsm must stay in DONE —signals must hold for 20 more cycles 
+    # fsm must stay in DONE, signals must hold for 20 more cycles 
     await ClockCycles(dut.clk_i, 20)
     assert dut.boot_done_o.value == 1, "boot_done dropped — FSM left DONE state"
     assert dut.cores_en_o.value == 1, "cores_en dropped — FSM left DONE state"
@@ -228,9 +223,7 @@ async def test_page_boundary_crossing(dut):
         timed_out = True
     n_words = len(sram_writes)
  
-    #write count check
     if n_words < 128:
-        #warning so you knows what to fix
         print(f"\n  WARNING: only {n_words} words written.")
         print("  boot_flash_wrapper.sv was built with BOOT_SIZE < 512.")
         print("  Change 'parameter BOOT_SIZE = 512' in boot_flash_wrapper.sv and re-run")
@@ -241,7 +234,6 @@ async def test_page_boundary_crossing(dut):
         print(f"\n  SRAM writes: {n_words}  (expected 128 for BOOT_SIZE=512)")
         assert n_words == 128, f"Expected 128 writes, got {n_words}"
  
-    #verify every word that was written
     print(f"\n  {'Word':<6} {'Byte addr':<12} {'Addr got':<14} "
           f"{'Data got':<14} {'Data exp':<14} {'OK'}")
     for i, (addr, data) in enumerate(sram_writes):
