@@ -1,12 +1,12 @@
 `timescale 1ns/1ps
 
 // test wrapper that instantiates chip_core with the cypress flash model connected through pad indices
-// pad assignments: () match localparams in chip_core.sv)
-//   input_in[0] = pass_thru_en
-//   input_in[1] = MISO (flash SO)
-//   bidir_out[8] = SCK (flash SI clock)
-//   bidir_out[9] = MOSI (flash SI data)
-//   bidir_out[10]= CSB (flash chip select)
+// pad assignments match localparams in chip_core.sv:
+//   input_in[0] = MISO (flash SO)
+//   input_in[1] = debug/pass-through enable
+//   bidir_out[1] = SCK (flash clock)
+//   bidir_out[2] = MOSI (flash SI data)
+//   bidir_out[3] = CSB (flash chip select)
 
 module chip_core_boot_wrapper #(
     parameter NUM_INPUT_PADS = 12,
@@ -31,7 +31,20 @@ module chip_core_boot_wrapper #(
     logic [NUM_BIDIR_PADS-1:0] bidir_ie;
     logic [NUM_BIDIR_PADS-1:0] bidir_pu;
     logic [NUM_BIDIR_PADS-1:0] bidir_pd;
+    logic [NUM_INPUT_PADS-1:0] core_input_in;
     wire [NUM_ANALOG_PADS-1:0] analog;
+
+    localparam int PIN_BOOT_MISO = 0;
+    localparam int PIN_BOOT_SCLK = 1;
+    localparam int PIN_BOOT_MOSI = 2;
+    localparam int PIN_BOOT_CS = 3;
+
+    wire flash_miso;
+
+    always_comb begin
+        core_input_in = input_in;
+        core_input_in[PIN_BOOT_MISO] = flash_miso;
+    end
 
     chip_core #(
         .NUM_INPUT_PADS  (NUM_INPUT_PADS),
@@ -40,7 +53,7 @@ module chip_core_boot_wrapper #(
     ) dut (
         .clk       (clk),
         .rst_n     (rst_n),
-        .input_in  (input_in),
+        .input_in  (core_input_in),
         .input_pu  (input_pu),
         .input_pd  (input_pd),
         .bidir_in  (bidir_in),
@@ -55,13 +68,9 @@ module chip_core_boot_wrapper #(
     );
 
     //get spi signals from the bidir pad outputs
-    //bidir_out[8]=SCK, bidir_out[9]=MOSI, bidir_out[10]=CSB
-    wire flash_sck = bidir_out[8];
-    wire flash_mosi = bidir_out[9];
-    wire flash_csb = bidir_out[10];
-
-    //MISO comes from input_in[1]— driven by cocotb or flash model
-    wire flash_miso = input_in[1];
+    wire flash_sck = bidir_out[PIN_BOOT_SCLK];
+    wire flash_mosi = bidir_out[PIN_BOOT_MOSI];
+    wire flash_csb = bidir_out[PIN_BOOT_CS];
 
     //flash model tie-off wires (inout ports)
     wire wp_tie;
@@ -85,7 +94,7 @@ module chip_core_boot_wrapper #(
     );
 
     //expose boot status signals for cocotb
-    assign boot_done_o = dut.i_housekeeping.boot_done_o;
-    assign cores_en_o = dut.i_housekeeping.cores_en_o;
+    assign boot_done_o = dut.i_housekeeping_top.boot_done_o;
+    assign cores_en_o = dut.i_housekeeping_top.cores_en_o;
 
 endmodule

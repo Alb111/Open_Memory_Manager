@@ -63,6 +63,7 @@
               # Waveform viewing
               gtkwave
               surfer
+
             ];
 
             extra-python-packages =

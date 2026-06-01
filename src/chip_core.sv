@@ -63,10 +63,12 @@ module chip_core #(
     logic [31:0] c0_bus_wdata;
     logic [4:0]  c0_bus_cache_cmd;
     logic        c0_bus_ready;
+
     logic        c0_snoop_valid;
     logic [31:0] c0_snoop_data;
     logic [2:0]  c0_snoop_cache_cmd;
     logic        c0_snoop_ready;
+
     logic        c0_dir_valid;
     logic [31:0] c0_dir_data;
     logic [31:0] c0_dir_addr;
@@ -78,10 +80,12 @@ module chip_core #(
     logic [31:0] c1_bus_wdata;
     logic [4:0]  c1_bus_cache_cmd;
     logic        c1_bus_ready;
+
     logic        c1_snoop_valid;
     logic [31:0] c1_snoop_data;
     logic [2:0]  c1_snoop_cache_cmd;
     logic        c1_snoop_ready;
+
     logic        c1_dir_valid;
     logic [31:0] c1_dir_data;
     logic [31:0] c1_dir_addr;
@@ -89,19 +93,24 @@ module chip_core #(
     logic        c1_reset_done;
 
     logic        dir_mem_valid;
-    logic        dir_mem_instr;
-    logic [31:0] dir_mem_addr;
-    logic [31:0] dir_mem_wdata;
-    logic [3:0]  dir_mem_wstrb;
-    logic [31:0] dir_mem_rdata;
     logic        dir_mem_ready;
+    logic [31:0] dir_mem_addr;
+    logic [3:0]  dir_mem_wstrb;
 
-    logic [0:0]  mem_valid_i;
-    logic [0:0]  mem_instr_i;
-    logic [0:0]  mem_ready_o;
-    logic [31:0] mem_addr_i;
-    logic [31:0] mem_wdata_i;
-    logic [3:0]  mem_wstrb_i;
+    logic [31:0] dir_mem_w_data;
+    logic [1:0]  dir_mem_w_state;
+    logic [1:0]  dir_mem_w_sharers;
+    logic        dir_mem_w_owner;
+    logic        dir_mem_w_valid_data;
+
+    logic [31:0] dir_mem_r_data;
+    logic [1:0]  dir_mem_r_state;
+    logic [1:0]  dir_mem_r_sharers;
+    logic [1:0]  dir_mem_r_owner;
+    logic [1:0]  dir_mem_r_valid_data;
+ 
+    logic        dir_mem_resp_ready;
+    logic        dir_state_invalidated;
 
     logic        boot_mem_valid;
     logic        boot_mem_instr;
@@ -158,13 +167,6 @@ module chip_core #(
     assign c0_req_rx = c1_req_tx;
     assign c1_req_rx = c0_req_tx;
 
-    assign mem_valid_i = core_mem_select ? dir_mem_valid : boot_mem_valid;
-    assign mem_instr_i = core_mem_select ? dir_mem_instr : boot_mem_instr;
-    assign mem_addr_i = core_mem_select ? dir_mem_addr : boot_mem_addr;
-    assign mem_wdata_i = core_mem_select ? dir_mem_wdata : boot_mem_wdata;
-    assign mem_wstrb_i = core_mem_select ? dir_mem_wstrb : boot_mem_wstrb;
-    assign dir_mem_ready = core_mem_select ? mem_ready_o[0] : 1'b0;
-
     always_comb begin
         bidir_out_int = '0;
         bidir_oe_int = '0;
@@ -173,13 +175,13 @@ module chip_core #(
         bidir_oe_int[PIN_TRAP_LED] = 1'b1;
 
         bidir_out_int[PIN_BOOT_SCLK] = boot_spi_sck;
-        bidir_oe_int[PIN_BOOT_SCLK] = 1'b1;
+        bidir_oe_int[PIN_BOOT_SCLK] = !debug_mode;
 
         bidir_out_int[PIN_BOOT_MOSI] = boot_spi_mosi;
-        bidir_oe_int[PIN_BOOT_MOSI] = 1'b1;
+        bidir_oe_int[PIN_BOOT_MOSI] = !debug_mode;
 
         bidir_out_int[PIN_BOOT_CS] = boot_flash_csb;
-        bidir_oe_int[PIN_BOOT_CS] = 1'b1;
+        bidir_oe_int[PIN_BOOT_CS] = !debug_mode;
 
         bidir_out_int[PIN_DFT_OUT] = dft_out;
         bidir_oe_int[PIN_DFT_OUT] = 1'b1;
@@ -207,7 +209,8 @@ module chip_core #(
         .whoami_pulse_o (whoami_pulse)
     );
 
-
+    //Not sure if arbiter is needed here since its instantiated in directory
+    //controller but best to double check
     wrr_arbiter #(
         .NUM_REQ    (2),
         .WEIGHT_W   (3),
@@ -221,63 +224,73 @@ module chip_core #(
     );
 
     directory_interface #(
-        .NUM_TPINS  (SER_PINS),
-        .NUM_RPINS  (SER_PINS)
+  	.NUM_TPINS(SER_PINS),
+  	.NUM_RPINS(SER_PINS)
     ) i_directory_interface_0 (
-        .clk_i          (clk),
-        .rst_ni         (core_rst_n),
-        .bus_valid_o    (c0_bus_valid),
-        .bus_addr_o     (c0_bus_addr),
-        .bus_wdata_o    (c0_bus_wdata),
-        .bus_cache_cmd_o(c0_bus_cache_cmd),
-        .bus_ready_i    (c0_bus_ready),
-        .snoop_valid_o  (c0_snoop_valid),
-        .snoop_data_o   (c0_snoop_data),
-        .snoop_cache_cmd_o(c0_snoop_cache_cmd),
-        .snoop_ready_i  (c0_snoop_ready),
-        .dir_valid_i    (c0_dir_valid),
-        .dir_data_i     (c0_dir_data),
-        .dir_addr_i     (c0_dir_addr),
-        .dir_cmd_i      (c0_dir_cmd),
-        .dir_ready_o    (c0_tser_ready),
-        .rbusy_o        (),
-        .send_WhoAmI_i  (whoami_pulse),
-        .cpu_id_i       (8'h00),
-        .reset_done_o   (c0_reset_done),
-        .req_i          (c0_req_rx),
-        .serial_i       (c0_serial_rx),
-        .req_o          (c0_req_tx),
-        .serial_o       (c0_serial_tx)
+  	.clk_i              (clk),
+  	.rst_ni             (core_rst_n),
+
+  	.bus_valid_o        (c0_bus_valid),
+  	.bus_addr_o         (c0_bus_addr),
+  	.bus_wdata_o        (c0_bus_wdata),
+  	.bus_cache_cmd_o    (c0_bus_cache_cmd),
+  	.bus_ready_i        (c0_bus_ready),
+
+  	.snoop_valid_o      (c0_snoop_valid),
+  	.snoop_data_o       (c0_snoop_data),
+  	.snoop_cache_cmd_o  (c0_snoop_cache_cmd),
+  	.snoop_ready_i      (c0_snoop_ready),
+
+  	.dir_valid_i        (c0_dir_valid),
+  	.dir_data_i         (c0_dir_data),
+  	.dir_addr_i         (c0_dir_addr),
+  	.dir_cmd_i          (c0_dir_cmd),
+    .dir_ready_o        (c0_tser_ready),
+
+  	.rbusy_o            (),
+    .send_WhoAmI_i      (whoami_pulse),
+  	.cpu_id_i           (8'h00),
+  	.reset_done_o       (c0_reset_done),
+
+  	.req_i              (c0_req_rx),
+  	.serial_i           (c0_serial_rx),
+  	.req_o              (c0_req_tx),
+  	.serial_o           (c0_serial_tx)
     );
 
     directory_interface #(
-        .NUM_TPINS  (SER_PINS),
-        .NUM_RPINS  (SER_PINS)
+  	.NUM_TPINS(SER_PINS),
+  	.NUM_RPINS(SER_PINS)
     ) i_directory_interface_1 (
-        .clk_i          (clk),
-        .rst_ni         (core_rst_n),
-        .bus_valid_o    (c1_bus_valid),
-        .bus_addr_o     (c1_bus_addr),
-        .bus_wdata_o    (c1_bus_wdata),
-        .bus_cache_cmd_o(c1_bus_cache_cmd),
-        .bus_ready_i    (c1_bus_ready),
-        .snoop_valid_o  (c1_snoop_valid),
-        .snoop_data_o   (c1_snoop_data),
-        .snoop_cache_cmd_o(c1_snoop_cache_cmd),
-        .snoop_ready_i  (c1_snoop_ready),
-        .dir_valid_i    (c1_dir_valid),
-        .dir_data_i     (c1_dir_data),
-        .dir_addr_i     (c1_dir_addr),
-        .dir_cmd_i      (c1_dir_cmd),
-        .dir_ready_o    (c1_tser_ready),
-        .rbusy_o        (),
-        .send_WhoAmI_i  (whoami_pulse),
-        .cpu_id_i       (8'h01),
-        .reset_done_o   (c1_reset_done),
-        .req_i          (c1_req_rx),
-        .serial_i       (c1_serial_rx),
-        .req_o          (c1_req_tx),
-        .serial_o       (c1_serial_tx)
+  	.clk_i              (clk),
+  	.rst_ni             (core_rst_n),
+
+  	.bus_valid_o        (c1_bus_valid),
+  	.bus_addr_o         (c1_bus_addr),
+  	.bus_wdata_o        (c1_bus_wdata),
+  	.bus_cache_cmd_o    (c1_bus_cache_cmd),
+  	.bus_ready_i        (c1_bus_ready),
+
+  	.snoop_valid_o      (c1_snoop_valid),
+  	.snoop_data_o       (c1_snoop_data),
+  	.snoop_cache_cmd_o  (c1_snoop_cache_cmd),
+  	.snoop_ready_i      (c1_snoop_ready),
+
+  	.dir_valid_i        (c1_dir_valid),
+  	.dir_data_i         (c1_dir_data),
+  	.dir_addr_i         (c1_dir_addr),
+  	.dir_cmd_i          (c1_dir_cmd),
+    .dir_ready_o        (c1_tser_ready),
+
+  	.rbusy_o            (),
+    .send_WhoAmI_i      (whoami_pulse),
+  	.cpu_id_i           (8'h01),
+  	.reset_done_o       (c1_reset_done),
+
+  	.req_i              (c1_req_rx),
+  	.serial_i           (c1_serial_rx),
+  	.req_o              (c1_req_tx),
+  	.serial_o           (c1_serial_tx)
     );
 
     tserializer #(
@@ -312,66 +325,97 @@ module chip_core #(
     );
 
     directory_controller i_directory_controller (
-        .clk_i             (clk),
-        .rst_ni            (core_rst_n),
-        .c0_bus_valid_i    (c0_bus_valid),
-        .c0_bus_addr_i     (c0_bus_addr),
-        .c0_bus_wdata_i    (c0_bus_wdata),
-        .c0_bus_cache_cmd_i(c0_bus_cache_cmd),
-        .c0_bus_ready_o    (c0_bus_ready),
-        .c0_snoop_valid_i  (c0_snoop_valid),
-        .c0_snoop_data_i   (c0_snoop_data),
-        .c0_snoop_cache_cmd_i(c0_snoop_cache_cmd),
-        .c0_snoop_ready_o  (c0_snoop_ready),
-        .c0_dir_valid_o    (c0_dir_valid),
-        .c0_dir_data_o     (c0_dir_data),
-        .c0_dir_addr_o     (c0_dir_addr),
-        .c0_dir_cmd_o      (c0_dir_cmd),
-        .c0_dir_ready_i    (c0_tser_ready),
-        .c1_bus_valid_i    (c1_bus_valid),
-        .c1_bus_addr_i     (c1_bus_addr),
-        .c1_bus_wdata_i    (c1_bus_wdata),
-        .c1_bus_cache_cmd_i(c1_bus_cache_cmd),
-        .c1_bus_ready_o    (c1_bus_ready),
-        .c1_snoop_valid_i  (c1_snoop_valid),
-        .c1_snoop_data_i   (c1_snoop_data),
-        .c1_snoop_cache_cmd_i(c1_snoop_cache_cmd),
-        .c1_snoop_ready_o  (c1_snoop_ready),
-        .c1_dir_valid_o    (c1_dir_valid),
-        .c1_dir_data_o     (c1_dir_data),
-        .c1_dir_addr_o     (c1_dir_addr),
-        .c1_dir_cmd_o      (c1_dir_cmd),
-        .c1_dir_ready_i    (c1_tser_ready),
-        .dir_mem_valid_o   (dir_mem_valid),
-        .dir_mem_instr_o   (dir_mem_instr),
-        .dir_mem_addr_o    (dir_mem_addr),
-        .dir_mem_wdata_o   (dir_mem_wdata),
-        .dir_mem_wstrb_o   (dir_mem_wstrb),
-        .dir_mem_rdata_i   (dir_mem_rdata),
-        .dir_mem_ready_i   (dir_mem_ready)
-    );
+  	.clk_i                  (clk),
+  	.rst_ni                 (core_rst_n),
 
-    mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
-        .clk_i        (clk),
-        .rst_ni       (rst_n),
-        .mem_valid_i  (mem_valid_i),
-        .mem_instr_i  (mem_instr_i),
-        .mem_addr_i   (mem_addr_i),
-        .mem_wdata_i  (mem_wdata_i),
-        .mem_wstrb_i  (mem_wstrb_i),
-        .mem_rdata_o  (dir_mem_rdata),
-        .mem_ready_o  (mem_ready_o)
-        `ifdef USE_POWER_PINS
- 		,.VDD(VDD)
- 		,.VSS(VSS)
- 		`endif
-    );
+  	.c0_bus_valid_i         (c0_bus_valid),
+  	.c0_bus_addr_i          (c0_bus_addr),
+  	.c0_bus_wdata_i         (c0_bus_wdata),
+  	.c0_bus_cache_cmd_i     (c0_bus_cache_cmd),
+  	.c0_bus_ready_o         (c0_bus_ready),
 
-    metadata_sram64x8_array i_metadata_sram64x8_array (
-        `ifdef USE_POWER_PINS
-        .VDD (VDD),
-        .VSS (VSS)
-        `endif
+  	.c0_snoop_valid_i       (c0_snoop_valid),
+  	.c0_snoop_data_i        (c0_snoop_data),
+  	.c0_snoop_cache_cmd_i   (c0_snoop_cache_cmd),
+  	.c0_snoop_ready_o       (c0_snoop_ready),
+
+  	.c0_dir_valid_o         (c0_dir_valid),
+  	.c0_dir_data_o          (c0_dir_data),
+  	.c0_dir_addr_o          (c0_dir_addr),
+  	.c0_dir_cmd_o           (c0_dir_cmd),
+    .c0_dir_ready_i         (c0_tser_ready),
+
+  	.c1_bus_valid_i         (c1_bus_valid),
+  	.c1_bus_addr_i          (c1_bus_addr),
+  	.c1_bus_wdata_i         (c1_bus_wdata),
+  	.c1_bus_cache_cmd_i     (c1_bus_cache_cmd),
+  	.c1_bus_ready_o         (c1_bus_ready),
+
+  	.c1_snoop_valid_i       (c1_snoop_valid),
+  	.c1_snoop_data_i        (c1_snoop_data),
+  	.c1_snoop_cache_cmd_i   (c1_snoop_cache_cmd),
+  	.c1_snoop_ready_o       (c1_snoop_ready),
+
+  	.c1_dir_valid_o         (c1_dir_valid),
+  	.c1_dir_data_o          (c1_dir_data),
+  	.c1_dir_addr_o          (c1_dir_addr),
+  	.c1_dir_cmd_o           (c1_dir_cmd),
+    .c1_dir_ready_i         (c1_tser_ready),
+	
+  	.dir_mem_valid_o        (dir_mem_valid),
+  	.dir_mem_ready_i        (dir_mem_ready),
+  	.dir_mem_addr_o         (dir_mem_addr),
+  	.dir_mem_wstrb_o        (dir_mem_wstrb),
+  	.dir_mem_w_data_o       (dir_mem_w_data),
+  	.dir_mem_w_state_o      (dir_mem_w_state),
+  	.dir_mem_w_sharers_o    (dir_mem_w_sharers),
+  	.dir_mem_w_owner_o      (dir_mem_w_owner),
+  	.dir_mem_w_valid_data_o (dir_mem_w_valid_data),
+
+  	.dir_mem_r_data_i       (dir_mem_r_data),
+  	.dir_mem_r_state_i      (dir_mem_r_state),
+  	.dir_mem_r_sharers_i    (dir_mem_r_sharers),
+  	.dir_mem_r_owner_i      (dir_mem_r_owner),
+  	.dir_mem_r_valid_data_i (dir_mem_r_valid_data),
+  	.dir_mem_resp_ready_o   (dir_mem_resp_ready),
+
+  	.dir_state_invalidated_o(dir_state_invalidated)
+    );
+	
+    directory_mem i_directory_mem (
+  	.clk_i             (clk),
+  	.rst_ni            (core_rst_n),
+	.mem_rst_ni        (rst_n),
+
+  	// Directory controller side
+  	.valid_i           (dir_mem_valid),
+  	.ready_o           (dir_mem_ready),
+  	.addr_i            (dir_mem_addr),
+  	.wstrb_i           (dir_mem_wstrb),
+
+  	.w_data_i          (dir_mem_w_data),
+  	.w_state_i         (dir_mem_w_state),
+  	.w_sharers_i       (dir_mem_w_sharers),
+  	.w_owner_i         (dir_mem_w_owner),
+  	.w_valid_data_i    (dir_mem_w_valid_data),
+
+  	.r_data_o          (dir_mem_r_data),
+  	.r_state_o         (dir_mem_r_state),
+  	.r_tag_o           (dir_mem_r_sharers),
+  	.r_owner_o         (dir_mem_r_owner),
+  	.r_valid_data_o    (dir_mem_r_valid_data),
+  	.ready_i           (dir_mem_resp_ready),
+
+	.core_mem_select_i (core_mem_select),
+	.boot_mem_valid_i  (boot_mem_valid),
+	.boot_mem_instr_i  (boot_mem_instr),
+	.boot_mem_addr_i   (boot_mem_addr),
+	.boot_mem_wdata_i  (boot_mem_wdata),
+	.boot_mem_wstrb_i  (boot_mem_wstrb)
+    `ifdef USE_POWER_PINS
+      ,.VDD            (VDD)
+      ,.VSS            (VSS)
+    `endif
     );
 
     logic _unused;

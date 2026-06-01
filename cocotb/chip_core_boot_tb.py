@@ -12,12 +12,12 @@ pdk = os.getenv("PDK",  "gf180mcuD")
 
 hdl_toplevel = "chip_core_boot_wrapper"
 
-# pad index constants(match localparam values in chip_core.sv)
-PAD_PASS_THRU_EN = 0    # input_in[0]
-PAD_MISO = 1    # input_in[1]
-PAD_SCK = 8    # bidir[8]
-PAD_MOSI = 9    # bidir[9]
-PAD_CSB = 10   # bidir[10]
+# pad index constants match localparam values in chip_core.sv
+PAD_PASS_THRU_EN = 1    # input_in[1]
+PAD_MISO = 0            # input_in[0]
+PAD_SCK = 1             # bidir[1]
+PAD_MOSI = 2            # bidir[2]
+PAD_CSB = 3             # bidir[3]
 
 NUM_INPUT_PADS = 12
 NUM_BIDIR_PADS = 40
@@ -47,7 +47,7 @@ def start_clock(dut):
 
 async def apply_reset(dut, cycles=40_000):
     dut.rst_n.value    = 0
-    dut.input_in.value = 0   # pass_thru_en=0, MISO=0
+    dut.input_in.value = 0   # pass_thru_en=0
     dut.bidir_in.value = 0
     await ClockCycles(dut.clk, cycles)
     dut.rst_n.value = 1
@@ -147,7 +147,7 @@ async def test_spi_signals_reach_pads(dut):
 #test 3- MISO pad routing (cypress model drives MISO through wrapper)
 @cocotb.test()
 async def test_miso_pad_routing(dut):
-    print("\n=== TEST 3: MISO pad routing — Cypress model drives input_in[1] ===")
+    print("\n=== TEST 3: MISO pad routing — Cypress model drives input_in[0] ===")
     start_clock(dut)
     await apply_reset(dut)
  
@@ -168,7 +168,7 @@ async def test_miso_pad_routing(dut):
     assert dut.cores_en_o.value == 1, "cores_en must be high after boot"
  
     print("\n  *** PASS — MISO correctly routed from Cypress model through "
-          "input_in[1] to SPI engine")
+          "input_in[0] to SPI engine")
 
 
 #test 4- cores_en gating: stays low until boot completes
@@ -220,15 +220,21 @@ def chip_core_runner():
     if secr_src.exists():
         shutil.copy(secr_src, sim_build / "s25fl128lSECR.mem")
 
-    sram_macro = (Path(pdk_root) / pdk /
-                  "libs.ref/gf180mcu_fd_ip_sram/verilog/"
-                  "gf180mcu_fd_ip_sram__sram512x8m8wm1.v")
+    sram512x8_macro = (Path(pdk_root) / pdk /
+                       "libs.ref/gf180mcu_fd_ip_sram/verilog/"
+                       "gf180mcu_fd_ip_sram__sram512x8m8wm1.v")
+    sram64x8_macro = (Path(pdk_root) / pdk /
+                      "libs.ref/gf180mcu_fd_ip_sram/verilog/"
+                      "gf180mcu_fd_ip_sram__sram64x8m8wm1.v")
 
     sources = [
-        sram_macro,
-        proj_path / "../src/mem_ctrl/main_memory/mem512x32.sv",
-        proj_path / "../src/mem_ctrl/main_memory/mem2048x32.sv",
-        proj_path / "../src/mmio/mmio.sv",
+        sram512x8_macro,
+        sram64x8_macro,
+        proj_path / "../src/mem_ctrl/mem512x32.sv",
+        proj_path / "../src/mem_ctrl/mem2048x32.sv",
+        proj_path / "../src/mem_ctrl/mem64x8.sv",
+        proj_path / "../src/mem_ctrl/directory_mem.sv",
+        proj_path / "../src/directory_controller/directory_controller.sv",
         proj_path / "../src/arb/wrr_arbiter.sv",
         proj_path / "../src/interposer_interface/cache_interface.sv",
         proj_path / "../src/interposer_interface/directory_interface.sv",
@@ -244,12 +250,16 @@ def chip_core_runner():
         proj_path / "../src/housekeeping/chip_core_boot_wrapper.sv",
     ]
 
+    build_args = []
+    if sim == "icarus":
+        build_args = ["-g2012"]
+
     runner = get_runner(sim)
     runner.build(
         sources=sources,
         hdl_toplevel="chip_core_boot_wrapper",
         always=True,
-        build_args=[],
+        build_args=build_args,
         waves=True,
     )
     runner.test(
