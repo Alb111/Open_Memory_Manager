@@ -11,7 +11,7 @@ from sram_models import find_sram_model
 
 
 SIM = os.getenv("SIM", "icarus")
-HDL_TOPLEVEL = "metadata_sram64x8_array"
+HDL_TOPLEVEL = "mem64x8"
 
 
 async def start_clock(dut, freq_mhz=50):
@@ -112,11 +112,11 @@ async def test_bit_wen_masks_within_each_bank(dut):
     )
 
 
-def metadata_sram64x8_array_runner():
+def mem64x8_runner():
     proj_path = Path(__file__).resolve().parent
     sources = [
         find_sram_model(64),
-        proj_path / "../src/mem_ctrl/metadata_sram64x8_array.sv",
+        proj_path / "../src/mem_ctrl/mem64x8.sv",
     ]
 
     if SIM == "icarus":
@@ -137,10 +137,10 @@ def metadata_sram64x8_array_runner():
 
     runner.test(
         hdl_toplevel=HDL_TOPLEVEL,
-        test_module="metadata_sram64x8_array_tb",
+        test_module="mem64x8_tb",
         waves=True,
     )
 
 
 if __name__ == "__main__":
-    metadata_sram64x8_array_runner()
+    mem64x8_runner()

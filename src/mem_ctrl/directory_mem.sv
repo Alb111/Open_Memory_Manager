@@ -7,6 +7,7 @@ module directory_mem
 (
   input  wire        clk_i,
   input  wire        rst_ni,
+  input  wire        mem_rst_ni,
 
   // Directory controller request interface.
   input  wire        valid_i,
@@ -27,14 +28,13 @@ module directory_mem
   output logic [1:0]  r_valid_data_o,
   input  wire         ready_i,
 
-  // Main-memory side for backup data lines.
-  output logic [0:0]  main_mem_valid_o,
-  output logic [0:0]  main_mem_instr_o,
-  output logic [31:0] main_mem_addr_o,
-  output logic [31:0] main_mem_wdata_o,
-  output logic [3:0]  main_mem_wstrb_o,
-  input  wire [31:0]  main_mem_rdata_i,
-  input  wire [0:0]   main_mem_ready_i
+  // Boot-loader write side for the backing SRAM.
+  input  wire        core_mem_select_i,
+  input  wire        boot_mem_valid_i,
+  input  wire        boot_mem_instr_i,
+  input  wire [31:0] boot_mem_addr_i,
+  input  wire [31:0] boot_mem_wdata_i,
+  input  wire [3:0]  boot_mem_wstrb_i
 
   `ifdef USE_POWER_PINS
     ,inout wire VDD,
@@ -74,6 +74,22 @@ module directory_mem
   logic [1:0]  metadata_state_read;
   logic [1:0]  metadata_sharers_read;
   logic [1:0]  metadata_owner_valid_read;
+
+  logic [0:0]  directory_main_mem_valid;
+  logic [0:0]  directory_main_mem_instr;
+  logic [31:0] directory_main_mem_addr;
+  logic [31:0] directory_main_mem_wdata;
+  logic [3:0]  directory_main_mem_wstrb;
+  logic [31:0] directory_main_mem_rdata;
+  logic [0:0]  directory_main_mem_ready;
+
+  logic [0:0]  backing_mem_valid;
+  logic [0:0]  backing_mem_instr;
+  logic [31:0] backing_mem_addr;
+  logic [31:0] backing_mem_wdata;
+  logic [3:0]  backing_mem_wstrb;
+  logic [31:0] backing_mem_rdata;
+  logic [0:0]  backing_mem_ready;
 
   function automatic logic [7:0] pack_lane(input logic [1:0] value, input logic lane);
     begin
@@ -144,8 +160,6 @@ module directory_mem
         if (valid_i) begin
           if (metadata_access) begin
             state_d = StMetaResp;
-          end else if (main_mem_ready_i[0]) begin
-            state_d = StMainResp;
           end else begin
             state_d = StMainReq;
           end
@@ -153,7 +167,7 @@ module directory_mem
       end
 
       StMainReq: begin
-        if (main_mem_ready_i[0]) begin
+        if (directory_main_mem_ready[0]) begin
           state_d = StMainResp;
         end
       end
@@ -211,7 +225,7 @@ module directory_mem
     end
   end
 
-  metadata_sram64x8_array i_metadata_sram64x8_array (
+  mem64x8 i_mem64x8 (
     .clk_i        (clk_i),
     .enable_n_i   (sram_enable_n),
     .gwen_i       (sram_gwen),
@@ -252,7 +266,7 @@ module directory_mem
       end
 
       StMainResp: begin
-        r_data_o = main_mem_rdata_i;
+        r_data_o = directory_main_mem_rdata;
       end
 
       default: begin
@@ -266,21 +280,47 @@ module directory_mem
   end
 
   always_comb begin
-    main_mem_valid_o = 1'b0;
-    main_mem_instr_o = 1'b0;
-    main_mem_addr_o  = addr_q;
-    main_mem_wdata_o = w_data_q;
-    main_mem_wstrb_o = wstrb_q;
+    directory_main_mem_valid = 1'b0;
+    directory_main_mem_instr = 1'b0;
+    directory_main_mem_addr  = addr_q;
+    directory_main_mem_wdata = w_data_q;
+    directory_main_mem_wstrb = wstrb_q;
 
     if (accept_req && !metadata_access) begin
-      main_mem_valid_o = 1'b1;
-      main_mem_addr_o  = addr_i;
-      main_mem_wdata_o = w_data_i;
-      main_mem_wstrb_o = wstrb_i;
+      directory_main_mem_valid = 1'b1;
+      directory_main_mem_addr  = addr_i;
+      directory_main_mem_wdata = w_data_i;
+      directory_main_mem_wstrb = wstrb_i;
     end else if (state_q == StMainReq) begin
-      main_mem_valid_o = 1'b1;
+      directory_main_mem_valid = 1'b1;
     end
   end
+
+  always_comb begin
+    backing_mem_valid       = core_mem_select_i ? directory_main_mem_valid : boot_mem_valid_i;
+    backing_mem_instr       = core_mem_select_i ? directory_main_mem_instr : boot_mem_instr_i;
+    backing_mem_addr        = core_mem_select_i ? directory_main_mem_addr  : boot_mem_addr_i;
+    backing_mem_wdata       = core_mem_select_i ? directory_main_mem_wdata : boot_mem_wdata_i;
+    backing_mem_wstrb       = core_mem_select_i ? directory_main_mem_wstrb : boot_mem_wstrb_i;
+    directory_main_mem_rdata = backing_mem_rdata;
+    directory_main_mem_ready = core_mem_select_i ? backing_mem_ready : 1'b0;
+  end
+
+  mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
+    .clk_i       (clk_i),
+    .rst_ni      (mem_rst_ni),
+    .mem_valid_i (backing_mem_valid),
+    .mem_instr_i (backing_mem_instr),
+    .mem_addr_i  (backing_mem_addr),
+    .mem_wdata_i (backing_mem_wdata),
+    .mem_wstrb_i (backing_mem_wstrb),
+    .mem_rdata_o (backing_mem_rdata),
+    .mem_ready_o (backing_mem_ready)
+    `ifdef USE_POWER_PINS
+      ,.VDD      (VDD)
+      ,.VSS      (VSS)
+    `endif
+  );
 
 endmodule
 

@@ -35,13 +35,13 @@ class TestMemCtrl:
         )
 
 
-class TestMetadataSram64x8Array:
-    """Cocotb testbench: Metadata SRAM array (metadata_sram64x8_array_tb.py)"""
+class TestMem64x8:
+    """Cocotb testbench: 64x8 metadata SRAM wrapper (mem64x8_tb.py)"""
 
-    def test_metadata_sram64x8_array(self):
-        result = _run_testbench("metadata_sram64x8_array_tb.py")
+    def test_mem64x8(self):
+        result = _run_testbench("mem64x8_tb.py")
         assert result.returncode == 0, (
-            "metadata_sram64x8_array_tb.py failed with exit code "
+            "mem64x8_tb.py failed with exit code "
             f"{result.returncode}"
         )
 

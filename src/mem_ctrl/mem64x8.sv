@@ -3,7 +3,7 @@
 
 `default_nettype none
 
-module metadata_sram64x8_array (
+module mem64x8 (
   input  wire        clk_i,
   input  wire        enable_n_i,
   input  wire [2:0]  gwen_i,

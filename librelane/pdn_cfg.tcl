@@ -183,25 +183,25 @@ if { $::env(PDN_CORE_RING) == 1 } {
 }
 
 set sram_macros_NS [list \
-    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram0 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram1 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram2 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock0.sram3 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram0 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram1 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram2 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock1.sram3 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram0 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram1 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram2 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock2.sram3 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram0 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram1 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram2 \
-    i_chip_core.i_mem_ctrl_2048x32.memblock3.sram3 \
-    i_chip_core.i_directory_mem.i_metadata_sram64x8_array.sram0 \
-    i_chip_core.i_directory_mem.i_metadata_sram64x8_array.sram1 \
-    i_chip_core.i_directory_mem.i_metadata_sram64x8_array.sram2 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2 \
+    i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3 \
+    i_chip_core.i_directory_mem.i_mem64x8.sram0 \
+    i_chip_core.i_directory_mem.i_mem64x8.sram1 \
+    i_chip_core.i_directory_mem.i_mem64x8.sram2 \
 ]
 
 # SRAM macros. All configured SRAM instances are north-oriented.

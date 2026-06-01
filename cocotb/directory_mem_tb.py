@@ -34,14 +34,20 @@ def set_defaults(dut):
     dut.w_owner_i.value = 0
     dut.w_valid_data_i.value = 0
     dut.ready_i.value = 0
-    dut.main_mem_rdata_i.value = 0
-    dut.main_mem_ready_i.value = 0
+    dut.core_mem_select_i.value = 1
+    dut.boot_mem_valid_i.value = 0
+    dut.boot_mem_instr_i.value = 0
+    dut.boot_mem_addr_i.value = 0
+    dut.boot_mem_wdata_i.value = 0
+    dut.boot_mem_wstrb_i.value = 0
 
 
 async def reset(dut):
     set_defaults(dut)
     dut.rst_ni.value = 0
+    dut.mem_rst_ni.value = 0
     await ClockCycles(dut.clk_i, 3)
+    dut.mem_rst_ni.value = 1
     dut.rst_ni.value = 1
     await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
@@ -98,7 +104,6 @@ async def metadata_write(dut, addr, state, sharers, owner, valid_data):
     assert as_int(dut.r_tag_o) == sharers
     assert as_int(dut.r_owner_o) == owner
     assert as_int(dut.r_valid_data_o) == valid_data
-    assert as_int(dut.main_mem_valid_o) == 0
 
     await complete_response(dut)
 
@@ -111,7 +116,6 @@ async def metadata_read(dut, addr):
         "owner": as_int(dut.r_owner_o),
         "valid": as_int(dut.r_valid_data_o),
     }
-    assert as_int(dut.main_mem_valid_o) == 0
     await complete_response(dut)
     return got
 
@@ -226,61 +230,69 @@ async def test_ready_i_backpressure_holds_metadata_response(dut):
     await complete_response(dut)
 
 
+async def backing_write(dut, addr, data, wstrb=0xF):
+    await issue_request(dut, addr=addr, wstrb=wstrb, data=data)
+    await RisingEdge(dut.clk_i)
+    await Timer(1, unit="ns")
+    await complete_response(dut)
+
+
+async def backing_read(dut, addr):
+    await issue_request(dut, addr=addr, wstrb=0)
+    await RisingEdge(dut.clk_i)
+    await Timer(1, unit="ns")
+    got = as_int(dut.r_data_o)
+    await complete_response(dut)
+    return got
+
+
 @cocotb.test()
-async def test_main_memory_forwarding_waits_for_ready_and_returns_rdata(dut):
+async def test_backing_memory_round_trip_through_directory_path(dut):
     await start_clock(dut)
     await reset(dut)
 
     addr = 0x700
     data = 0xDEADBEEF
-    wstrb = 0xF
 
-    dut.main_mem_ready_i.value = 0
+    await backing_write(dut, addr, data)
+    got = await backing_read(dut, addr)
 
+    assert got == data, f"backing memory read mismatch: got {got:#x}"
+
+
+@cocotb.test()
+async def test_boot_side_populates_backing_memory_before_directory_select(dut):
+    await start_clock(dut)
+    await reset(dut)
+
+    addr = 0x704
+    data = 0xCAFED00D
+
+    dut.core_mem_select_i.value = 0
     await FallingEdge(dut.clk_i)
-    dut.addr_i.value = addr
-    dut.wstrb_i.value = wstrb
-    dut.w_data_i.value = data
-    dut.valid_i.value = 1
-    await Timer(1, unit="ns")
-
-    assert as_int(dut.ready_o) == 1
-    assert as_int(dut.main_mem_valid_o) == 1
-    assert as_int(dut.main_mem_addr_o) == addr
-    assert as_int(dut.main_mem_wdata_o) == data
-    assert as_int(dut.main_mem_wstrb_o) == wstrb
-    assert as_int(dut.main_mem_instr_o) == 0
-
+    dut.boot_mem_addr_i.value = addr
+    dut.boot_mem_wdata_i.value = data
+    dut.boot_mem_wstrb_i.value = 0xF
+    dut.boot_mem_valid_i.value = 1
     await RisingEdge(dut.clk_i)
     await Timer(1, unit="ns")
-    dut.valid_i.value = 0
+    dut.boot_mem_valid_i.value = 0
+    dut.boot_mem_wstrb_i.value = 0
 
-    for _ in range(3):
-        assert as_int(dut.ready_o) == 0
-        assert as_int(dut.main_mem_valid_o) == 1
-        assert as_int(dut.main_mem_addr_o) == addr
-        assert as_int(dut.main_mem_wdata_o) == data
-        assert as_int(dut.main_mem_wstrb_o) == wstrb
-        await RisingEdge(dut.clk_i)
-        await Timer(1, unit="ns")
+    dut.core_mem_select_i.value = 1
+    got = await backing_read(dut, addr)
 
-    dut.main_mem_rdata_i.value = 0xCAFED00D
-    dut.main_mem_ready_i.value = 1
-    await RisingEdge(dut.clk_i)
-    await Timer(1, unit="ns")
-
-    assert as_int(dut.main_mem_valid_o) == 0
-    assert as_int(dut.r_data_o) == 0xCAFED00D
-    assert as_int(dut.ready_o) == 0
-
-    await complete_response(dut)
+    assert got == data, f"boot-loaded backing memory mismatch: got {got:#x}"
 
 
 def directory_mem_runner():
     proj_path = Path(__file__).resolve().parent
     sources = [
         find_sram_model(64),
-        proj_path / "../src/mem_ctrl/metadata_sram64x8_array.sv",
+        find_sram_model(512),
+        proj_path / "../src/mem_ctrl/mem512x32.sv",
+        proj_path / "../src/mem_ctrl/mem2048x32.sv",
+        proj_path / "../src/mem_ctrl/mem64x8.sv",
         proj_path / "../src/mem_ctrl/directory_mem.sv",
     ]
 

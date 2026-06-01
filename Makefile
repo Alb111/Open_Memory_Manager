@@ -27,7 +27,7 @@ help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 .PHONY: help
 
 all: librelane ## Build the project (runs LibreLane)
@@ -93,8 +93,11 @@ test-mem: ## Run all cocotb on mem
 	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem_tb.py
 .PHONY: test-mem
 
-test-metadata-sram: ## Run cocotb tests on directory metadata SRAM array
-	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 metadata_sram64x8_array_tb.py
+test-mem64x8: ## Run cocotb tests on the 64x8 metadata SRAM wrapper
+	cd cocotb; PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 mem64x8_tb.py
+.PHONY: test-mem64x8
+
+test-metadata-sram: test-mem64x8 ## Alias for test-mem64x8
 .PHONY: test-metadata-sram
 
 test-directory-mem: ## Run cocotb tests on directory memory wrapper

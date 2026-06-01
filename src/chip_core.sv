@@ -113,21 +113,6 @@ module chip_core #(
  
     logic        dir_mem_resp_ready;
     logic        dir_state_invalidated;
-    
-    logic [0:0]  mem_valid_i;
-    logic [0:0]  mem_instr_i;
-    logic [0:0]  mem_ready_o;
-    logic [31:0] mem_addr_i;
-    logic [31:0] mem_wdata_i;
-    logic [3:0]  mem_wstrb_i;
-
-    logic [0:0]  dir_main_mem_valid;
-    logic [0:0]  dir_main_mem_instr;
-    logic [31:0] dir_main_mem_addr;
-    logic [31:0] dir_main_mem_wdata;
-    logic [3:0]  dir_main_mem_wstrb;
-    logic [31:0] dir_main_mem_rdata;
-    logic [0:0]  dir_main_mem_ready;
 
     logic        boot_mem_valid;
     logic        boot_mem_instr;
@@ -176,22 +161,6 @@ module chip_core #(
     assign c1_serial_rx = c0_serial_tx;
     assign c0_req_rx = c1_req_tx;
     assign c1_req_rx = c0_req_tx;
-    
-    /*
-    assign mem_valid_i = core_mem_select ? dir_mem_valid : boot_mem_valid;
-    assign mem_instr_i = core_mem_select ? 1'b0 : boot_mem_instr;
-    assign mem_addr_i = core_mem_select ? dir_mem_addr : boot_mem_addr;
-    assign mem_wdata_i = core_mem_select ? dir_mem_w_data : boot_mem_wdata;
-    assign mem_wstrb_i = core_mem_select ? dir_mem_wstrb : boot_mem_wstrb;
-    assign dir_mem_ready = core_mem_select ? mem_ready_o[0] : 1'b0;
-    */
-    
-    assign mem_valid_i = core_mem_select ? dir_main_mem_valid : boot_mem_valid;
-    assign mem_instr_i = core_mem_select ? dir_main_mem_instr : boot_mem_instr;
-    assign mem_addr_i  = core_mem_select ? dir_main_mem_addr  : boot_mem_addr;
-    assign mem_wdata_i = core_mem_select ? dir_main_mem_wdata : boot_mem_wdata;
-    assign mem_wstrb_i = core_mem_select ? dir_main_mem_wstrb : boot_mem_wstrb;
-    assign dir_main_mem_ready = core_mem_select ? mem_ready_o : 1'b0;
 
     always_comb begin
         bidir_out_int = '0;
@@ -409,6 +378,7 @@ module chip_core #(
     directory_mem i_directory_mem (
   	.clk_i             (clk),
   	.rst_ni            (core_rst_n),
+	.mem_rst_ni        (rst_n),
 
   	// Directory controller side
   	.valid_i           (dir_mem_valid),
@@ -429,36 +399,16 @@ module chip_core #(
   	.r_valid_data_o    (dir_mem_r_valid_data),
   	.ready_i           (dir_mem_resp_ready),
 
-  	//Add these outputs to connect to the main memory
-	// Main memory side, set main_mem_instr_o = 1'b0 since no instr
-	// fetches are actually needed
-  	.main_mem_valid_o  (dir_main_mem_valid),
-  	.main_mem_instr_o  (dir_main_mem_instr),
-  	.main_mem_addr_o   (dir_main_mem_addr),
-  	.main_mem_wdata_o  (dir_main_mem_wdata),
-  	.main_mem_wstrb_o  (dir_main_mem_wstrb),
-  	.main_mem_rdata_i  (dir_main_mem_rdata),
-  	.main_mem_ready_i  (dir_main_mem_ready)
+	.core_mem_select_i (core_mem_select),
+	.boot_mem_valid_i  (boot_mem_valid),
+	.boot_mem_instr_i  (boot_mem_instr),
+	.boot_mem_addr_i   (boot_mem_addr),
+	.boot_mem_wdata_i  (boot_mem_wdata),
+	.boot_mem_wstrb_i  (boot_mem_wstrb)
     `ifdef USE_POWER_PINS
       ,.VDD            (VDD)
       ,.VSS            (VSS)
     `endif
-    );
-    
-    mem_ctrl_2048x32 i_mem_ctrl_2048x32 (
-  	.clk_i       (clk),
-  	.rst_ni      (rst_n),
-  	.mem_valid_i (mem_valid_i),
-  	.mem_instr_i (mem_instr_i),
-  	.mem_addr_i  (mem_addr_i),
-  	.mem_wdata_i (mem_wdata_i),
-  	.mem_wstrb_i (mem_wstrb_i),
-  	.mem_rdata_o (dir_main_mem_rdata),
-  	.mem_ready_o (mem_ready_o)
-	`ifdef USE_POWER_PINS
-  	,.VDD        (VDD)
-  	,.VSS        (VSS)
-	`endif
     );
 
     logic _unused;
