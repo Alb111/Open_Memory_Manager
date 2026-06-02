@@ -2,13 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
-import random
-import logging
 from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import Timer, Edge, RisingEdge, FallingEdge, ClockCycles
+from cocotb.triggers import Timer, ClockCycles
 from cocotb_tools.runner import get_runner
 
 sim = os.getenv("SIM", "icarus")
@@ -19,6 +17,9 @@ gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
 hdl_toplevel = "chip_top"
+PIN_DEBUG_MODE = 1
+PIN_DFT_IN = 2
+PIN_DFT_OUT = 4
 
 async def set_defaults(dut):
     dut.input_PAD.value = 0
@@ -54,32 +55,17 @@ async def start_up(dut):
 
 
 @cocotb.test()
-async def test_counter(dut):
-    """Run the counter test"""
-
-    # Create a logger for this testbench
-    logger = logging.getLogger("my_testbench")
-
-    logger.info("Startup sequence...")
-
-    # Start up
+async def test_chip_top_pad_smoke(dut):
+    """Check that the current chip_core pad plumbing is alive."""
     await start_up(dut)
 
-    logger.info("Running the test...")
+    dut.input_PAD.value = 1 << PIN_DEBUG_MODE
+    await ClockCycles(dut.clk_PAD, 4)
+    assert int(dut.bidir_PAD.value[PIN_DFT_OUT]) == 0
 
-    # Wait for some time...
-    await ClockCycles(dut.clk_PAD, 10)
-
-    # Start the counter by setting all inputs to 1
-    dut.input_PAD.value = -1
-
-    # Wait for a number of clock cycles
-    await ClockCycles(dut.clk_PAD, 100)
-
-    # Check the end result of the counter
-    assert dut.bidir_PAD.value == 100 - 1
-
-    logger.info("Done!")
+    dut.input_PAD.value = (1 << PIN_DEBUG_MODE) | (1 << PIN_DFT_IN)
+    await ClockCycles(dut.clk_PAD, 4)
+    assert int(dut.bidir_PAD.value[PIN_DFT_OUT]) == 1
 
 
 def chip_top_runner():
@@ -102,19 +88,18 @@ def chip_top_runner():
     else:
         sources.append(proj_path / "../src/chip_top.sv")
         sources.append(proj_path / "../src/chip_core.sv")
+        sources.append(proj_path / "../src/directory_controller/directory_controller.sv")
         sources.append(proj_path / "../src/arb/wrr_arbiter.sv")
+        sources.append(proj_path / "../src/interposer_interface/directory_interface.sv")
+        sources.append(proj_path / "../src/interposer_interface/tserializer.sv")
+        sources.append(proj_path / "../src/interposer_interface/rserializer.sv")
+        sources.append(proj_path / "../src/mem_ctrl/mem2048x32.sv")
+        sources.append(proj_path / "../src/mem_ctrl/mem512x32.sv")
+        sources.append(proj_path / "../src/mem_ctrl/directory_mem.sv")
+        sources.append(proj_path / "../src/mem_ctrl/mem64x8.sv")
         sources.append(proj_path / "../src/housekeeping/boot_fsm.sv")
         sources.append(proj_path / "../src/housekeeping/housekeeping_top.sv")
         sources.append(proj_path / "../src/housekeeping/spi_engine.sv")
-        sources.append(proj_path / "../src/mem_ctrl/mem2048x32.sv")
-        sources.append(proj_path / "../src/mem_ctrl/mem512x32.sv")
-        sources.append(proj_path / "../src/msi_protocol/msi.v")
-        sources.append(proj_path / "../src/msi_protocol/msi_v2.sv")
-        sources.append(proj_path / "../src/mmio/mmio.sv")
-        sources.append(proj_path / "../src/mmio/sp_addr_handler.sv")
-        sources.append(proj_path / "../src/interposer_interface/tserializer.sv")
-        sources.append(proj_path / "../src/interposer_interface/rserializer.sv")
-        sources.append(proj_path / "../src/interposer_interface/directory_interface.sv")
         sources.append(proj_path / "../src/interposer_interface/cache_interface.sv")
         sources.append(proj_path / "../src/interposer_interface/lossy_pipe_stage.sv")
     sources += [
@@ -124,6 +109,7 @@ def chip_top_runner():
         
         # SRAM macros
         Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
+        Path(pdk_root) / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
         
         # Custom IP
         proj_path / "../ip/gf180mcu_ws_ip__id/vh/gf180mcu_ws_ip__id.v",
@@ -155,7 +141,7 @@ def chip_top_runner():
 
     runner.test(
         hdl_toplevel=hdl_toplevel,
-        test_module="chip_top_tb,",
+        test_module="chip_top_tb",
         plusargs=plusargs,
         waves=True,
     )

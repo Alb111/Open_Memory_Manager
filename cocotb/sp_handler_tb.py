@@ -137,10 +137,22 @@ async def thorough_mmio_test(dut):
 def sp_handler_tb_runner():
     proj_path = Path(__file__).resolve().parent
 
-    sources = [
-        proj_path / "../src/mmio/mmio.sv",
-        proj_path / "../src/mmio/sp_addr_handler.sv"
-    ]
+    sources = []
+    if gl:
+        pdk_lib = os.path.join(
+            pdk_root, 
+            pdk, 
+            "libs.ref", 
+            scl, 
+            "verilog"
+        )
+        sources += [proj_path / f"../src/netlists/{hdl_toplevel}.nl.v"]
+        sources += [os.path.join(pdk_lib, f) for f in [f"{scl}.v", f"primitives.v"]]
+    else:
+        sources = [
+            proj_path / "../src/mmio/mmio.sv",
+            proj_path / "../src/mmio/sp_addr_handler.sv"
+        ]
 
     build_args = []
     if sim == "icarus":

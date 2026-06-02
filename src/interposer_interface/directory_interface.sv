@@ -1,8 +1,8 @@
 `timescale 1ns/1ps
 
 module directory_interface #(
-    parameter int NUM_TPINS = 1,
-    parameter int NUM_RPINS = 1
+    parameter int NUM_TPINS = 9,
+    parameter int NUM_RPINS = 9
 )
 (
     input  logic                clk_i,

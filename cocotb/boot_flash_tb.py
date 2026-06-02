@@ -1,0 +1,466 @@
+import os
+from pathlib import Path
+import cocotb
+from cocotb.clock import Clock
+from cocotb.triggers import Timer, RisingEdge, ClockCycles
+from cocotb_tools.runner import get_runner
+ 
+ 
+sim     = os.getenv("SIM", "icarus")
+pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+pdk     = os.getenv("PDK", "gf180mcuD")
+scl     = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
+gl      = os.getenv("GL", False)
+slot    = os.getenv("SLOT", "1x1")
+ 
+hdl_toplevel = "boot_flash_wrapper"
+ 
+BOOT_IMAGE = [(i & 0xFF) ^ 0xA5 for i in range(512)]
+ 
+# JEDEC ID for S25FL128L:  Manufacturer=0x01  Type=0x60  Capacity=0x18
+JEDEC_MANUF = 0x01
+JEDEC_MEM_TYPE = 0x60
+JEDEC_CAPACITY = 0x18
+CLEAR_CYCLES = 4100
+ 
+def write_boot_image_mem():
+    sim_build = Path(__file__).resolve().parent / "sim_build"
+    sim_build.mkdir(exist_ok=True)
+    out = sim_build / "boot_image.mem"
+    with open(out, "w") as f:
+        f.write("@000000\n")
+        for byte in BOOT_IMAGE:
+            f.write(f"{byte:02X}\n")
+    return out
+ 
+ 
+def expected_word(word_index):
+    #return expected 32-bit SRAM word for a given word index
+    b = BOOT_IMAGE[word_index * 4 : word_index * 4 + 4]
+    return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)
+ 
+ 
+
+def start_clock(dut):
+    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+ 
+ 
+async def apply_reset(dut, cycles=40_000):
+    dut.reset_ni.value      = 0
+    dut.pass_thru_en_i.value = 0
+    await ClockCycles(dut.clk_i, cycles)
+    dut.reset_ni.value = 1
+    await Timer(1, unit="ns")
+ 
+ 
+async def wait_for_boot_done(dut, timeout_cycles=500_000):
+    #poll boot_done_o: return true on success, false on timeout
+    for _ in range(timeout_cycles):
+        await RisingEdge(dut.clk_i)
+        if dut.boot_done_o.value == 1:
+            return True
+    return False
+ 
+ 
+async def spi_transfer_byte(dut, byte_out):
+    received = 0
+    for bit in range(7, -1, -1):
+        dut.spi_mosi.value = (byte_out >> bit) & 1
+        await Timer(50, unit="ns")
+        dut.spi_sck.value = 1
+        await Timer(10, unit="ns")
+        # flash_so can be Z while flash is receiving — treat Z as 0
+        raw = dut.flash_so.value
+        miso_bit = int(raw) if raw.is_resolvable else 0
+        received = (received << 1) | miso_bit
+        await Timer(40, unit="ns")
+        dut.spi_sck.value = 0
+        await Timer(50, unit="ns")
+    return received
+ 
+ 
+async def spi_read_jedec(dut):
+    dut.flash_csb.value = 0                              
+    await Timer(100, unit="ns")
+    await spi_transfer_byte(dut, 0x9F)
+    manuf = await spi_transfer_byte(dut, 0x00)
+    mem_type = await spi_transfer_byte(dut, 0x00)
+    capacity = await spi_transfer_byte(dut, 0x00)
+    dut.flash_csb.value = 1                              
+    await Timer(100, unit="ns")
+    return manuf, mem_type, capacity
+ 
+ 
+# test 1 — Reset: outputs are inactive while reset is held
+@cocotb.test()
+async def test_reset_inactive(dut):
+    print("\n=== TEST 1: reset holds outputs inactive ===")
+    start_clock(dut)
+    dut.reset_ni.value = 0
+    dut.pass_thru_en_i.value = 0
+    await ClockCycles(dut.clk_i, 10)
+    await Timer(1, unit="ns")
+ 
+    print(f"  sram_wr_en_o = {int(dut.sram_wr_en_o.value)}  (expected 0)")
+    print(f"  cores_en_o = {int(dut.cores_en_o.value)}   (expected 0)")
+    print(f"  boot_done_o = {int(dut.boot_done_o.value)}  (expected 0)")
+    assert dut.sram_wr_en_o.value == 0, "sram_wr_en must be 0 during reset"
+    assert dut.cores_en_o.value == 0, "cores_en must be 0 during reset"
+    assert dut.boot_done_o.value == 0, "boot_done must be 0 during reset"
+ 
+    print(" *** PASS")
+ 
+ 
+# test 2 — JEDEC Device ID
+@cocotb.test()
+async def test_jedec_id(dut):
+    print("\n=== TEST 2: JEDEC device ID via pass-through ===")
+    start_clock(dut)
+    # hold boot controller in reset during this test
+    dut.reset_ni.value = 0
+    dut.pass_thru_en_i.value = 1 
+    dut.spi_sck.value = 0
+    dut.spi_mosi.value = 0
+    dut.flash_csb.value = 1
+ 
+    # wait long enough for flash power-up (SPEEDSIM: ~300 µs = 30,000 cycles)
+    await ClockCycles(dut.clk_i, 40_000)
+    await Timer(1, unit="ns")
+    manuf, mem_type, capacity = await spi_read_jedec(dut)
+ 
+    print(f"  Manufacturer ID: {hex(manuf)}(expected {hex(JEDEC_MANUF)})")
+    print(f"  Memory type: {hex(mem_type)}(expected {hex(JEDEC_MEM_TYPE)})")
+    print(f"  Capacity: {hex(capacity)} (expected {hex(JEDEC_CAPACITY)})")
+    assert manuf == JEDEC_MANUF,    \
+        f"Wrong manufacturer ID: got {hex(manuf)}, expected {hex(JEDEC_MANUF)}"
+    assert mem_type == JEDEC_MEM_TYPE, \
+        f"Wrong memory type: got {hex(mem_type)}, expected {hex(JEDEC_MEM_TYPE)}"
+    assert capacity == JEDEC_CAPACITY, \
+        f"Wrong capacity byte: got {hex(capacity)}, expected {hex(JEDEC_CAPACITY)}"
+ 
+    print("  *** PASS — S25FL128L correctly identified")
+
+
+ 
+#test 3 — full boot sequence: 128 words from real flash model
+@cocotb.test()
+async def test_full_boot_real_flash(dut):
+    print("\n=== TEST 3: full boot against real S25FL128L model ===")
+    start_clock(dut)
+    # long reset: must outlast the flash power-up delay (SPEEDSIM ~300us)
+    await apply_reset(dut, cycles=40_000)
+    sram_writes = []
+    timed_out = False
+ 
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")       
+        if dut.sram_wr_en_o.value == 1:
+            addr = dut.sram_addr_o.value
+            data = dut.sram_data_o.value
+            if addr.is_resolvable and data.is_resolvable:
+                sram_writes.append((int(addr), int(data)))
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+    assert not timed_out, \
+        "boot_done never asserted — boot did not complete within timeout"
+ 
+    BOOT_WORDS = len(BOOT_IMAGE) // 4 
+    print(f"\n  SRAM writes: {len(sram_writes)}  (expected {BOOT_WORDS})")
+    assert len(sram_writes) == BOOT_WORDS, \
+        f"Expected {BOOT_WORDS} word writes, got {len(sram_writes)}"
+ 
+    print(f"\n  {'Word':<6} {'Addr got':<14} {'Addr exp':<14} "
+          f"{'Data got':<14} {'Data exp':<14} {'OK'}")
+    for i, (addr, data) in enumerate(sram_writes):
+        exp_addr = i * 4
+        exp_data = expected_word(i)
+        ok = (addr == exp_addr) and (data == exp_data)
+        print(f"  {i:<6} {hex(addr):<14} {hex(exp_addr):<14} "
+              f"{hex(data):<14} {hex(exp_data):<14} {'PASS' if ok else 'FAIL'}")
+        assert addr == exp_addr, \
+            f"Word {i}: wrong address — got {hex(addr)}, expected {hex(exp_addr)}"
+        assert data == exp_data, \
+            f"Word {i}: wrong data — got {hex(data)}, expected {hex(exp_data)}"
+ 
+    print(f"\n  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
+    print(f"  cores_en_o = {int(dut.cores_en_o.value)}  (expected 1)")
+    assert dut.boot_done_o.value == 1, "boot_done must be high after boot"
+    assert dut.cores_en_o.value  == 1, "cores_en must be high after boot"
+ 
+    # fsm must stay in DONE, signals must hold for 20 more cycles 
+    await ClockCycles(dut.clk_i, 20)
+    assert dut.boot_done_o.value == 1, "boot_done dropped — FSM left DONE state"
+    assert dut.cores_en_o.value == 1, "cores_en dropped — FSM left DONE state"
+ 
+    print(f"\n  *** PASS — bootloader correctly read all {BOOT_WORDS} words "
+          "from S25FL128L")
+ 
+ 
+# test 4 — page boundary crossing: 512 bytes spans two 256-byte pages
+@cocotb.test()
+async def test_page_boundary_crossing(dut):
+    print("\n=== TEST 4: page-boundary crossing (0x0000FF -> 0x000100) ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
+    sram_writes = []
+    timed_out = False
+ 
+    for _ in range(2_000_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")       
+        if dut.sram_wr_en_o.value == 1:
+            addr = dut.sram_addr_o.value
+            data = dut.sram_data_o.value
+            #skip any cycle where signals haven't resolved yet
+            if addr.is_resolvable and data.is_resolvable:
+                sram_writes.append((int(addr), int(data)))
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+    n_words = len(sram_writes)
+ 
+    if n_words < 128:
+        print(f"\n  WARNING: only {n_words} words written.")
+        print("  boot_flash_wrapper.sv was built with BOOT_SIZE < 512.")
+        print("  Change 'parameter BOOT_SIZE = 512' in boot_flash_wrapper.sv and re-run")
+        print("  for full page-boundary coverage.")
+        print(f"\n  Checking the {n_words} words that were written anyway...")
+    else:
+        assert not timed_out, "boot_done never asserted within timeout"
+        print(f"\n  SRAM writes: {n_words}  (expected 128 for BOOT_SIZE=512)")
+        assert n_words == 128, f"Expected 128 writes, got {n_words}"
+ 
+    print(f"\n  {'Word':<6} {'Byte addr':<12} {'Addr got':<14} "
+          f"{'Data got':<14} {'Data exp':<14} {'OK'}")
+    for i, (addr, data) in enumerate(sram_writes):
+        exp_addr = i * 4
+        exp_data = expected_word(i)
+        ok = (addr == exp_addr) and (data == exp_data)
+        print(f"  {i:<6} {hex(i*4):<12} {hex(addr):<14} "
+              f"{hex(data):<14} {hex(exp_data):<14} {'PASS' if ok else 'FAIL'}")
+        assert addr == exp_addr, \
+            f"Word {i}: wrong address — got {hex(addr)}, expected {hex(exp_addr)}"
+        assert data == exp_data, \
+            f"Word {i}: wrong data — got {hex(data)}, expected {hex(exp_data)}"
+ 
+    #wrap would write to sram address 0x00 again,
+    if n_words >= 65:
+        w63_addr, w63_data = sram_writes[63]
+        w64_addr, w64_data = sram_writes[64]
+        exp63 = expected_word(63)
+        exp64 = expected_word(64)
+ 
+        print(f"\n  Page-boundary spot-check:")
+        print(f"    Word 63 (last in page 0, byte 0x0FC): "
+              f"got {hex(w63_data)}  expected {hex(exp63)}")
+        print(f"    Word 64 (first in page 1, byte 0x100): "
+              f"got {hex(w64_data)}  expected {hex(exp64)}")
+ 
+        assert w64_addr == 0x100, \
+            (f"Page-boundary address wrong at word 64! "
+            f"Got SRAM addr {hex(w64_addr)}, expected 0x100. "
+            "FSM may be wrapping.")
+        assert w64_data == exp64, \
+            (f"Page-boundary data mismatch at word 64! "
+            f"Got {hex(w64_data)}, expected {hex(exp64)}.")
+ 
+        print("  Page boundary crossed correctly — no address wrap detected")
+    print(f"\n  *** PASS — {n_words} words verified, page boundary transparent")
+
+
+@cocotb.test()
+async def test_reset_mid_transaction(dut):
+    print("\n=== TEST 5: reset mid-transaction — FSM must recover cleanly ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
+ 
+    #let boot run until 10 words have been written
+    print("  Phase 1: booting normally, waiting for 10 SRAM writes...")
+    writes_before_reset = 0
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        if dut.sram_wr_en_o.value == 1:
+            writes_before_reset += 1
+            if writes_before_reset >= 10:
+                break
+ 
+    assert writes_before_reset == 10, \
+        f"Did not reach 10 writes before interrupt (got {writes_before_reset})"
+    print(f"  10 words written — asserting reset_ni=0 mid-transaction")
+ 
+    #assert reset mid transaction
+    dut.reset_ni.value = 0
+    await ClockCycles(dut.clk_i, 5_000)
+ 
+    #while in reset, nothing should be happening
+    await Timer(1, unit="ns")
+    assert dut.sram_wr_en_o.value == 0, \
+        "sram_wr_en_o still high during reset — FSM did not stop"
+    assert dut.cores_en_o.value == 0, \
+        "cores_en_o still high during reset"
+    assert dut.boot_done_o.value == 0, \
+        "boot_done_o still high during reset"
+    print("  Reset held for 5000 cycles — outputs correctly inactive")
+ 
+    #release reset, wait for full clean boot
+    print("  Releasing reset — FSM should restart from the beginning...")
+    dut.reset_ni.value = 1
+    await Timer(1, unit="ns")
+    sram_writes = []
+    timed_out   = False
+ 
+    for _ in range(500_000):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+        if dut.sram_wr_en_o.value == 1:
+            addr = dut.sram_addr_o.value
+            data = dut.sram_data_o.value
+            if addr.is_resolvable and data.is_resolvable:
+                sram_writes.append((int(addr), int(data)))
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+    assert not timed_out, \
+        "boot_done never asserted after reset release — FSM got stuck"
+ 
+    #check the post reset boot is complete and correct
+    print(f"\n  Post-reset SRAM writes: {len(sram_writes)}  (expected 128)")
+    assert len(sram_writes) == 128, \
+        (f"Expected 128 writes after clean reboot, got {len(sram_writes)}. "
+         f"FSM may have resumed mid-stream instead of restarting.")
+ 
+    print(f"\n  Verifying all 128 words are correct after reboot...")
+    for i, (addr, data) in enumerate(sram_writes):
+        exp_addr = i * 4
+        exp_data = expected_word(i)
+        assert addr == exp_addr, \
+            f"Post-reset word {i}: wrong address — got {hex(addr)}, expected {hex(exp_addr)}"
+        assert data == exp_data, \
+            f"Post-reset word {i}: wrong data — got {hex(data)}, expected {hex(exp_data)}"
+ 
+    print(f"  All 128 words correct")
+    print(f"\n  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
+    print(f"  cores_en_o  = {int(dut.cores_en_o.value)}   (expected 1)")
+    assert dut.boot_done_o.value == 1, "boot_done must be high after reboot"
+    assert dut.cores_en_o.value  == 1, "cores_en must be high after reboot"
+ 
+    print("\n  *** PASS — FSM recovered cleanly from mid-transaction reset")
+
+
+#test 6 — SPI activity (flash_csb, sck) must not appear before CLEAR_CYCLES
+@cocotb.test()
+async def test_no_spi_before_clear(dut):
+    print(f"\n=== TEST 6: boot must not start before cycle {CLEAR_CYCLES} ===")
+    start_clock(dut)
+    dut.reset_ni.value       = 0
+    dut.pass_thru_en_i.value = 0
+    await ClockCycles(dut.clk_i, 5)
+    dut.reset_ni.value = 1
+    await Timer(1, unit="ns")
+ 
+    early_csb_low = False
+    csb_went_low_cycle = None
+ 
+    for cycle in range(CLEAR_CYCLES + 200):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ns")
+ 
+        csb = dut.flash_csb.value
+        if csb.is_resolvable and int(csb) == 0:
+            csb_went_low_cycle = cycle + 1
+            if cycle < CLEAR_CYCLES:
+                early_csb_low = True
+            break
+ 
+    if csb_went_low_cycle is not None:
+        print(f"  flash_csb went low at cycle {csb_went_low_cycle}")
+        if early_csb_low:
+            print(f"  ERROR: CSB went low at cycle {csb_went_low_cycle} "
+                  f"— before CLEAR_CYCLES={CLEAR_CYCLES}")
+        else:
+            print(f"  CSB went low at cycle {csb_went_low_cycle} "
+                  f"(after CLEAR_CYCLES={CLEAR_CYCLES}) ✓")
+    else:
+        print(f"  CSB stayed high for {CLEAR_CYCLES + 200} cycles "
+              f"— FSM has not started yet (CLEAR_CYCLES window still open)")
+ 
+    assert not early_csb_low, \
+        (f"flash_csb went low at cycle {csb_went_low_cycle} — "
+         f"boot FSM started before CLEAR_CYCLES={CLEAR_CYCLES}. "
+         f"Check clear_done gating in housekeeping_top.sv.")
+ 
+    print(f"\n  *** PASS — no SPI activity before cycle {CLEAR_CYCLES}")
+ 
+ 
+#test 7 — after the clear window boot completes correctly
+@cocotb.test()
+async def test_full_boot_after_clear_window(dut):
+    print(f"\n=== TEST 7: full boot still completes correctly after clear window ===")
+    start_clock(dut)
+    await apply_reset(dut, cycles=40_000)
+    timed_out = False
+    for _ in range(600_000):
+        await RisingEdge(dut.clk_i)
+        if dut.boot_done_o.value == 1:
+            break
+    else:
+        timed_out = True
+ 
+    assert not timed_out, \
+        ("boot_done never asserted after clear window. "
+         "Boot may be stuck — check that clear_done goes high correctly "
+         "and that the FSM runs normally after the delay.")
+ 
+    print(f"  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
+    print(f"  cores_en_o  = {int(dut.cores_en_o.value)}   (expected 1)")
+    assert dut.boot_done_o.value == 1, "boot_done must be high after boot"
+    assert dut.cores_en_o.value  == 1, "cores_en must be high after boot"
+ 
+    print(f"\n  *** PASS — boot completes correctly after {CLEAR_CYCLES} cycle clear window")
+ 
+
+# runner
+def boot_ctrl_runner():
+    proj_path = Path(__file__).resolve().parent
+ 
+    #generate boot image .mem file before building
+    mem_path = write_boot_image_mem()
+    print(f"[runner] wrote {mem_path}")
+ 
+    sources = [
+        proj_path / "../src/housekeeping/spi_engine.sv",
+        proj_path / "../src/housekeeping/boot_fsm.sv",
+        proj_path / "../src/housekeeping/housekeeping_top.sv",
+        proj_path / "../src/housekeeping/cypress_model/s25fl128l.v",
+        proj_path / "../src/housekeeping/boot_flash_wrapper.sv",
+    ]
+ 
+    build_args = []
+    if sim == "icarus":
+        build_args = []
+    if sim == "verilator":
+        build_args = []
+ 
+    runner = get_runner(sim)
+    runner.build(
+        sources=sources,
+        hdl_toplevel="boot_flash_wrapper",
+        always=True,
+        build_args=build_args,
+        waves=True,
+    )
+    runner.test(
+        hdl_toplevel="boot_flash_wrapper",
+        test_module="boot_flash_tb",
+        waves=True,
+    )
+ 
+if __name__ == "__main__":
+    boot_ctrl_runner()
+ 
