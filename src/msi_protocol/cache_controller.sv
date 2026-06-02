@@ -270,6 +270,17 @@ module cache_controller
 
 
   // ============================================================
+  // flush addr
+  // ============================================================
+  logic [31:0] evict_addr;
+  assign evict_addr = {
+      23'd0,
+      cpu_line_tag_q,
+      cpu_addr_q[6:0]
+  };
+
+
+  // ============================================================
   // Sequential state update
   // ============================================================
   always_ff @(posedge clk_i or negedge rst_ni) begin
@@ -351,7 +362,7 @@ module cache_controller
     // outbound_snoop_cache_ready_o = '0;
 
     // incoming bus ack (default off)
-    bus_ready_o = 1'b0;
+    // bus_ready_o = 1'b0; NOTE: commented this casue its written in CPU always comb
 
     // snoop ready handshake (default off)
     snoop_ready_o = 1'b0;
@@ -377,6 +388,9 @@ module cache_controller
       end
 
       SNP_FETCH_LINE_RESP: begin
+        cm_snoop_valid_i = 1'b1;
+        cm_snoop_addr_i  = snp_addr_q;
+        cm_snoop_wstrb_i = '0; // read
         if (cm_snoop_valid_o) begin
           if (cm_snoop_rtag_o != snp_addr_tag) begin
             // ghost snoop: tag doesn't match, nothing to do, just ack
@@ -429,6 +443,13 @@ module cache_controller
       end
 
       SNP_UPDATE_LINE_RESP: begin
+        cm_snoop_valid_i  = 1'b1;
+        cm_snoop_addr_i   = snp_addr_q;
+        cm_snoop_wstrb_i  = '1; // write
+        cm_snoop_wdata_i  = snp_flush_data_q;
+        cm_snoop_wtag_i   = snp_tag_q;
+        cm_snoop_wstate_i = snp_next_state_q;
+
         if (cm_snoop_valid_o) begin
           cm_snoop_ready_i = 1'b1;
           snp_state_d      = SNP_DONE;
@@ -509,7 +530,7 @@ module cache_controller
 
       CPU_IDLE: begin
         if (mem_valid_i) begin
-          cpu_addr_d  = mem_addr_i;
+          cpu_addr_d  = mem_addr_i; 
           cpu_wdata_d = mem_wdata_i;
           cpu_wstrb_d = mem_wstrb_i;
           cpu_state_d = CPU_FETCH_LINE_REQ;
@@ -526,6 +547,9 @@ module cache_controller
       end
 
       CPU_FETCH_LINE_RESP: begin
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = '0; // read
         if (cm_cpu_valid_o) begin
           if (cm_cpu_rtag_o != cpu_addr_tag && cm_cpu_rstate_o != S_INVALID) begin
             // tag miss with a valid line -> need to flush before refill.
@@ -549,7 +573,8 @@ module cache_controller
       CPU_TAG_MISS: begin
         // flush out the wrong tag using LATCHED state (was cm_cpu_rstate_o, racy)
         outbound_cpu_cache_valid_i = 1'b1;
-        outbound_cpu_cache_addr_i  = cpu_addr_q;
+        // outbound_cpu_cache_addr_i  = cpu_addr_q;
+        outbound_cpu_cache_addr_i  = evict_addr;
         outbound_cpu_cache_data_i  = cpu_line_data_q;
         if (cpu_line_state_q == S_SHARED) begin
           outbound_cpu_cache_cmd_i = EvictClean_1h;
@@ -641,6 +666,12 @@ module cache_controller
       end
 
       CPU_READ_MISS_UPDATE_LINE_RESP: begin
+        cm_cpu_valid_i  = 1'b1;
+        cm_cpu_addr_i   = cpu_addr_q;
+        cm_cpu_wstrb_i  = 4'b1111;
+        cm_cpu_wdata_i  = cpu_line_data_q;
+        cm_cpu_wtag_i   = cpu_addr_tag;
+        cm_cpu_wstate_i = cpu_next_state_q;
         // FIX: wait on valid_o and ack with ready_i. Previous version polled
         // ready_o (which won't re-assert until ready_i pulses) → deadlock.
         if (cm_cpu_valid_o) begin
@@ -660,6 +691,11 @@ module cache_controller
       end
 
       CPU_READ_RESP: begin
+        cm_cpu_valid_i = 1'b1;
+        cm_cpu_addr_i  = cpu_addr_q;
+        cm_cpu_wstrb_i = 4'b0000; // read
+        mem_rdata_o  = '0; // feed data out to cpu
+
         if (cm_cpu_valid_o) begin
           mem_rdata_o    = cm_cpu_rdata_o; // feed data out to cpu
           mem_ready_o    = 1'b1;
