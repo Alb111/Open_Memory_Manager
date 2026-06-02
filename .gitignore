@@ -8,6 +8,10 @@ img/
 *.lyrdb
 debug.txt
 ip/picorv32/
+<<<<<<< HEAD
 src/housekeeping/cypress_model/
 cocotb/boot_image.mem
 .venv/
+=======
+llm_context.txt
+>>>>>>> parent of 7c4e13c (Merge branch 'main' of github.com:Alb111/Open_Memory_Manager into 67-cache-verilog-and-tb)
