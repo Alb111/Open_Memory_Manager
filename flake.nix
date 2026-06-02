@@ -71,7 +71,7 @@
                 # Verification
                 cocotb
 
-                # Test runner
+                # Test runner (pytest)
                 pytest
 
                 # For KLayout Python DRC runner
