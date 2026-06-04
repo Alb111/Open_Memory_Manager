@@ -781,7 +781,7 @@ module directory_controller (
     endcase
   end
 
-  always_ff @(posedge clk_i or negedge rst_ni) begin
+  always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
       state_q <= StInitMetaReq;
       init_index_q <= 7'd0;
@@ -858,4 +858,3 @@ module directory_controller (
 endmodule : directory_controller
 
 `default_nettype wire
-
