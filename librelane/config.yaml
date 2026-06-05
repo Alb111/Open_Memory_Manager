@@ -4,8 +4,8 @@ meta:
   substituting_steps:
 
     #Disable KLayout DRC
-    KLayout.DRC: null
-    Checker.KLayoutDRC: null
+    #KLayout.DRC: null
+    #Checker.KLayoutDRC: null
 
     # Disable KLayout antenna check
     #KLayout.Antenna: null
@@ -18,8 +18,8 @@ meta:
     # Save time during development
     # Enable for sign-off
     #OpenROAD.IRDropReport: null
-    Magic.DRC: null
-    Checker.MagicDRC: null
+    #Magic.DRC: null
+    #Checker.MagicDRC: null
     #KLayout.XOR: null
     #Netgen.LVS: null
     #Checker.LVS: null
@@ -177,6 +177,9 @@ KLAYOUT_FILLER_OPTIONS:
 
 # Preserve extracted port identity for LVS pin matching.
 MAGIC_EXT_UNIQUE: notopports
+
+# Source the PDK Netgen setup plus local top-level pad LVS constraints.
+NETGEN_SETUP: dir::netgen_lvs_setup.tcl
 
 MACROS:
   gf180mcu_ws_ip__id:
@@ -339,9 +342,9 @@ PDN_CFG: dir::pdn_cfg.tcl
 # but place 20-pad east/west rows as two groups of ten pads.
 PAD_CFG: dir::pad_cfg.tcl
 
-# Make sure netgen doesn't create 'no_connect' nets
-# Not needed since netgen 1.5.303
-LVS_FLATTEN_CELLS:
+# gf180mcu_ws_ip__id/logo have no ports or devices.  Ignore them in LVS so
+# their marker-only instances do not create a two-device mismatch.
+LVS_IGNORE_CELLS:
 - gf180mcu_ws_ip__id
 - gf180mcu_ws_ip__logo
 

@@ -14,4 +14,4 @@ All categories arranged alphabetically.
 * Albert Felix \<albertfelix2005@gmail\>
 * Saanj Shetty \<saanj135@gmail.com\>
 * Jack Wong \<jac.wong.k@gmail.com\>
-* Rishikesh Sethuraman \<\>
+* Rishikesh Sethuraman \<rishikesh.sethuraman@gmail.com\>

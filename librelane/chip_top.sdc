@@ -79,4 +79,3 @@ if { [info exists ::env(OPENLANE_SDC_IDEAL_CLOCKS)] && $::env(OPENLANE_SDC_IDEAL
 } else {
     set_propagated_clock [all_clocks]
 }
-

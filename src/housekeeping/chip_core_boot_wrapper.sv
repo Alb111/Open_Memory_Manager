@@ -2,16 +2,15 @@
 
 // test wrapper that instantiates chip_core with the cypress flash model connected through pad indices
 // pad assignments match localparams in chip_core.sv:
-//   input_in[0] = MISO (flash SO)
-//   input_in[1] = debug/pass-through enable
+//   bidir_in[40] = MISO (flash SO)
+//   bidir_in[41] = debug/pass-through enable
 //   bidir_out[1] = SCK (flash clock)
 //   bidir_out[2] = MOSI (flash SI data)
 //   bidir_out[3] = CSB (flash chip select)
 
 module chip_core_boot_wrapper #(
     parameter NUM_INPUT_PADS = 12,
-    parameter NUM_BIDIR_PADS = 40,
-    parameter NUM_ANALOG_PADS = 2
+    parameter NUM_BIDIR_PADS = 52
 )(
     input logic clk,
     input logic rst_n,
@@ -22,8 +21,6 @@ module chip_core_boot_wrapper #(
 );
 
     //wires for chip_core pad interface
-    logic [NUM_INPUT_PADS-1:0] input_pu;
-    logic [NUM_INPUT_PADS-1:0] input_pd;
     logic [NUM_BIDIR_PADS-1:0] bidir_out;
     logic [NUM_BIDIR_PADS-1:0] bidir_oe;
     logic [NUM_BIDIR_PADS-1:0] bidir_cs;
@@ -31,10 +28,10 @@ module chip_core_boot_wrapper #(
     logic [NUM_BIDIR_PADS-1:0] bidir_ie;
     logic [NUM_BIDIR_PADS-1:0] bidir_pu;
     logic [NUM_BIDIR_PADS-1:0] bidir_pd;
-    logic [NUM_INPUT_PADS-1:0] core_input_in;
-    wire [NUM_ANALOG_PADS-1:0] analog;
+    logic [NUM_BIDIR_PADS-1:0] core_bidir_in;
 
-    localparam int PIN_BOOT_MISO = 0;
+    localparam int PIN_BOOT_MISO = 40;
+    localparam int PIN_DEBUG_MODE = 41;
     localparam int PIN_BOOT_SCLK = 1;
     localparam int PIN_BOOT_MOSI = 2;
     localparam int PIN_BOOT_CS = 3;
@@ -42,29 +39,24 @@ module chip_core_boot_wrapper #(
     wire flash_miso;
 
     always_comb begin
-        core_input_in = input_in;
-        core_input_in[PIN_BOOT_MISO] = flash_miso;
+        core_bidir_in = bidir_in;
+        core_bidir_in[PIN_BOOT_MISO] = flash_miso;
+        core_bidir_in[PIN_DEBUG_MODE] = input_in[1];
     end
 
     chip_core #(
-        .NUM_INPUT_PADS  (NUM_INPUT_PADS),
-        .NUM_BIDIR_PADS  (NUM_BIDIR_PADS),
-        .NUM_ANALOG_PADS (NUM_ANALOG_PADS)
+        .NUM_BIDIR_PADS  (NUM_BIDIR_PADS)
     ) dut (
         .clk       (clk),
         .rst_n     (rst_n),
-        .input_in  (core_input_in),
-        .input_pu  (input_pu),
-        .input_pd  (input_pd),
-        .bidir_in  (bidir_in),
+        .bidir_in  (core_bidir_in),
         .bidir_out (bidir_out),
         .bidir_oe  (bidir_oe),
         .bidir_cs  (bidir_cs),
         .bidir_sl  (bidir_sl),
         .bidir_ie  (bidir_ie),
         .bidir_pu  (bidir_pu),
-        .bidir_pd  (bidir_pd),
-        .analog    (analog)
+        .bidir_pd  (bidir_pd)
     );
 
     //get spi signals from the bidir pad outputs

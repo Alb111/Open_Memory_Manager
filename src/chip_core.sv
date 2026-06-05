@@ -6,9 +6,7 @@
 `timescale 1ns/1ps
 
 module chip_core #(
-    parameter NUM_INPUT_PADS,
-    parameter NUM_BIDIR_PADS,
-    parameter NUM_ANALOG_PADS
+    parameter NUM_BIDIR_PADS
     )(
 
     `ifdef USE_POWER_PINS
@@ -19,34 +17,28 @@ module chip_core #(
     input  wire clk,
     input  wire rst_n,
 
-    input  wire [NUM_INPUT_PADS-1:0] input_in,
-    output wire [NUM_INPUT_PADS-1:0] input_pu,
-    output wire [NUM_INPUT_PADS-1:0] input_pd,
-
-    input  wire [NUM_BIDIR_PADS-1:0] bidir_in,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_out,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,
-    output wire [NUM_BIDIR_PADS-1:0] bidir_pd,
-
-    inout  wire [NUM_ANALOG_PADS-1:0] analog
+    input  wire [NUM_BIDIR_PADS-1:0] bidir_in, 	//Input value
+    output wire [NUM_BIDIR_PADS-1:0] bidir_out, //Output value
+    output wire [NUM_BIDIR_PADS-1:0] bidir_oe,  //Output enable
+    output wire [NUM_BIDIR_PADS-1:0] bidir_cs,	//Input type (0=CMOS buffer, 1=Schmitt Trigger)
+    output wire [NUM_BIDIR_PADS-1:0] bidir_sl,  //Slew rate (0=fast, 1=slow)
+    output wire [NUM_BIDIR_PADS-1:0] bidir_ie,	//Input enable
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pu,	//Pull-up
+    output wire [NUM_BIDIR_PADS-1:0] bidir_pd	//Pull-down
 );
-
     localparam int SER_PINS = 9;
-    localparam int PIN_BOOT_MISO = 0;
-    localparam int PIN_DEBUG_MODE = 1;
-    localparam int PIN_DFT_IN = 2;
+
+    // Former input pads, now carried on the appended bidirectional pads.
+    localparam int PIN_BOOT_MISO = 40;
+    localparam int PIN_DEBUG_MODE = 41;
+    localparam int PIN_DFT_IN = 42;
+
+    // Original bidirectional/output pad assignments are kept stable.
     localparam int PIN_TRAP_LED = 0;
     localparam int PIN_BOOT_SCLK = 1;
     localparam int PIN_BOOT_MOSI = 2;
     localparam int PIN_BOOT_CS = 3;
     localparam int PIN_DFT_OUT = 4;
-
-    assign input_pu = '0;
-    assign input_pd = '0;
 
     assign bidir_cs = '0;
     assign bidir_sl = '0;
@@ -54,48 +46,37 @@ module chip_core #(
     assign bidir_pu = '0;
     assign bidir_pd = '0;
 
-    logic [1:0] arb_req;
-    logic [1:0] arb_grant;
-    logic [1:0] arb_req_passthrough;
+	//arbiter
+    logic [1:0] arb_req, arb_grant, arb_req_passthrough;
 
-    logic        c0_bus_valid;
-    logic [31:0] c0_bus_addr;
-    logic [31:0] c0_bus_wdata;
+	//core0
+    logic        c0_bus_valid, c0_bus_ready;
     logic [4:0]  c0_bus_cache_cmd;
-    logic        c0_bus_ready;
-
-    logic        c0_snoop_valid;
-    logic [31:0] c0_snoop_data;
+    logic [31:0] c0_bus_addr, c0_bus_wdata;
+    logic        c0_snoop_valid, c0_snoop_ready;
     logic [2:0]  c0_snoop_cache_cmd;
-    logic        c0_snoop_ready;
-
-    logic        c0_dir_valid;
-    logic [31:0] c0_dir_data;
-    logic [31:0] c0_dir_addr;
+    logic [31:0] c0_snoop_data;
+    logic        c0_dir_valid, c0_reset_done;
     logic [5:0]  c0_dir_cmd;
-    logic        c0_reset_done;
+    logic [31:0] c0_dir_data, c0_dir_addr;
+    logic 		 c0_tser_ready;
 
-    logic        c1_bus_valid;
-    logic [31:0] c1_bus_addr;
-    logic [31:0] c1_bus_wdata;
+	//core1
+    logic        c1_bus_valid, c1_bus_ready;
     logic [4:0]  c1_bus_cache_cmd;
-    logic        c1_bus_ready;
-
-    logic        c1_snoop_valid;
-    logic [31:0] c1_snoop_data;
+    logic [31:0] c1_bus_addr, c1_bus_wdata;
+    logic        c1_snoop_valid, c1_snoop_ready;
     logic [2:0]  c1_snoop_cache_cmd;
-    logic        c1_snoop_ready;
-
-    logic        c1_dir_valid;
-    logic [31:0] c1_dir_data;
-    logic [31:0] c1_dir_addr;
+    logic [31:0] c1_snoop_data;
+    logic        c1_dir_valid, c1_reset_done;
     logic [5:0]  c1_dir_cmd;
-    logic        c1_reset_done;
+    logic [31:0] c1_dir_data, c1_dir_addr;
+    logic		 c1_tser_ready;
 
-    logic        dir_mem_valid;
-    logic        dir_mem_ready;
-    logic [31:0] dir_mem_addr;
+	//directory
+    logic        dir_mem_valid, dir_mem_ready;
     logic [3:0]  dir_mem_wstrb;
+    logic [31:0] dir_mem_addr;
 
     logic [31:0] dir_mem_w_data;
     logic [1:0]  dir_mem_w_state;
@@ -112,6 +93,8 @@ module chip_core #(
     logic        dir_mem_resp_ready;
     logic        dir_state_invalidated;
 
+
+	//boot
     logic        boot_mem_valid;
     logic        boot_mem_instr;
     logic [31:0] boot_mem_addr;
@@ -129,11 +112,12 @@ module chip_core #(
     logic        dft_in;
     logic        dft_out;
 
-    logic        ts_ready;
-    logic        ts_req;
-    logic [SER_PINS-1:0] ts_serial;
-    logic        rs_valid;
-    logic [71:0] rs_data;
+	//SERDES
+    logic        			ts_ready;
+    logic        			ts_req;
+    logic [SER_PINS-1:0]	ts_serial;
+    logic        			rs_valid;
+    logic [71:0] 			rs_data;
 
     logic [SER_PINS-1:0] c0_serial_tx;
     logic [SER_PINS-1:0] c1_serial_tx;
@@ -144,18 +128,17 @@ module chip_core #(
     logic                c0_req_rx;
     logic                c1_req_rx;
 
+
     logic [NUM_BIDIR_PADS-1:0] bidir_out_int;
     logic [NUM_BIDIR_PADS-1:0] bidir_oe_int;
 
     wire whoami_pulse;
     wire whoami_ready;
-    wire c0_tser_ready;
-    wire c1_tser_ready;
 
     assign whoami_ready = c0_tser_ready && c1_tser_ready;
 
-    assign debug_mode = input_in[PIN_DEBUG_MODE];
-    assign dft_in = input_in[PIN_DFT_IN];
+    assign debug_mode = bidir_in[PIN_DEBUG_MODE];
+    assign dft_in = bidir_in[PIN_DFT_IN];
     assign dft_out = dft_in;
     assign trap_led = 1'b0;
     assign core_mem_select = debug_mode | boot_done;
@@ -195,7 +178,7 @@ module chip_core #(
         .reset_ni       (rst_n),
         .spi_sck_o      (boot_spi_sck),
         .spi_mosi_o     (boot_spi_mosi),
-        .spi_miso_i     (input_in[PIN_BOOT_MISO]),
+        .spi_miso_i     (bidir_in[PIN_BOOT_MISO]),
         .flash_csb_o    (boot_flash_csb),
         .pass_thru_en_i (debug_mode),
         .whoami_ready_i (whoami_ready),
@@ -225,7 +208,7 @@ module chip_core #(
 
     directory_interface #(
   	.NUM_TPINS(SER_PINS),
-  	.NUM_RPINS(SER_PINS)
+    .NUM_RPINS(9)
     ) i_directory_interface_0 (
   	.clk_i              (clk),
   	.rst_ni             (core_rst_n),
@@ -419,7 +402,7 @@ module chip_core #(
     );
 
     logic _unused;
-    assign _unused = &{input_in, analog, bidir_in, arb_grant, arb_req_passthrough,
+    assign _unused = &{bidir_in, arb_grant, arb_req_passthrough,
                        ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
 
 endmodule

@@ -17,12 +17,26 @@ gl = os.getenv("GL", False)
 slot = os.getenv("SLOT", "1x1")
 
 hdl_toplevel = "chip_top"
-PIN_DEBUG_MODE = 1
-PIN_DFT_IN = 2
+PIN_BOOT_MISO = 40
+PIN_DEBUG_MODE = 41
+PIN_DFT_IN = 42
 PIN_DFT_OUT = 4
 
+
+def drive_bidir_inputs(dut, boot_miso=0, debug_mode=0, dft_in=0):
+    width = len(dut.bidir_PAD.value)
+    bits = ["z"] * width
+    for pin, value in (
+        (PIN_BOOT_MISO, boot_miso),
+        (PIN_DEBUG_MODE, debug_mode),
+        (PIN_DFT_IN, dft_in),
+    ):
+        bits[width - 1 - pin] = "1" if value else "0"
+    dut.bidir_PAD.value = "".join(bits)
+
+
 async def set_defaults(dut):
-    dut.input_PAD.value = 0
+    drive_bidir_inputs(dut)
 
 async def enable_power(dut):
     dut.VDD.value = 1
@@ -59,11 +73,11 @@ async def test_chip_top_pad_smoke(dut):
     """Check that the current chip_core pad plumbing is alive."""
     await start_up(dut)
 
-    dut.input_PAD.value = 1 << PIN_DEBUG_MODE
+    drive_bidir_inputs(dut, debug_mode=1)
     await ClockCycles(dut.clk_PAD, 4)
     assert int(dut.bidir_PAD.value[PIN_DFT_OUT]) == 0
 
-    dut.input_PAD.value = (1 << PIN_DEBUG_MODE) | (1 << PIN_DFT_IN)
+    drive_bidir_inputs(dut, debug_mode=1, dft_in=1)
     await ClockCycles(dut.clk_PAD, 4)
     assert int(dut.bidir_PAD.value[PIN_DFT_OUT]) == 1
 
