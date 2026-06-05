@@ -7,8 +7,16 @@ from cocotb.triggers import Timer, RisingEdge, FallingEdge, ClockCycles
 from cocotb_tools.runner import get_runner
 
 sim = os.getenv("SIM",  "icarus")
-pdk_root = Path("../gf180mcu")
+REPO_ROOT = Path(__file__).resolve().parent.parent
+pdk_root = Path(os.getenv("PDK_ROOT", REPO_ROOT / "gf180mcu"))
 pdk = os.getenv("PDK",  "gf180mcuD")
+CYPRESS_MODEL = Path(
+    os.getenv(
+        "CYPRESS_S25FL128L_MODEL",
+        Path(__file__).resolve().parent
+        / "../src/housekeeping/cypress_model/s25fl128l.v",
+    )
+).resolve()
 
 hdl_toplevel = "chip_core_boot_wrapper"
 
@@ -216,7 +224,7 @@ def chip_core_runner():
     mem_path = write_boot_image_mem()
     print(f"[runner] wrote {mem_path}")
 
-    secr_src = proj_path / "../src/housekeeping/cypress_model/s25fl128lSECR.mem"
+    secr_src = CYPRESS_MODEL.with_name("s25fl128lSECR.mem")
     if secr_src.exists():
         shutil.copy(secr_src, sim_build / "s25fl128lSECR.mem")
 
@@ -236,7 +244,6 @@ def chip_core_runner():
         proj_path / "../src/mem_ctrl/directory_mem.sv",
         proj_path / "../src/directory_controller/directory_controller.sv",
         proj_path / "../src/arb/wrr_arbiter.sv",
-        proj_path / "../src/interposer_interface/cache_interface.sv",
         proj_path / "../src/interposer_interface/directory_interface.sv",
         proj_path / "../src/interposer_interface/tserializer.sv",
         proj_path / "../src/interposer_interface/rserializer.sv",
@@ -244,11 +251,16 @@ def chip_core_runner():
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
-        proj_path / "../src/housekeeping/cypress_model/s25fl128l.v",
+        CYPRESS_MODEL,
         proj_path / "../src/chip_core.sv",
         # Wrapper that adds the flash model as a submodule of chip_core
-        proj_path / "../src/housekeeping/chip_core_boot_wrapper.sv",
+        proj_path / "../src/housekeeping/tb_modules/chip_core_boot_wrapper.sv",
     ]
+    if not CYPRESS_MODEL.exists():
+        raise FileNotFoundError(
+            "chip_core_boot_tb.py requires the proprietary Cypress model. "
+            f"Set CYPRESS_S25FL128L_MODEL or place it at {CYPRESS_MODEL}"
+        )
 
     build_args = []
     if sim == "icarus":

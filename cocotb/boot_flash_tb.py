@@ -7,7 +7,8 @@ from cocotb_tools.runner import get_runner
  
  
 sim     = os.getenv("SIM", "icarus")
-pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+REPO_ROOT = Path(__file__).resolve().parent.parent
+pdk_root = os.getenv("PDK_ROOT", REPO_ROOT / "gf180mcu")
 pdk     = os.getenv("PDK", "gf180mcuD")
 scl     = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl      = os.getenv("GL", False)
@@ -22,6 +23,13 @@ JEDEC_MANUF = 0x01
 JEDEC_MEM_TYPE = 0x60
 JEDEC_CAPACITY = 0x18
 CLEAR_CYCLES = 4100
+CYPRESS_MODEL = Path(
+    os.getenv(
+        "CYPRESS_S25FL128L_MODEL",
+        Path(__file__).resolve().parent
+        / "../src/housekeeping/cypress_model/s25fl128l.v",
+    )
+).resolve()
  
 def write_boot_image_mem():
     sim_build = Path(__file__).resolve().parent / "sim_build"
@@ -437,13 +445,18 @@ def boot_ctrl_runner():
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
-        proj_path / "../src/housekeeping/cypress_model/s25fl128l.v",
-        proj_path / "../src/housekeeping/boot_flash_wrapper.sv",
+        CYPRESS_MODEL,
+        proj_path / "../src/housekeeping/tb_modules/boot_flash_wrapper.sv",
     ]
+    if not CYPRESS_MODEL.exists():
+        raise FileNotFoundError(
+            "boot_flash_tb.py requires the proprietary Cypress model. "
+            f"Set CYPRESS_S25FL128L_MODEL or place it at {CYPRESS_MODEL}"
+        )
  
     build_args = []
     if sim == "icarus":
-        build_args = []
+        build_args = ["-g2012"]
     if sim == "verilator":
         build_args = []
  

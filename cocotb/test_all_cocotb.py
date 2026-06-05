@@ -4,15 +4,38 @@ import os
 import pytest
 from pathlib import Path
 
+COCOTB_DIR = Path(__file__).resolve().parent
+REPO_ROOT = COCOTB_DIR.parent
+
 ENV_VARS = {
-    "PDK_ROOT": os.getenv("PDK_ROOT", str(Path("~/.ciel").expanduser())),
+    "PDK_ROOT": os.getenv("PDK_ROOT", str(REPO_ROOT / "gf180mcu")),
     "PDK":      os.getenv("PDK",      "gf180mcuD"),
     "SLOT":     os.getenv("SLOT",     "1x1"),
     "SIM":      os.getenv("SIM",      "icarus"),
     **os.environ,
 }
 
-COCOTB_DIR = Path(__file__).resolve().parent
+BOOT_FLASH_MODEL = Path(
+    os.getenv(
+        "CYPRESS_S25FL128L_MODEL",
+        REPO_ROOT / "src" / "housekeeping" / "cypress_model" / "s25fl128l.v",
+    )
+)
+
+TESTBENCHES = [
+    ("mem_tb.py", None),
+    ("mem64x8_tb.py", None),
+    ("directory_mem_tb.py", None),
+    ("wrr_arbiter_tb.py", None),
+    ("tserializer_tb.py", None),
+    ("rserializer_tb.py", None),
+    ("directory_interface_tb.py", None),
+    ("directory_controller_tb.py", None),
+    ("housekeeping_tb.py", None),
+    ("boot_flash_tb.py", BOOT_FLASH_MODEL),
+    ("boot_mem_tb.py", BOOT_FLASH_MODEL),
+    ("chip_top_tb.py", None),
+]
 
 
 def _run_testbench(script: str) -> subprocess.CompletedProcess:
@@ -25,132 +48,16 @@ def _run_testbench(script: str) -> subprocess.CompletedProcess:
     )
 
 
-class TestMemCtrl:
-    """Cocotb testbench: Memory (mem_tb.py)"""
+@pytest.mark.parametrize(
+    ("script", "required_file"),
+    TESTBENCHES,
+    ids=[script.removesuffix(".py") for script, _ in TESTBENCHES],
+)
+def test_cocotb_testbench(script, required_file):
+    if required_file is not None and not required_file.exists():
+        pytest.skip(f"{script} requires missing external file: {required_file}")
 
-    def test_mem_ctrl(self):
-        result = _run_testbench("mem_tb.py")
-        assert result.returncode == 0, (
-            f"mem_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestMem64x8:
-    """Cocotb testbench: 64x8 metadata SRAM wrapper (mem64x8_tb.py)"""
-
-    def test_mem64x8(self):
-        result = _run_testbench("mem64x8_tb.py")
-        assert result.returncode == 0, (
-            "mem64x8_tb.py failed with exit code "
-            f"{result.returncode}"
-        )
-
-
-class TestDirectoryMem:
-    """Cocotb testbench: Directory memory wrapper (directory_mem_tb.py)"""
-
-    def test_directory_mem(self):
-        result = _run_testbench("directory_mem_tb.py")
-        assert result.returncode == 0, (
-            f"directory_mem_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestWRRArbiter:
-    """Cocotb testbench: WRR Arbiter (wrr_arbiter_tb.py)"""
-
-    def test_wrr_arbiter(self):
-        result = _run_testbench("wrr_arbiter_tb.py")
-        assert result.returncode == 0, (
-            f"wrr_arbiter_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestTSerializer:
-    """Cocotb testbench: Transmit Serializer (tserializer_tb.py)"""
-
-    def test_tserializer(self):
-        result = _run_testbench("tserializer_tb.py")
-        assert result.returncode == 0, (
-            f"tserializer_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestRSerializer:
-    """Cocotb testbench: Receive Serializer (rserializer_tb.py)"""
-
-    def test_rserializer(self):
-        result = _run_testbench("rserializer_tb.py")
-        assert result.returncode == 0, (
-            f"rserializer_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestDirectoryInterface:
-    """Cocotb testbench: Directory Interface (directory_interface_tb.py)"""
-
-    def test_directory_interface(self):
-        result = _run_testbench("directory_interface_tb.py")
-        assert result.returncode == 0, (
-            f"directory_interface_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestOnProcessorEventSM:
-    """Cocotb testbench: On-Processor Event State Machine (on_processor_event_state_machine_tb.py)"""
-
-    def test_on_processor_event_sm(self):
-        result = _run_testbench("on_processor_event_state_machine_tb.py")
-        assert result.returncode == 0, (
-            f"on_processor_event_state_machine_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestOnSnoopEventSM:
-    """Cocotb testbench: On-Snoop Event State Machine (on_snoop_event_state_machine_tb.py)"""
-
-    def test_on_snoop_event_sm(self):
-        result = _run_testbench("on_snoop_event_state_machine_tb.py")
-        assert result.returncode == 0, (
-            f"on_snoop_event_state_machine_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestBoot:
-    """Cocotb testbench: Boot Controller (housekeeping_tb.py)"""
-
-    def test_boot_ctrl(self):
-        result = _run_testbench("housekeeping_tb.py")
-        assert result.returncode == 0, (
-            f"housekeeping_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestBootFlash:
-    """Cocotb testbench: Boot Flash (boot_flash_tb.py)"""
-
-    def test_boot_flash(self):
-        result = _run_testbench("boot_flash_tb.py")
-        assert result.returncode == 0, (
-            f"boot_flash_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestBootMem:
-    """Cocotb testbench: Boot Memory (boot_mem_tb.py)"""
-
-    def test_boot_mem(self):
-        result = _run_testbench("boot_mem_tb.py")
-        assert result.returncode == 0, (
-            f"boot_mem_tb.py failed with exit code {result.returncode}"
-        )
-
-
-class TestChipTop:
-    """Cocotb testbench: Chip Top (chip_top_tb.py)"""
-
-    def test_chip_top(self):
-        result = _run_testbench("chip_top_tb.py")
-        assert result.returncode == 0, (
-            f"chip_top_tb.py failed with exit code {result.returncode}"
-        )
+    result = _run_testbench(script)
+    assert result.returncode == 0, (
+        f"{script} failed with exit code {result.returncode}"
+    )

@@ -12,7 +12,8 @@ import random
 
 
 sim = os.getenv("SIM", "icarus")
-pdk_root = os.getenv("PDK_ROOT", Path("~/.ciel").expanduser())
+REPO_ROOT = Path(__file__).resolve().parent.parent
+pdk_root = os.getenv("PDK_ROOT", REPO_ROOT / "gf180mcu")
 pdk = os.getenv("PDK", "gf180mcuD")
 scl = os.getenv("SCL", "gf180mcu_fd_sc_mcu7t5v0")
 gl = os.getenv("GL", False)
@@ -501,4 +502,3 @@ def directory_interface_runner():
 
 if __name__ == "__main__":
     directory_interface_runner()
-
