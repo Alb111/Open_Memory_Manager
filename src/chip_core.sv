@@ -40,14 +40,22 @@ module chip_core #(
     localparam int PIN_BOOT_CS = 3;
     localparam int PIN_DFT_OUT = 4;
 
+    // TODO: Audit the 52-pad slot map. Only pads 0-4 and 40-42 are used here;
+    // pads 5-39 and 43-51 are currently left as input-enabled, no-pull pads.
+    // Either assign them real functions, disable their input buffers, or document
+    // them as intentionally unused spare pads in the top-level pinout.
+    // TODO: Add a NUM_BIDIR_PADS bounds check for the fixed pad indices above.
+    // This core indexes through PIN_DFT_IN=42, so any slot with fewer than 43
+    // bidirectional pads will compile/elaborate incorrectly.
     assign bidir_cs = '0;
     assign bidir_sl = '0;
+    // TODO: Confirm the intended pad control policy for input-only and unused
+    // bidirectional pads. Tying IE to ~OE enables every unused pad input buffer,
+    // which can create floating inputs unless the board drives them or pulls are
+    // enabled externally.
     assign bidir_ie = ~bidir_oe;
     assign bidir_pu = '0;
     assign bidir_pd = '0;
-
-	//arbiter
-    logic [1:0] arb_req, arb_grant, arb_req_passthrough;
 
 	//core0
     logic        c0_bus_valid, c0_bus_ready;
@@ -140,11 +148,13 @@ module chip_core #(
     assign debug_mode = bidir_in[PIN_DEBUG_MODE];
     assign dft_in = bidir_in[PIN_DFT_IN];
     assign dft_out = dft_in;
+    // TODO: Drive trap_led from a real trap/fault source or rename this pad as a
+    // constant-low output. It is currently marked as used but never reflects core
+    // state.
     assign trap_led = 1'b0;
     assign core_mem_select = debug_mode | boot_done;
     assign core_rst_n = rst_n & (debug_mode | cores_en);
 
-    assign arb_req = {c1_bus_valid, c0_bus_valid};
     assign c0_serial_rx = c1_serial_tx;
     assign c1_serial_rx = c0_serial_tx;
     assign c0_req_rx = c1_req_tx;
@@ -192,20 +202,6 @@ module chip_core #(
         .whoami_pulse_o (whoami_pulse)
     );
 
-    //Not sure if arbiter is needed here since its instantiated in directory
-    //controller but best to double check
-    wrr_arbiter #(
-        .NUM_REQ    (2),
-        .WEIGHT_W   (3),
-        .WEIGHTS    ({3'd1, 3'd1})
-    ) i_wrr_arbiter (
-        .clk_i      (clk),
-        .rst_ni     (core_rst_n),
-        .req_i      (arb_req),
-        .grant_o    (arb_grant),
-        .req_o      (arb_req_passthrough)
-    );
-
     directory_interface #(
   	.NUM_TPINS(SER_PINS),
     .NUM_RPINS(9)
@@ -230,6 +226,9 @@ module chip_core #(
   	.dir_cmd_i          (c0_dir_cmd),
     .dir_ready_o        (c0_tser_ready),
 
+    // TODO: Decide whether receive-side busy should feed reset/boot sequencing,
+    // flow control, or status. Leaving rbusy_o open hides serializer receive
+    // activity from the chip core.
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
   	.cpu_id_i           (8'h00),
@@ -265,6 +264,9 @@ module chip_core #(
   	.dir_cmd_i          (c1_dir_cmd),
     .dir_ready_o        (c1_tser_ready),
 
+    // TODO: Decide whether receive-side busy should feed reset/boot sequencing,
+    // flow control, or status. Leaving rbusy_o open hides serializer receive
+    // activity from the chip core.
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
   	.cpu_id_i           (8'h01),
@@ -276,6 +278,9 @@ module chip_core #(
   	.serial_o           (c1_serial_tx)
     );
 
+    // TODO: Clarify whether this standalone serializer/receiver loopback is a
+    // placeholder for off-chip SERDES pads. It is driven with valid_i=0 and its
+    // receive outputs are unused, so it has no functional effect today.
     tserializer #(
         .NUM_PINS   (SER_PINS),
         .MAX_MSG_LEN(68),
@@ -402,8 +407,7 @@ module chip_core #(
     );
 
     logic _unused;
-    assign _unused = &{bidir_in, arb_grant, arb_req_passthrough,
-                       ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
+    assign _unused = &{bidir_in, ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
 
 endmodule
 

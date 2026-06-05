@@ -178,9 +178,6 @@ KLAYOUT_FILLER_OPTIONS:
 # Preserve extracted port identity for LVS pin matching.
 MAGIC_EXT_UNIQUE: notopports
 
-# Source the PDK Netgen setup plus local top-level pad LVS constraints.
-NETGEN_SETUP: dir::netgen_lvs_setup.tcl
-
 MACROS:
   gf180mcu_ws_ip__id:
     gds:
@@ -341,15 +338,3 @@ PDN_CFG: dir::pdn_cfg.tcl
 # Custom padring placement: keep LibreLane's default spacing on most sides,
 # but place 20-pad east/west rows as two groups of ten pads.
 PAD_CFG: dir::pad_cfg.tcl
-
-# gf180mcu_ws_ip__id/logo have no ports or devices.  Ignore them in LVS so
-# their marker-only instances do not create a two-device mismatch.
-LVS_IGNORE_CELLS:
-- gf180mcu_ws_ip__id
-- gf180mcu_ws_ip__logo
-
-# gf180mcu_ws_ip__id/logo has no ports and components
-# therefore make it an abstract cell in the layout
-MAGIC_EXT_ABSTRACT_CELLS:
-- gf180mcu_ws_ip__id
-- gf180mcu_ws_ip__logo
