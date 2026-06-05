@@ -37,7 +37,6 @@ VERILOG_FILES:
 - dir::../src/mem_ctrl/mem512x32.sv
 - dir::../src/mem_ctrl/directory_mem.sv
 - dir::../src/mem_ctrl/mem64x8.sv
-- dir::../src/interposer_interface/cache_interface.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv

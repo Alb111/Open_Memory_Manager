@@ -100,7 +100,6 @@ def chip_top_runner():
         sources.append(proj_path / "../src/housekeeping/boot_fsm.sv")
         sources.append(proj_path / "../src/housekeeping/housekeeping_top.sv")
         sources.append(proj_path / "../src/housekeeping/spi_engine.sv")
-        sources.append(proj_path / "../src/interposer_interface/cache_interface.sv")
         sources.append(proj_path / "../src/interposer_interface/lossy_pipe_stage.sv")
     sources += [
         # IO pad models
