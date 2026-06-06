@@ -3,9 +3,14 @@ MAKEFILE_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 RUN_TAG = $(shell ls librelane/runs/ | tail -n 1)
 TOP = chip_top
 
+ROOT := $(shell pwd)
+PDK_PATH := $(ROOT)/gf180mcu/gf180mcuD
+SCL_DIR := $(PDK_PATH)/libs.ref/gf180mcu_fd_sc_mcu7t5v0/verilog
+
 PDK_ROOT ?= $(MAKEFILE_DIR)/gf180mcu
 PDK ?= gf180mcuD
 PDK_TAG ?= 1.8.0
+HDL_TOPLEVEL ?= chip_top
 
 AVAILABLE_SLOTS = 1x1
 DEFAULT_SLOT = 1x1
@@ -73,6 +78,26 @@ sim: ## Run RTL simulation with cocotb
 sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 	cd cocotb; GL=1 PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-gl
+
+sim-sdf:
+	@echo "Running CVC SDF Gate-Level Timing Simulation..."
+		cd cocotb && cvc \
+    		+interp \
+    		+define+USE_POWER_PINS \
+    		+timing +maxdelays \
+    		+ignore_sdf_iopath_edges \
+    		+sdf_noerrors \
+    		+incdir+$(SCL_DIR) \
+    		$(SCL_DIR)/primitives.v \
+    		chip_top_tb_gl.v \
+    		../final/pnl/chip_top.pnl.v \
+    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_sc_mcu7t5v0.cvc.v \
+    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_io.cvc.v \
+		-v $(ROOT)/cocotb/cvc_models/gf180mcu_ws_io.cvc.v \
+		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_ip_sram__sram512x8m8wm1.v \
+    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_ip_sram__sram64x8m8wm1.v \
+    		-v $(ROOT)/cocotb/dummy_cells.v
+.PHONY: sim-sdf
 
 sim-view: ## View simulation waveforms in GTKWave
 	gtkwave cocotb/sim_build/chip_top.fst
