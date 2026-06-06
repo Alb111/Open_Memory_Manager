@@ -227,53 +227,54 @@ MACROS:
     instances:
       # SRAMs instantiated inside directory_mem's mem_ctrl_2048x32
       # Keep them in a centered 4x4 grid with routing channels between macros.
+      # Apply a uniform +5um X nudge to avoid marginal M3.2b markers at SRAM M3 edges.
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0:
-        location: [620, 720]
+        location: [625, 720]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1:
-        location: [1375, 720]
+        location: [1380, 720]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2:
-        location: [2130, 720]
+        location: [2135, 720]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3:
-        location: [2885, 720]
+        location: [2890, 720]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0:
-        location: [620, 1805]
+        location: [625, 1805]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1:
-        location: [1375, 1805]
+        location: [1380, 1805]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2:
-        location: [2130, 1805]
+        location: [2135, 1805]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3:
-        location: [2885, 1805]
+        location: [2890, 1805]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0:
-        location: [620, 2890]
+        location: [625, 2890]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1:
-        location: [1375, 2890]
+        location: [1380, 2890]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2:
-        location: [2130, 2890]
+        location: [2135, 2890]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3:
-        location: [2885, 2890]
+        location: [2890, 2890]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0:
-        location: [620, 3975]
+        location: [625, 3975]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1:
-        location: [1375, 3975]
+        location: [1380, 3975]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2:
-        location: [2130, 3975]
+        location: [2135, 3975]
         orientation: N
       i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3:
-        location: [2885, 3975]
+        location: [2890, 3975]
         orientation: N
 
   gf180mcu_fd_ip_sram__sram64x8m8wm1:
@@ -294,13 +295,13 @@ MACROS:
       # Directory metadata 64x8 SRAMs. Keep them in the routing channel
       # between the first and second 512x8 SRAM rows.
       i_chip_core.i_directory_mem.i_mem64x8.sram0:
-        location: [620, 1385]
+        location: [625, 1385]
         orientation: N
       i_chip_core.i_directory_mem.i_mem64x8.sram1:
-        location: [1750, 1385]
+        location: [1755, 1385]
         orientation: N
       i_chip_core.i_directory_mem.i_mem64x8.sram2:
-        location: [2885, 1385]
+        location: [2890, 1385]
         orientation: N
 
 # Power connections for SRAMs
