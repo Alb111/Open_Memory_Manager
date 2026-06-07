@@ -79,25 +79,25 @@ sim-gl: ## Run gate-level simulation with cocotb (after copy-final)
 	cd cocotb; GL=1 PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-gl
 
-sim-sdf:
-	@echo "Running CVC SDF Gate-Level Timing Simulation..."
-		cd cocotb && cvc \
-    		+interp \
-    		+define+USE_POWER_PINS \
-    		+timing +maxdelays \
-    		+ignore_sdf_iopath_edges \
-    		+sdf_noerrors \
-    		+incdir+$(SCL_DIR) \
-    		$(SCL_DIR)/primitives.v \
-    		chip_top_tb_gl.v \
-    		../final/pnl/chip_top.pnl.v \
-    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_sc_mcu7t5v0.cvc.v \
-    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_io.cvc.v \
-		-v $(ROOT)/cocotb/cvc_models/gf180mcu_ws_io.cvc.v \
-		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_ip_sram__sram512x8m8wm1.v \
-    		-v $(ROOT)/cocotb/cvc_models/gf180mcu_fd_ip_sram__sram64x8m8wm1.v \
-    		-v $(ROOT)/cocotb/dummy_cells.v
+SDF_CORNER := $(if $(SDF_CORNER),$(SDF_CORNER),max_tt_025C_5v00)
+SDF_FILE = $(ROOT)/final/sdf/$(SDF_CORNER)/$(TOP)__$(SDF_CORNER).sdf
+
+sim-sdf: ## Run gate-level SDF timing simulation (SDF_CORNER=max_tt_025C_5v00)
+	@echo "Running SDF Gate-Level Timing Simulation (corner: $(SDF_CORNER))..."
+	@if [ ! -f "$(SDF_FILE)" ]; then \
+		echo "Error: SDF file not found at $(SDF_FILE)"; \
+		echo "Available corners:"; \
+		ls $(ROOT)/final/sdf/; \
+		echo "Usage: make sim-sdf SDF_CORNER=max_ff_n40C_5v50"; \
+		exit 1; \
+	fi
+	cd cocotb; GL=1 SDF=1 SDF_FILE=$(SDF_FILE) SDF_CORNER=$(SDF_CORNER) \
+		PDK_ROOT=${PDK_ROOT} PDK=${PDK} SLOT=${SLOT} python3 chip_top_tb.py
 .PHONY: sim-sdf
+
+sim-sdf-view: ## View SDF simulation waveforms in GTKWave
+	gtkwave cocotb/sim_build/chip_top_sdf.fst
+.PHONY: sim-sdf-view
 
 sim-view: ## View simulation waveforms in GTKWave
 	gtkwave cocotb/sim_build/chip_top.fst
