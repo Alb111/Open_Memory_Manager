@@ -30,6 +30,9 @@ def env_flag(name, default="0"):
 
 
 gl = env_flag("GL")
+sdf = env_flag("SDF")
+sdf_file = os.getenv("SDF_FILE", "")
+sdf_corner = os.getenv("SDF_CORNER", "max_tt_025C_5v00")
 
 # The actual chip target is 20 MHz = 50 ns period.
 CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "20"))
@@ -823,16 +826,14 @@ def chip_top_runner():
     sources = []
     defines = {f"SLOT_{slot.upper()}": True}
     includes = [proj_path / "../src/"]
+    build_args = []
 
     scl_dir = pdk_root / pdk / "libs.ref" / scl / "verilog"
     io_dir = pdk_root / pdk / "libs.ref/gf180mcu_fd_io/verilog"
     sram_dir = pdk_root / pdk / "libs.ref/gf180mcu_fd_ip_sram/verilog"
 
     if gl:
-        # Gate-level functional simulation.
-        #
-        # No SDF wrapper here. This is for make sim-gl / GL=1 cocotb GLS.
-        # Full CVC SDF timing simulation should stay in the separate CVC flow.
+        # Gate-level simulation (functional or SDF-annotated timing).
         defines = {
             f"SLOT_{slot.upper()}": True,
             "FUNCTIONAL": True,
@@ -840,13 +841,23 @@ def chip_top_runner():
         }
 
         sources += [
-            # UDP primitives should be compiled before the SCL model.
+            # UDP primitives must be compiled before the SCL model.
             scl_dir / "primitives.v",
             scl_dir / f"{scl}.v",
 
             # Powered post-layout netlist.
             proj_path / f"../final/pnl/{hdl_toplevel}.pnl.v",
         ]
+
+        if sdf:
+            if not sdf_file:
+                raise RuntimeError(
+                    "SDF=1 requires SDF_FILE to be set. "
+                    "Run: make sim-sdf SDF_CORNER=<corner>"
+                )
+            # Inject the SDF annotation shim so iverilog picks up the delays.
+            sources += [proj_path / "sdf_annotate.v"]
+            defines["SDF_FILE"] = f'"{sdf_file}"'
 
     else:
         # RTL simulation.
@@ -887,8 +898,6 @@ def chip_top_runner():
         proj_path / "../ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v",
     ]
 
-    build_args = []
-
     if sim == "icarus":
         build_args = ["-g2012"]
 
@@ -899,6 +908,10 @@ def chip_top_runner():
             "--trace-fst",
             "--trace-structs",
         ]
+
+    plusargs = []
+    if sdf:
+        plusargs += ["+sdf_verbose", "+maxdelays"]
 
     runner = get_runner(sim)
 
@@ -915,7 +928,7 @@ def chip_top_runner():
     runner.test(
         hdl_toplevel=hdl_toplevel,
         test_module="chip_top_tb",
-        plusargs=[],
+        plusargs=plusargs,
         waves=True,
     )
 
