@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from axi_request_types import axi_request
-from memory_v2 import MemoryController
+from memory import MemoryController
 
 logging.basicConfig(level=logging.DEBUG, format='%(name)s [%(levelname)s] %(message)s')
 

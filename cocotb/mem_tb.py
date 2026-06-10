@@ -9,7 +9,7 @@ from cocotb.triggers import Timer, Edge, RisingEdge, FallingEdge, ClockCycles
 from cocotb_tools.runner import get_runner
 
 # golden model
-from emulation.memory_v2 import MemoryController
+from emulation.memory import MemoryController
 from sram_models import find_sram_model
 
 sim = os.getenv("SIM", "icarus")
@@ -114,10 +114,10 @@ def mem_ctrl_runner():
     if gl:
         pdk_root = Path(os.getenv("PDK_ROOT", "../gf180mcu"))
         pdk_lib = os.path.join(
-            pdk_root, 
-            pdk, 
-            "libs.ref", 
-            scl, 
+            pdk_root,
+            pdk,
+            "libs.ref",
+            scl,
             "verilog"
         )
         sources += [proj_path / "../src/netlists/mem_ctrl_2048x32.nl.v"]
@@ -127,7 +127,7 @@ def mem_ctrl_runner():
         sources = [
             # SRAM macro
             find_sram_model(512),
-            # SRAM bank 
+            # SRAM bank
             proj_path / "../src/mem_ctrl/mem512x32.sv",
             # memory with sram bank muxing
             proj_path / "../src/mem_ctrl/mem2048x32.sv"
@@ -138,7 +138,7 @@ def mem_ctrl_runner():
         build_args = ["-g2012"]
     if sim == "verilator":
         build_args = ["--timing", "--trace", "--trace-fst", "--trace-structs"]
-        
+
     runner = get_runner(sim)
     runner.build(
         sources=sources,
