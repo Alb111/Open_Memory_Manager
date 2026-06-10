@@ -39,18 +39,41 @@ CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "20"))
 RESET_TIME_NS = int(os.getenv("RESET_TIME_NS", "1000"))
 
 # Pin configurations mapping back to the chip top pad frame.
-PIN_TRAP_LED = int(os.getenv("PIN_TRAP_LED", "0"))
-PIN_BOOT_SCLK = int(os.getenv("PIN_BOOT_SCLK", "1"))
-PIN_BOOT_MOSI = int(os.getenv("PIN_BOOT_MOSI", "2"))
-PIN_BOOT_CS = int(os.getenv("PIN_BOOT_CS", "3"))
-PIN_DFT_OUT = int(os.getenv("PIN_DFT_OUT", "4"))
-PIN_BOOT_MISO = int(os.getenv("PIN_BOOT_MISO", "40"))
-PIN_DEBUG_MODE = int(os.getenv("PIN_DEBUG_MODE", "41"))
-PIN_DFT_IN = int(os.getenv("PIN_DFT_IN", "42"))
+SER_PINS = int(os.getenv("SER_PINS", "9"))
 
-CRITICAL_OUTPUT_PINS = (
-    (PIN_TRAP_LED, "PIN_TRAP_LED"),
-    (PIN_DFT_OUT, "PIN_DFT_OUT"),
+PIN_DEBUG_MODE = int(os.getenv("DEBUG_MODE_ID", "0"))
+PIN_BOOT_PASS_EN = int(os.getenv("BOOT_PASS_EN_ID", "1"))
+PIN_BOOT_CS = int(os.getenv("FLASH_CSB_ID", "2"))
+PIN_BOOT_MISO = int(os.getenv("SPI_MISO_ID", "3"))
+PIN_BOOT_MOSI = int(os.getenv("SPI_MOSI_ID", "4"))
+PIN_BOOT_SCLK = int(os.getenv("SPI_SCLK_ID", "5"))
+
+PIN_C0_REQ_O = int(os.getenv("C0_REQ_O_ID", "6"))
+PIN_C0_SERIAL_O_START = int(os.getenv("C0_SERIAL_O_START_ID", "7"))
+PIN_C0_REQ_I = int(os.getenv("C0_REQ_I_ID", "16"))
+PIN_C0_SERIAL_I_START = int(os.getenv("C0_SERIAL_I_START_ID", "17"))
+PIN_C0_BOOT_DONE = int(os.getenv("C0_BOOT_DONE", "26"))
+PIN_C0_DEBUG_MODE = int(os.getenv("C0_DEBUG_MODE_ID", "27"))
+PIN_C0_RST_N = int(os.getenv("C0_RST_N_ID", "28"))
+PIN_C0_CLK = int(os.getenv("C0_CLK_ID", "29"))
+PIN_C0_TRAP_I = int(os.getenv("C0_TRAP_I_ID", "65"))
+PIN_C0_TRAP_O = int(os.getenv("C0_TRAP_O_ID", "64"))
+
+PIN_DFT_START = int(os.getenv("DFT_START_ID", "32"))
+DFT_PINS = int(os.getenv("DFT_PINS", "8"))
+
+PIN_C1_REQ_O = int(os.getenv("C1_REQ_O_ID", "40"))
+PIN_C1_SERIAL_O_START = int(os.getenv("C1_SERIAL_O_START_ID", "41"))
+PIN_C1_REQ_I = int(os.getenv("C1_REQ_I_ID", "50"))
+PIN_C1_SERIAL_I_START = int(os.getenv("C1_SERIAL_I_START_ID", "51"))
+PIN_C1_BOOT_DONE = int(os.getenv("C1_BOOT_DONE", "60"))
+PIN_C1_DEBUG_MODE = int(os.getenv("C1_DEBUG_MODE_ID", "61"))
+PIN_C1_RST_N = int(os.getenv("C1_RST_N_ID", "62"))
+PIN_C1_CLK = int(os.getenv("C1_CLK_ID", "63"))
+PIN_C1_TRAP_I = int(os.getenv("C1_TRAP_I_ID", "31"))
+PIN_C1_TRAP_O = int(os.getenv("C1_TRAP_O_ID", "30"))
+
+SPI_OUTPUT_PINS = (
     (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
     (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
     (PIN_BOOT_CS, "PIN_BOOT_CS"),
@@ -125,21 +148,77 @@ def set_external_pad(dut, pin, value):
     dut.bidir_PAD.value = "".join(_external_drive_state[id(dut)])
 
 
-def drive_bidir_inputs(dut, boot_miso="z", debug_mode=0, dft_in=0):
+def set_external_bus(dut, start_pin, width, value):
+    value = int(value)
+    for bit in range(width):
+        set_external_pad(dut, start_pin + bit, (value >> bit) & 1)
+
+
+def drive_dft_inputs(dut, value=0):
+    set_external_bus(dut, PIN_DFT_START, DFT_PINS, value)
+
+
+def drive_bidir_inputs(
+    dut,
+    boot_miso="z",
+    debug_mode=0,
+    boot_pass_en=0,
+    c0_req_i=0,
+    c0_serial_i=0,
+    c0_trap_i=0,
+    c1_req_i=0,
+    c1_serial_i=0,
+    c1_trap_i=0,
+):
     """Drive only the external input pads, release all other bidir pads."""
     reset_external_pad_drives(dut)
     set_external_pad(dut, PIN_BOOT_MISO, boot_miso)
     set_external_pad(dut, PIN_DEBUG_MODE, debug_mode)
-    set_external_pad(dut, PIN_DFT_IN, dft_in)
+    set_external_pad(dut, PIN_BOOT_PASS_EN, boot_pass_en)
+    set_external_pad(dut, PIN_C0_REQ_I, c0_req_i)
+    set_external_bus(dut, PIN_C0_SERIAL_I_START, SER_PINS, c0_serial_i)
+    set_external_pad(dut, PIN_C0_TRAP_I, c0_trap_i)
+    set_external_pad(dut, PIN_C1_REQ_I, c1_req_i)
+    set_external_bus(dut, PIN_C1_SERIAL_I_START, SER_PINS, c1_serial_i)
+    set_external_pad(dut, PIN_C1_TRAP_I, c1_trap_i)
+    drive_dft_inputs(dut)
 
 
-def drive_control_inputs(dut, debug_mode=None, dft_in=None):
-    """Update debug/dft control inputs without disturbing flash MISO."""
+def drive_control_inputs(
+    dut,
+    debug_mode=None,
+    boot_pass_en=None,
+    c0_req_i=None,
+    c0_serial_i=None,
+    c0_trap_i=None,
+    c1_req_i=None,
+    c1_serial_i=None,
+    c1_trap_i=None,
+):
+    """Update externally driven control inputs without disturbing flash MISO."""
     if debug_mode is not None:
         set_external_pad(dut, PIN_DEBUG_MODE, debug_mode)
 
-    if dft_in is not None:
-        set_external_pad(dut, PIN_DFT_IN, dft_in)
+    if boot_pass_en is not None:
+        set_external_pad(dut, PIN_BOOT_PASS_EN, boot_pass_en)
+
+    if c0_req_i is not None:
+        set_external_pad(dut, PIN_C0_REQ_I, c0_req_i)
+
+    if c0_serial_i is not None:
+        set_external_bus(dut, PIN_C0_SERIAL_I_START, SER_PINS, c0_serial_i)
+
+    if c0_trap_i is not None:
+        set_external_pad(dut, PIN_C0_TRAP_I, c0_trap_i)
+
+    if c1_req_i is not None:
+        set_external_pad(dut, PIN_C1_REQ_I, c1_req_i)
+
+    if c1_serial_i is not None:
+        set_external_bus(dut, PIN_C1_SERIAL_I_START, SER_PINS, c1_serial_i)
+
+    if c1_trap_i is not None:
+        set_external_pad(dut, PIN_C1_TRAP_I, c1_trap_i)
 
 
 def drive_flash_miso(dut, value):
@@ -178,18 +257,46 @@ def assert_pad_value(dut, pin, expected, name):
 def check_pin_map(dut):
     width = get_bidir_width(dut)
     pins = {
-        "PIN_TRAP_LED": PIN_TRAP_LED,
-        "PIN_BOOT_SCLK": PIN_BOOT_SCLK,
-        "PIN_BOOT_MOSI": PIN_BOOT_MOSI,
-        "PIN_BOOT_CS": PIN_BOOT_CS,
-        "PIN_DFT_OUT": PIN_DFT_OUT,
-        "PIN_BOOT_MISO": PIN_BOOT_MISO,
         "PIN_DEBUG_MODE": PIN_DEBUG_MODE,
-        "PIN_DFT_IN": PIN_DFT_IN,
+        "PIN_BOOT_PASS_EN": PIN_BOOT_PASS_EN,
+        "PIN_BOOT_CS": PIN_BOOT_CS,
+        "PIN_BOOT_MISO": PIN_BOOT_MISO,
+        "PIN_BOOT_MOSI": PIN_BOOT_MOSI,
+        "PIN_BOOT_SCLK": PIN_BOOT_SCLK,
+        "PIN_C0_REQ_O": PIN_C0_REQ_O,
+        "PIN_C0_REQ_I": PIN_C0_REQ_I,
+        "PIN_C0_BOOT_DONE": PIN_C0_BOOT_DONE,
+        "PIN_C0_DEBUG_MODE": PIN_C0_DEBUG_MODE,
+        "PIN_C0_RST_N": PIN_C0_RST_N,
+        "PIN_C0_CLK": PIN_C0_CLK,
+        "PIN_C0_TRAP_I": PIN_C0_TRAP_I,
+        "PIN_C0_TRAP_O": PIN_C0_TRAP_O,
+        "PIN_DFT_START": PIN_DFT_START,
+        "PIN_C1_REQ_O": PIN_C1_REQ_O,
+        "PIN_C1_REQ_I": PIN_C1_REQ_I,
+        "PIN_C1_BOOT_DONE": PIN_C1_BOOT_DONE,
+        "PIN_C1_DEBUG_MODE": PIN_C1_DEBUG_MODE,
+        "PIN_C1_RST_N": PIN_C1_RST_N,
+        "PIN_C1_CLK": PIN_C1_CLK,
+        "PIN_C1_TRAP_I": PIN_C1_TRAP_I,
+        "PIN_C1_TRAP_O": PIN_C1_TRAP_O,
     }
 
     for name, pin in pins.items():
         assert 0 <= pin < width, f"{name}={pin} outside bidir_PAD width {width}"
+
+    ranges = {
+        "PIN_C0_SERIAL_O": (PIN_C0_SERIAL_O_START, SER_PINS),
+        "PIN_C0_SERIAL_I": (PIN_C0_SERIAL_I_START, SER_PINS),
+        "PIN_DFT": (PIN_DFT_START, DFT_PINS),
+        "PIN_C1_SERIAL_O": (PIN_C1_SERIAL_O_START, SER_PINS),
+        "PIN_C1_SERIAL_I": (PIN_C1_SERIAL_I_START, SER_PINS),
+    }
+
+    for name, (start, count) in ranges.items():
+        assert 0 <= start < width, f"{name} start {start} outside width {width}"
+        end = start + count - 1
+        assert end < width, f"{name} end {end} outside bidir_PAD width {width}"
 
     cocotb.log.info(f"bidir_PAD width = {width}")
     cocotb.log.info(f"Pin map = {pins}")
@@ -400,7 +507,7 @@ async def apply_reset(dut, reset_time_ns=RESET_TIME_NS):
 async def start_up(
     dut,
     debug_mode=0,
-    dft_in=0,
+    boot_pass_en=0,
     boot_miso="z",
     start_flash=False,
 ):
@@ -412,7 +519,7 @@ async def start_up(
         dut,
         boot_miso=boot_miso,
         debug_mode=debug_mode,
-        dft_in=dft_in,
+        boot_pass_en=boot_pass_en,
     )
 
     await start_clock(dut.clk_PAD)
@@ -431,6 +538,40 @@ async def start_up(
 # Tests
 # -----------------------------------------------------------------------------
 
+def read_bidir_bus(dut, start_pin, width):
+    value = 0
+    for bit in range(width):
+        pin_val = read_bidir_pin(dut, start_pin + bit)
+        assert pin_val in ("0", "1"), (
+            f"Pad {start_pin + bit} expected 0/1 while reading bus, got {pin_val}"
+        )
+        value |= (1 if pin_val == "1" else 0) << bit
+    return value
+
+
+def assert_bidir_bus_value(dut, start_pin, width, expected, name):
+    actual = read_bidir_bus(dut, start_pin, width)
+    mask = (1 << width) - 1
+    assert actual == (expected & mask), (
+        f"{name} expected 0x{expected & mask:x}, got 0x{actual:x}. "
+        f"Full bidir_PAD={dut.bidir_PAD.value}"
+    )
+
+
+async def assert_pad_toggles(dut, pin, name, samples=12, sample_step_ns=10):
+    seen = set()
+    for _ in range(samples):
+        await Timer(sample_step_ns, "ns")
+        val = read_bidir_pin(dut, pin)
+        if val in ("0", "1"):
+            seen.add(val)
+
+    assert seen == {"0", "1"}, (
+        f"{name} should toggle through 0 and 1, saw {sorted(seen)}. "
+        f"Full bidir_PAD={dut.bidir_PAD.value}"
+    )
+
+
 @cocotb.test()
 async def test_00_pin_map_and_basic_reset_smoke(dut):
     """
@@ -439,100 +580,75 @@ async def test_00_pin_map_and_basic_reset_smoke(dut):
     Checks:
     - bidir pad width is large enough for the expected pin map
     - reset can be applied/released
-    - trap LED is known and low after reset
-    - DFT output is known after reset
+    - top-chip debug/reset/clock outputs are driven
     """
-    await start_up(dut, debug_mode=1, dft_in=0)
+    await start_up(dut, debug_mode=1, boot_pass_en=0)
 
     await ClockCycles(dut.clk_PAD, 10)
 
-    assert_pad_value(dut, PIN_TRAP_LED, 0, "PIN_TRAP_LED")
-    assert_pad_known(dut, PIN_DFT_OUT, "PIN_DFT_OUT")
+    assert_pad_value(dut, PIN_C0_DEBUG_MODE, 1, "PIN_C0_DEBUG_MODE")
+    assert_pad_value(dut, PIN_C1_DEBUG_MODE, 1, "PIN_C1_DEBUG_MODE")
+    assert_pad_value(dut, PIN_C0_RST_N, 1, "PIN_C0_RST_N")
+    assert_pad_value(dut, PIN_C1_RST_N, 1, "PIN_C1_RST_N")
+    assert_pad_known(dut, PIN_C0_CLK, "PIN_C0_CLK")
+    assert_pad_known(dut, PIN_C1_CLK, "PIN_C1_CLK")
 
 
 @cocotb.test()
-async def test_dft_passthrough_all_debug_modes(dut):
+async def test_debug_mode_propagates_to_top_chip_pads(dut):
     """
-    Check DFT input/output pad plumbing.
-
-    The chip_core currently passes dft_in through to dft_out.
-    This is checked in both normal mode and debug mode.
+    The bottom debug mode pad should be forwarded to both top-chip debug pads.
     """
-    await start_up(dut, debug_mode=0, dft_in=0)
+    await start_up(dut, debug_mode=0, boot_pass_en=0)
 
-    for debug_mode in (0, 1):
+    for debug_mode in (0, 1, 0, 1):
         drive_control_inputs(dut, debug_mode=debug_mode)
-        await ClockCycles(dut.clk_PAD, 3)
+        await ClockCycles(dut.clk_PAD, 4)
 
-        for dft_in in (0, 1, 0, 1):
-            drive_control_inputs(dut, dft_in=dft_in)
-            await ClockCycles(dut.clk_PAD, 4)
-
-            assert_pad_value(
-                dut,
-                PIN_DFT_OUT,
-                dft_in,
-                f"PIN_DFT_OUT with debug_mode={debug_mode}, dft_in={dft_in}",
-            )
+        assert_pad_value(dut, PIN_C0_DEBUG_MODE, debug_mode, "PIN_C0_DEBUG_MODE")
+        assert_pad_value(dut, PIN_C1_DEBUG_MODE, debug_mode, "PIN_C1_DEBUG_MODE")
 
 
 @cocotb.test()
-async def test_dft_passthrough_after_repeated_resets(dut):
+async def test_top_chip_reset_and_clock_outputs(dut):
     """
-    Check that reset does not break the DFT input/output path.
+    Top-chip reset outputs follow the gated core reset, and clock pads follow
+    the incoming chip clock.
     """
-    await start_up(dut, debug_mode=1, dft_in=0)
+    await start_up(dut, debug_mode=1, boot_pass_en=0)
 
-    for reset_iter in range(3):
-        cocotb.log.info(f"Reset recovery iteration {reset_iter}")
+    assert_pad_value(dut, PIN_C0_RST_N, 1, "PIN_C0_RST_N after startup")
+    assert_pad_value(dut, PIN_C1_RST_N, 1, "PIN_C1_RST_N after startup")
 
-        dut.rst_n_PAD.value = 0
-        await ClockCycles(dut.clk_PAD, 20)
+    dut.rst_n_PAD.value = 0
+    await ClockCycles(dut.clk_PAD, 2)
+    assert_pad_value(dut, PIN_C0_RST_N, 0, "PIN_C0_RST_N during reset")
+    assert_pad_value(dut, PIN_C1_RST_N, 0, "PIN_C1_RST_N during reset")
 
-        dut.rst_n_PAD.value = 1
-        await ClockCycles(dut.clk_PAD, 5)
+    dut.rst_n_PAD.value = 1
+    await ClockCycles(dut.clk_PAD, 4)
+    assert_pad_value(dut, PIN_C0_RST_N, 1, "PIN_C0_RST_N after reset")
+    assert_pad_value(dut, PIN_C1_RST_N, 1, "PIN_C1_RST_N after reset")
 
-        drive_control_inputs(dut, debug_mode=1, dft_in=1)
-        await ClockCycles(dut.clk_PAD, 4)
-        assert_pad_value(dut, PIN_DFT_OUT, 1, "PIN_DFT_OUT after reset")
-
-        drive_control_inputs(dut, debug_mode=1, dft_in=0)
-        await ClockCycles(dut.clk_PAD, 4)
-        assert_pad_value(dut, PIN_DFT_OUT, 0, "PIN_DFT_OUT after reset")
-
-        assert_pad_value(dut, PIN_TRAP_LED, 0, "PIN_TRAP_LED after reset")
+    await assert_pad_toggles(dut, PIN_C0_CLK, "PIN_C0_CLK")
+    await assert_pad_toggles(dut, PIN_C1_CLK, "PIN_C1_CLK")
 
 
 @cocotb.test()
-async def test_trap_led_stays_low_across_control_inputs(dut):
+async def test_top_trap_inputs_drive_bottom_trap_output_pins(dut):
     """
-    The current chip_top/chip_core tie-off keeps trap_led low.
-
-    Sweep the externally visible control inputs and confirm trap does not assert.
+    Top-chip trap inputs should be forwarded to the bottom trap output pins.
     """
-    await start_up(dut, debug_mode=0, dft_in=0)
+    await start_up(dut, debug_mode=1, boot_pass_en=0)
 
-    for debug_mode in (0, 1):
-        for dft_in in (0, 1):
-            for miso in (0, 1, "z"):
-                drive_control_inputs(
-                    dut,
-                    debug_mode=debug_mode,
-                    dft_in=dft_in,
-                )
-                drive_flash_miso(dut, miso)
+    for c0_trap, c1_trap in ((0, 0), (1, 0), (0, 1), (1, 1), (0, 0)):
+        drive_control_inputs(dut, c0_trap_i=c0_trap, c1_trap_i=c1_trap)
+        await ClockCycles(dut.clk_PAD, 2)
 
-                await ClockCycles(dut.clk_PAD, 5)
-
-                assert_pad_value(
-                    dut,
-                    PIN_TRAP_LED,
-                    0,
-                    (
-                        "PIN_TRAP_LED "
-                        f"debug={debug_mode} dft={dft_in} miso={miso}"
-                    ),
-                )
+        assert_pad_value(dut, PIN_C0_TRAP_I, c0_trap, "PIN_C0_TRAP_I")
+        assert_pad_value(dut, PIN_C0_TRAP_O, c0_trap, "PIN_C0_TRAP_O")
+        assert_pad_value(dut, PIN_C1_TRAP_I, c1_trap, "PIN_C1_TRAP_I")
+        assert_pad_value(dut, PIN_C1_TRAP_O, c1_trap, "PIN_C1_TRAP_O")
 
 
 @cocotb.test()
@@ -543,49 +659,64 @@ async def test_external_input_pads_accept_values_without_contention(dut):
     If the DUT incorrectly drives one of these supposed input pads,
     the resolved pad value can become X, so this catches basic contention.
     """
-    await start_up(dut, debug_mode=0, dft_in=0, boot_miso="z")
+    await start_up(dut, debug_mode=0, boot_pass_en=0, boot_miso="z")
 
     patterns = [
-        (0, 0, 0),
-        (0, 1, 1),
-        (1, 0, "z"),
-        (1, 1, 0),
-        (0, 0, 1),
+        {"debug": 0, "boot_pass": 0, "miso": 0, "c0_req": 0, "c0_ser": 0x000, "c0_trap": 0, "c1_req": 0, "c1_ser": 0x000, "c1_trap": 0},
+        {"debug": 1, "boot_pass": 0, "miso": 1, "c0_req": 1, "c0_ser": 0x155, "c0_trap": 1, "c1_req": 0, "c1_ser": 0x0aa, "c1_trap": 0},
+        {"debug": 0, "boot_pass": 1, "miso": "z", "c0_req": 0, "c0_ser": 0x0f0, "c0_trap": 0, "c1_req": 1, "c1_ser": 0x10f, "c1_trap": 1},
+        {"debug": 1, "boot_pass": 1, "miso": 0, "c0_req": 1, "c0_ser": 0x1ff, "c0_trap": 1, "c1_req": 1, "c1_ser": 0x001, "c1_trap": 1},
     ]
 
-    for debug_mode, dft_in, miso in patterns:
-        drive_control_inputs(dut, debug_mode=debug_mode, dft_in=dft_in)
-        drive_flash_miso(dut, miso)
+    for item in patterns:
+        drive_control_inputs(
+            dut,
+            debug_mode=item["debug"],
+            boot_pass_en=item["boot_pass"],
+            c0_req_i=item["c0_req"],
+            c0_serial_i=item["c0_ser"],
+            c0_trap_i=item["c0_trap"],
+            c1_req_i=item["c1_req"],
+            c1_serial_i=item["c1_ser"],
+            c1_trap_i=item["c1_trap"],
+        )
+        drive_flash_miso(dut, item["miso"])
 
         await ClockCycles(dut.clk_PAD, 3)
 
-        assert_pad_value(dut, PIN_DEBUG_MODE, debug_mode, "PIN_DEBUG_MODE")
-        assert_pad_value(dut, PIN_DFT_IN, dft_in, "PIN_DFT_IN")
+        assert_pad_value(dut, PIN_DEBUG_MODE, item["debug"], "PIN_DEBUG_MODE")
+        assert_pad_value(dut, PIN_BOOT_PASS_EN, item["boot_pass"], "PIN_BOOT_PASS_EN")
+        assert_pad_value(dut, PIN_C0_REQ_I, item["c0_req"], "PIN_C0_REQ_I")
+        assert_bidir_bus_value(
+            dut, PIN_C0_SERIAL_I_START, SER_PINS, item["c0_ser"], "PIN_C0_SERIAL_I"
+        )
+        assert_pad_value(dut, PIN_C0_TRAP_I, item["c0_trap"], "PIN_C0_TRAP_I")
+        assert_pad_value(dut, PIN_C1_REQ_I, item["c1_req"], "PIN_C1_REQ_I")
+        assert_bidir_bus_value(
+            dut, PIN_C1_SERIAL_I_START, SER_PINS, item["c1_ser"], "PIN_C1_SERIAL_I"
+        )
+        assert_pad_value(dut, PIN_C1_TRAP_I, item["c1_trap"], "PIN_C1_TRAP_I")
 
-        if miso != "z":
-            assert_pad_value(dut, PIN_BOOT_MISO, miso, "PIN_BOOT_MISO")
+        if item["miso"] != "z":
+            assert_pad_value(dut, PIN_BOOT_MISO, item["miso"], "PIN_BOOT_MISO")
 
 
 @cocotb.test()
-async def test_debug_mode_tristates_boot_spi_outputs(dut):
+async def test_boot_pass_en_tristates_boot_spi_outputs(dut):
     """
-    In debug mode, boot SPI output pads should not be actively driven.
+    In boot pass-through mode, boot SPI output pads should not be driven.
 
-    chip_core drives boot SCLK/MOSI/CS only when debug_mode is low.
-    With debug_mode high, these pads should resolve to Z because the testbench
+    chip_core drives boot SCLK/MOSI/CS only when boot_pass_en is low.
+    With boot_pass_en high, these pads should resolve to Z because the testbench
     also releases them.
     """
-    await start_up(dut, debug_mode=1, dft_in=0, boot_miso="z")
+    await start_up(dut, debug_mode=0, boot_pass_en=1, boot_miso="z")
 
     await ClockCycles(dut.clk_PAD, 20)
 
-    for pin, name in (
-        (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-        (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-        (PIN_BOOT_CS, "PIN_BOOT_CS"),
-    ):
+    for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
-        assert val == "z", f"{name} should be Z in debug mode, got {val}"
+        assert val == "z", f"{name} should be Z in boot pass-through mode, got {val}"
 
 
 @cocotb.test(timeout_time=20, timeout_unit="ms")
@@ -598,7 +729,13 @@ async def test_boot_spi_pads_drive_in_normal_mode(dut):
     - SCLK/MOSI/CS are known 0/1, not X/Z, once boot starts
     - SCLK actually toggles after CS assertion
     """
-    await start_up(dut, debug_mode=0, dft_in=0, boot_miso="z", start_flash=True)
+    await start_up(
+        dut,
+        debug_mode=0,
+        boot_pass_en=0,
+        boot_miso="z",
+        start_flash=True,
+    )
 
     await wait_for_pad_value(
         dut,
@@ -607,11 +744,7 @@ async def test_boot_spi_pads_drive_in_normal_mode(dut):
         timeout_cycles=BOOT_CS_TIMEOUT_CYCLES,
     )
 
-    for pin, name in (
-        (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-        (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-        (PIN_BOOT_CS, "PIN_BOOT_CS"),
-    ):
+    for pin, name in SPI_OUTPUT_PINS:
         assert_pad_known(dut, pin, name)
 
     sclk_transitions = await count_pad_transitions(dut, PIN_BOOT_SCLK, 2000)
@@ -630,7 +763,7 @@ async def test_boot_spi_flash_command_is_captured(dut):
     flash = await start_up(
         dut,
         debug_mode=0,
-        dft_in=0,
+        boot_pass_en=0,
         boot_miso="z",
         start_flash=True,
     )
@@ -654,11 +787,7 @@ async def test_boot_spi_flash_command_is_captured(dut):
 
     await ClockCycles(dut.clk_PAD, 20)
 
-    for pin, name in (
-        (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-        (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-        (PIN_BOOT_CS, "PIN_BOOT_CS"),
-    ):
+    for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
         assert val in ("0", "1"), f"{name} became {val} during boot"
 
@@ -672,12 +801,11 @@ async def test_boot_spi_flash_receives_miso_data(dut):
     - DUT asserts CS
     - DUT sends a command/address
     - testbench flash drives at least a few response bytes
-    - trap LED remains low during this smoke run
     """
     flash = await start_up(
         dut,
         debug_mode=0,
-        dft_in=0,
+        boot_pass_en=0,
         boot_miso="z",
         start_flash=True,
     )
@@ -695,51 +823,47 @@ async def test_boot_spi_flash_receives_miso_data(dut):
 
     await ClockCycles(dut.clk_PAD, 50)
 
-    assert_pad_value(dut, PIN_TRAP_LED, 0, "PIN_TRAP_LED during SPI boot")
+    for pin, name in SPI_OUTPUT_PINS:
+        assert_pad_known(dut, pin, f"{name} during SPI boot")
 
 
 @cocotb.test()
-async def test_boot_spi_outputs_disable_when_debug_mode_is_asserted_late(dut):
+async def test_boot_spi_outputs_disable_when_boot_pass_en_is_asserted_late(dut):
     """
-    Start in normal mode, then assert debug_mode and confirm boot outputs release.
+    Start in normal mode, then assert boot_pass_en and confirm boot outputs release.
 
-    This checks that debug_mode dynamically controls the boot pad OEs.
+    This checks that boot_pass_en dynamically controls the boot pad OEs.
     """
-    await start_up(dut, debug_mode=0, dft_in=0, boot_miso="z")
+    await start_up(dut, debug_mode=0, boot_pass_en=0, boot_miso="z")
 
     await ClockCycles(dut.clk_PAD, 20)
 
-    drive_control_inputs(dut, debug_mode=1)
+    drive_control_inputs(dut, boot_pass_en=1)
     await ClockCycles(dut.clk_PAD, 10)
 
-    for pin, name in (
-        (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-        (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-        (PIN_BOOT_CS, "PIN_BOOT_CS"),
-    ):
+    for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
-        assert val == "z", f"{name} should release after debug_mode=1, got {val}"
+        assert val == "z", f"{name} should release after boot_pass_en=1, got {val}"
 
 
 @cocotb.test()
-async def test_boot_spi_outputs_reenable_after_debug_mode_is_cleared(dut):
+async def test_boot_spi_outputs_reenable_after_boot_pass_en_is_cleared(dut):
     """
-    Start in debug mode, clear debug_mode, and confirm boot outputs become driven.
+    Start in boot pass-through mode, clear boot_pass_en, and confirm boot outputs
+    become driven.
     """
-    await start_up(dut, debug_mode=1, dft_in=0, boot_miso="z")
+    await start_up(dut, debug_mode=0, boot_pass_en=1, boot_miso="z")
 
     await ClockCycles(dut.clk_PAD, 20)
 
-    drive_control_inputs(dut, debug_mode=0)
+    drive_control_inputs(dut, boot_pass_en=0)
     await ClockCycles(dut.clk_PAD, 20)
 
-    for pin, name in (
-        (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-        (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-        (PIN_BOOT_CS, "PIN_BOOT_CS"),
-    ):
+    for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
-        assert val in ("0", "1"), f"{name} should be driven after debug_mode=0, got {val}"
+        assert val in ("0", "1"), (
+            f"{name} should be driven after boot_pass_en=0, got {val}"
+        )
 
 
 @cocotb.test(timeout_time=20, timeout_unit="ms")
@@ -750,22 +874,24 @@ async def test_long_boot_smoke_no_trap_or_unknown_outputs(dut):
     Runs with the flash responder active and checks that critical observable pads
     remain sane over time.
     """
-    await start_up(dut, debug_mode=0, dft_in=0, boot_miso="z", start_flash=True)
+    await start_up(
+        dut,
+        debug_mode=0,
+        boot_pass_en=0,
+        boot_miso="z",
+        start_flash=True,
+    )
 
     for sample in range(20):
         await ClockCycles(dut.clk_PAD, 250)
 
-        assert_pad_value(dut, PIN_TRAP_LED, 0, "PIN_TRAP_LED long boot")
-
-        # DFT output should remain known because dft_in is driven.
-        assert_pad_known(dut, PIN_DFT_OUT, "PIN_DFT_OUT long boot")
+        assert_pad_known(dut, PIN_C0_CLK, "PIN_C0_CLK long boot")
+        assert_pad_known(dut, PIN_C1_CLK, "PIN_C1_CLK long boot")
+        assert_pad_value(dut, PIN_C0_DEBUG_MODE, 0, "PIN_C0_DEBUG_MODE long boot")
+        assert_pad_value(dut, PIN_C1_DEBUG_MODE, 0, "PIN_C1_DEBUG_MODE long boot")
 
         # In normal mode, boot SPI outputs should be driven, not X/Z.
-        for pin, name in (
-            (PIN_BOOT_SCLK, "PIN_BOOT_SCLK"),
-            (PIN_BOOT_MOSI, "PIN_BOOT_MOSI"),
-            (PIN_BOOT_CS, "PIN_BOOT_CS"),
-        ):
+        for pin, name in SPI_OUTPUT_PINS:
             val = read_bidir_pin(dut, pin)
             assert val in ("0", "1"), (
                 f"{name} became {val} during long boot sample {sample}"
@@ -775,45 +901,45 @@ async def test_long_boot_smoke_no_trap_or_unknown_outputs(dut):
 @cocotb.test()
 async def test_control_input_stress_sequence(dut):
     """
-    Deterministic stress sequence for debug_mode, dft_in, and boot_miso.
+    Deterministic stress sequence for debug_mode, boot_pass_en, traps, and MISO.
 
     This is not random so failures are reproducible.
     """
-    await start_up(dut, debug_mode=1, dft_in=0, boot_miso="z")
+    await start_up(dut, debug_mode=1, boot_pass_en=1, boot_miso="z")
 
     sequence = [
-        {"debug": 1, "dft": 0, "miso": "z"},
-        {"debug": 1, "dft": 1, "miso": 0},
-        {"debug": 0, "dft": 1, "miso": 1},
-        {"debug": 0, "dft": 0, "miso": 0},
-        {"debug": 1, "dft": 0, "miso": "z"},
-        {"debug": 0, "dft": 1, "miso": 1},
-        {"debug": 1, "dft": 1, "miso": "z"},
+        {"debug": 1, "boot_pass": 1, "miso": "z", "c0_trap": 0, "c1_trap": 0},
+        {"debug": 1, "boot_pass": 0, "miso": 0, "c0_trap": 1, "c1_trap": 0},
+        {"debug": 0, "boot_pass": 0, "miso": 1, "c0_trap": 1, "c1_trap": 1},
+        {"debug": 0, "boot_pass": 1, "miso": 0, "c0_trap": 0, "c1_trap": 1},
+        {"debug": 1, "boot_pass": 1, "miso": "z", "c0_trap": 0, "c1_trap": 0},
     ]
 
     for idx, item in enumerate(sequence):
         drive_control_inputs(
             dut,
             debug_mode=item["debug"],
-            dft_in=item["dft"],
+            boot_pass_en=item["boot_pass"],
+            c0_trap_i=item["c0_trap"],
+            c1_trap_i=item["c1_trap"],
         )
         drive_flash_miso(dut, item["miso"])
 
         await ClockCycles(dut.clk_PAD, 6)
 
-        assert_pad_value(
-            dut,
-            PIN_DFT_OUT,
-            item["dft"],
-            f"PIN_DFT_OUT stress index {idx}",
-        )
+        assert_pad_value(dut, PIN_C0_DEBUG_MODE, item["debug"], f"C0 debug {idx}")
+        assert_pad_value(dut, PIN_C1_DEBUG_MODE, item["debug"], f"C1 debug {idx}")
+        assert_pad_value(dut, PIN_C0_TRAP_O, item["c0_trap"], f"C0 trap {idx}")
+        assert_pad_value(dut, PIN_C1_TRAP_O, item["c1_trap"], f"C1 trap {idx}")
 
-        assert_pad_value(
-            dut,
-            PIN_TRAP_LED,
-            0,
-            f"PIN_TRAP_LED stress index {idx}",
-        )
+        for pin, name in SPI_OUTPUT_PINS:
+            val = read_bidir_pin(dut, pin)
+            if item["boot_pass"]:
+                assert val == "z", f"{name} should be Z at stress index {idx}, got {val}"
+            else:
+                assert val in ("0", "1"), (
+                    f"{name} should be driven at stress index {idx}, got {val}"
+                )
 
 
 # -----------------------------------------------------------------------------

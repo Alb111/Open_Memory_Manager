@@ -2,7 +2,20 @@
 
 module chip_top_tb_gl;
 
-    parameter NUM_BIDIR_PADS = 52;
+    parameter NUM_BIDIR_PADS = 66;
+    parameter SER_PINS = 9;
+
+    localparam DEBUG_MODE_ID = 0;
+    localparam BOOT_PASS_EN_ID = 1;
+    localparam SPI_MISO_ID = 3;
+    localparam C0_REQ_I_ID = 16;
+    localparam C0_SERIAL_I_START_ID = 17;
+    localparam C0_TRAP_I_ID = 65;
+    localparam DFT_START_ID = 32;
+    localparam DFT_PINS = 8;
+    localparam C1_REQ_I_ID = 50;
+    localparam C1_SERIAL_I_START_ID = 51;
+    localparam C1_TRAP_I_ID = 31;
 
     wire clk_PAD;
     wire rst_n_PAD;
@@ -20,6 +33,7 @@ module chip_top_tb_gl;
     reg  [NUM_BIDIR_PADS-1:0] bidir_oe;
 
     genvar i;
+    integer j;
 
     assign clk_PAD = clk_drv;
     assign rst_n_PAD = rst_n_drv;
@@ -76,15 +90,23 @@ module chip_top_tb_gl;
         bidir_drv = {NUM_BIDIR_PADS{1'b0}};
         bidir_oe  = {NUM_BIDIR_PADS{1'b0}};
 
-        // External input pads from your existing 52-bit pad mapping.
-        bidir_oe[40]  = 1'b1;  // boot_miso
-        bidir_drv[40] = 1'b0;
+        // External inputs to the memory-manager chip.
+        bidir_oe[DEBUG_MODE_ID] = 1'b1;
+        bidir_oe[BOOT_PASS_EN_ID] = 1'b1;
+        bidir_oe[SPI_MISO_ID] = 1'b1;
+        bidir_oe[C0_REQ_I_ID] = 1'b1;
+        bidir_oe[C1_REQ_I_ID] = 1'b1;
+        bidir_oe[C0_TRAP_I_ID] = 1'b1;
+        bidir_oe[C1_TRAP_I_ID] = 1'b1;
 
-        bidir_oe[41]  = 1'b1;  // debug_mode
-        bidir_drv[41] = 1'b0;
+        for (j = 0; j < SER_PINS; j = j + 1) begin
+            bidir_oe[C0_SERIAL_I_START_ID + j] = 1'b1;
+            bidir_oe[C1_SERIAL_I_START_ID + j] = 1'b1;
+        end
 
-        bidir_oe[42]  = 1'b1;  // dft_in
-        bidir_drv[42] = 1'b0;
+        for (j = 0; j < DFT_PINS; j = j + 1) begin
+            bidir_oe[DFT_START_ID + j] = 1'b1;
+        end
 
         rst_n_drv = 1'b0;
         #1000;

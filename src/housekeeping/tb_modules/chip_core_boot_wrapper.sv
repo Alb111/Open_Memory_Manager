@@ -2,15 +2,16 @@
 
 // test wrapper that instantiates chip_core with the cypress flash model connected through pad indices
 // pad assignments match localparams in chip_core.sv:
-//   bidir_in[40] = MISO (flash SO)
-//   bidir_in[41] = debug/pass-through enable
-//   bidir_out[1] = SCK (flash clock)
-//   bidir_out[2] = MOSI (flash SI data)
-//   bidir_out[3] = CSB (flash chip select)
+//   bidir_in[0] = debug mode
+//   bidir_in[1] = boot pass-through enable
+//   bidir_out[2] = CSB (flash chip select)
+//   bidir_in[3] = MISO (flash SO)
+//   bidir_out[4] = MOSI (flash SI data)
+//   bidir_out[5] = SCK (flash clock)
 
 module chip_core_boot_wrapper #(
-    parameter NUM_INPUT_PADS = 12,
-    parameter NUM_BIDIR_PADS = 52
+    parameter NUM_INPUT_PADS = 2,
+    parameter NUM_BIDIR_PADS = 66
 )(
     input logic clk,
     input logic rst_n,
@@ -30,18 +31,20 @@ module chip_core_boot_wrapper #(
     logic [NUM_BIDIR_PADS-1:0] bidir_pd;
     logic [NUM_BIDIR_PADS-1:0] core_bidir_in;
 
-    localparam int PIN_BOOT_MISO = 40;
-    localparam int PIN_DEBUG_MODE = 41;
-    localparam int PIN_BOOT_SCLK = 1;
-    localparam int PIN_BOOT_MOSI = 2;
-    localparam int PIN_BOOT_CS = 3;
+    localparam int DEBUG_MODE_ID = 0;
+    localparam int BOOT_PASS_EN_ID = 1;
+    localparam int FLASH_CSB_ID = 2;
+    localparam int SPI_MISO_ID = 3;
+    localparam int SPI_MOSI_ID = 4;
+    localparam int SPI_SCLK_ID = 5;
 
     wire flash_miso;
 
     always_comb begin
         core_bidir_in = bidir_in;
-        core_bidir_in[PIN_BOOT_MISO] = flash_miso;
-        core_bidir_in[PIN_DEBUG_MODE] = input_in[1];
+        core_bidir_in[DEBUG_MODE_ID] = input_in[DEBUG_MODE_ID];
+        core_bidir_in[BOOT_PASS_EN_ID] = input_in[BOOT_PASS_EN_ID];
+        core_bidir_in[SPI_MISO_ID] = flash_miso;
     end
 
     chip_core #(
@@ -60,9 +63,9 @@ module chip_core_boot_wrapper #(
     );
 
     //get spi signals from the bidir pad outputs
-    wire flash_sck = bidir_out[PIN_BOOT_SCLK];
-    wire flash_mosi = bidir_out[PIN_BOOT_MOSI];
-    wire flash_csb = bidir_out[PIN_BOOT_CS];
+    wire flash_sck = bidir_out[SPI_SCLK_ID];
+    wire flash_mosi = bidir_out[SPI_MOSI_ID];
+    wire flash_csb = bidir_out[FLASH_CSB_ID];
 
     //flash model tie-off wires (inout ports)
     wire wp_tie;

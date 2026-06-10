@@ -21,18 +21,25 @@ CYPRESS_MODEL = Path(
 hdl_toplevel = "chip_core_boot_wrapper"
 
 # pad index constants match localparam values in chip_core.sv
-PAD_PASS_THRU_EN = 1    # input_in[1]
-PAD_MISO = 0            # input_in[0]
-PAD_SCK = 1             # bidir[1]
-PAD_MOSI = 2            # bidir[2]
-PAD_CSB = 3             # bidir[3]
+PAD_DEBUG_MODE = 0      # input_in[0] -> bidir[0]
+PAD_PASS_THRU_EN = 1    # input_in[1] -> bidir[1]
+PAD_CSB = 2             # bidir[2]
+PAD_MISO = 3            # bidir[3]
+PAD_MOSI = 4            # bidir[4]
+PAD_SCK = 5             # bidir[5]
 
-NUM_INPUT_PADS = 12
-NUM_BIDIR_PADS = 40
-NUM_ANALOG_PADS = 2
+NUM_INPUT_PADS = 2
+NUM_BIDIR_PADS = 66
+NUM_ANALOG_PADS = 0
 
 #boot image- same 512-byte XOR pattern used in all boot tests
 BOOT_IMAGE = [(i & 0xFF) ^ 0xA5 for i in range(512)]
+
+def vector_bit(value, pin, width=NUM_BIDIR_PADS):
+    bit = str(value)[width - 1 - pin].lower()
+    assert bit in ("0", "1"), f"bidir_out[{pin}] expected 0/1, got {bit}"
+    return 1 if bit == "1" else 0
+
 
 def expected_word(word_index):
     b = BOOT_IMAGE[word_index * 4 : word_index * 4 + 4]
@@ -122,10 +129,10 @@ async def test_spi_signals_reach_pads(dut):
     for _ in range(100_000):
         await RisingEdge(dut.clk)
         await Timer(1, unit="ns")
-        bidir_out_val = int(dut.bidir_out.value)
-        curr_sck = (bidir_out_val >> PAD_SCK)  & 1
-        curr_mosi = (bidir_out_val >> PAD_MOSI) & 1
-        curr_csb = (bidir_out_val >> PAD_CSB)  & 1
+        bidir_out_val = dut.bidir_out.value
+        curr_sck = vector_bit(bidir_out_val, PAD_SCK)
+        curr_mosi = vector_bit(bidir_out_val, PAD_MOSI)
+        curr_csb = vector_bit(bidir_out_val, PAD_CSB)
         if curr_csb == 0:
             csb_went_low = True
         if curr_mosi == 1:
@@ -169,14 +176,14 @@ async def test_miso_pad_routing(dut):
  
     assert not timed_out, \
         ("boot_done never asserted. MISO from the Cypress model may not be "
-         "reaching the SPI engine through input_in[PAD_MISO]. "
+         "reaching the SPI engine through bidir_in[PAD_MISO]. "
          "Check PAD_MISO index in chip_core.sv and the wrapper wiring.")
     print(f"  boot_done_o = {int(dut.boot_done_o.value)}  (expected 1)")
     print(f"  cores_en_o  = {int(dut.cores_en_o.value)}   (expected 1)")
     assert dut.cores_en_o.value == 1, "cores_en must be high after boot"
  
     print("\n  *** PASS — MISO correctly routed from Cypress model through "
-          "input_in[0] to SPI engine")
+          "bidir_in[PAD_MISO] to SPI engine")
 
 
 #test 4- cores_en gating: stays low until boot completes

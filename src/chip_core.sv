@@ -27,32 +27,44 @@ module chip_core #(
     output wire [NUM_BIDIR_PADS-1:0] bidir_pd	//Pull-down
 );
     localparam int SER_PINS = 9;
+    localparam int BOOT_SIZE = 512;
+    localparam int SRAM_BASE_ADDR = 0;
 
-    // Former input pads, now carried on the appended bidirectional pads.
-    localparam int PIN_BOOT_MISO = 40;
-    localparam int PIN_DEBUG_MODE = 41;
-    localparam int PIN_DFT_IN = 42;
+    localparam int DEBUG_MODE_ID = 0;
+    localparam int BOOT_PASS_EN_ID = 1;
+    localparam int FLASH_CSB_ID = 2;
+    localparam int SPI_MISO_ID = 3;
+    localparam int SPI_MOSI_ID = 4;
+    localparam int SPI_SCLK_ID = 5;
 
-    // Original bidirectional/output pad assignments are kept stable.
-    localparam int PIN_TRAP_LED = 0;
-    localparam int PIN_BOOT_SCLK = 1;
-    localparam int PIN_BOOT_MOSI = 2;
-    localparam int PIN_BOOT_CS = 3;
-    localparam int PIN_DFT_OUT = 4;
+    localparam int C0_REQ_O_ID = 6;
+    localparam int C0_SERIAL_O_START_ID = 7;
+    localparam int C0_REQ_I_ID = 16;
+    localparam int C0_SERIAL_I_START_ID = 17;
+    localparam int C0_BOOT_DONE = 26;
+    localparam int C0_DEBUG_MODE_ID = 27;
+    localparam int C0_RST_N_ID = 28;
+    localparam int C0_CLK_ID = 29;
+    localparam int C0_TRAP_I_ID = 65;
+    localparam int C0_TRAP_O_ID = 64;
 
-    // TODO: Audit the 52-pad slot map. Only pads 0-4 and 40-42 are used here;
-    // pads 5-39 and 43-51 are currently left as input-enabled, no-pull pads.
-    // Either assign them real functions, disable their input buffers, or document
-    // them as intentionally unused spare pads in the top-level pinout.
-    // TODO: Add a NUM_BIDIR_PADS bounds check for the fixed pad indices above.
-    // This core indexes through PIN_DFT_IN=42, so any slot with fewer than 43
-    // bidirectional pads will compile/elaborate incorrectly.
+    localparam int DFT_START_ID = 32;
+    localparam int DFT_PINS = 8;
+
+    localparam int C1_REQ_O_ID = 40;
+    localparam int C1_SERIAL_O_START_ID = 41;
+    localparam int C1_REQ_I_ID = 50;
+    localparam int C1_SERIAL_I_START_ID = 51;
+    localparam int C1_BOOT_DONE = 60;
+    localparam int C1_DEBUG_MODE_ID = 61;
+    localparam int C1_RST_N_ID = 62;
+    localparam int C1_CLK_ID = 63;
+    localparam int C1_TRAP_I_ID = 31;
+    localparam int C1_TRAP_O_ID = 30;
+
     assign bidir_cs = '0;
+    // SL=0 selects the fastest slew on the GF180 bidirectional pads.
     assign bidir_sl = '0;
-    // TODO: Confirm the intended pad control policy for input-only and unused
-    // bidirectional pads. Tying IE to ~OE enables every unused pad input buffer,
-    // which can create floating inputs unless the board drives them or pulls are
-    // enabled externally.
     assign bidir_ie = ~bidir_oe;
     assign bidir_pu = '0;
     assign bidir_pd = '0;
@@ -114,11 +126,9 @@ module chip_core #(
     logic        boot_done;
     logic        cores_en;
     logic        debug_mode;
+    logic        boot_pass_en;
     logic        core_mem_select;
     logic        core_rst_n;
-    logic        trap_led;
-    logic        dft_in;
-    logic        dft_out;
 
 	//SERDES
     logic [SER_PINS-1:0] c0_serial_tx;
@@ -139,52 +149,86 @@ module chip_core #(
 
     assign whoami_ready = c0_tser_ready && c1_tser_ready;
 
-    assign debug_mode = bidir_in[PIN_DEBUG_MODE];
-    assign dft_in = bidir_in[PIN_DFT_IN];
-    assign dft_out = dft_in;
-    // TODO: Drive trap_led from a real trap/fault source or rename this pad as a
-    // constant-low output. It is currently marked as used but never reflects core
-    // state.
-    assign trap_led = 1'b0;
+    assign debug_mode = bidir_in[DEBUG_MODE_ID];
+    assign boot_pass_en = bidir_in[BOOT_PASS_EN_ID];
     assign core_mem_select = debug_mode | boot_done;
     assign core_rst_n = rst_n & (debug_mode | cores_en);
 
-    assign c0_serial_rx = c1_serial_tx;
-    assign c1_serial_rx = c0_serial_tx;
-    assign c0_req_rx = c1_req_tx;
-    assign c1_req_rx = c0_req_tx;
+    assign c0_serial_rx = bidir_in[C0_SERIAL_I_START_ID +: SER_PINS];
+    assign c1_serial_rx = bidir_in[C1_SERIAL_I_START_ID +: SER_PINS];
+    assign c0_req_rx = bidir_in[C0_REQ_I_ID];
+    assign c1_req_rx = bidir_in[C1_REQ_I_ID];
 
     always_comb begin
         bidir_out_int = '0;
         bidir_oe_int = '0;
 
-        bidir_out_int[PIN_TRAP_LED] = trap_led;
-        bidir_oe_int[PIN_TRAP_LED] = 1'b1;
+        bidir_out_int[FLASH_CSB_ID] = boot_flash_csb;
+        bidir_oe_int[FLASH_CSB_ID] = !boot_pass_en;
 
-        bidir_out_int[PIN_BOOT_SCLK] = boot_spi_sck;
-        bidir_oe_int[PIN_BOOT_SCLK] = !debug_mode;
+        bidir_out_int[SPI_MOSI_ID] = boot_spi_mosi;
+        bidir_oe_int[SPI_MOSI_ID] = !boot_pass_en;
 
-        bidir_out_int[PIN_BOOT_MOSI] = boot_spi_mosi;
-        bidir_oe_int[PIN_BOOT_MOSI] = !debug_mode;
+        bidir_out_int[SPI_SCLK_ID] = boot_spi_sck;
+        bidir_oe_int[SPI_SCLK_ID] = !boot_pass_en;
 
-        bidir_out_int[PIN_BOOT_CS] = boot_flash_csb;
-        bidir_oe_int[PIN_BOOT_CS] = !debug_mode;
+        bidir_out_int[C0_REQ_O_ID] = c0_req_tx;
+        bidir_oe_int[C0_REQ_O_ID] = 1'b1;
 
-        bidir_out_int[PIN_DFT_OUT] = dft_out;
-        bidir_oe_int[PIN_DFT_OUT] = 1'b1;
+        bidir_out_int[C0_SERIAL_O_START_ID +: SER_PINS] = c0_serial_tx;
+        bidir_oe_int[C0_SERIAL_O_START_ID +: SER_PINS] = {SER_PINS{1'b1}};
+
+        bidir_out_int[C0_BOOT_DONE] = boot_done;
+        bidir_oe_int[C0_BOOT_DONE] = 1'b1;
+
+        bidir_out_int[C0_DEBUG_MODE_ID] = debug_mode;
+        bidir_oe_int[C0_DEBUG_MODE_ID] = 1'b1;
+
+        bidir_out_int[C0_RST_N_ID] = core_rst_n;
+        bidir_oe_int[C0_RST_N_ID] = 1'b1;
+
+        bidir_out_int[C0_CLK_ID] = clk;
+        bidir_oe_int[C0_CLK_ID] = 1'b1;
+
+        bidir_out_int[C0_TRAP_O_ID] = bidir_in[C0_TRAP_I_ID];
+        bidir_oe_int[C0_TRAP_O_ID] = 1'b1;
+
+        bidir_out_int[C1_REQ_O_ID] = c1_req_tx;
+        bidir_oe_int[C1_REQ_O_ID] = 1'b1;
+
+        bidir_out_int[C1_SERIAL_O_START_ID +: SER_PINS] = c1_serial_tx;
+        bidir_oe_int[C1_SERIAL_O_START_ID +: SER_PINS] = {SER_PINS{1'b1}};
+
+        bidir_out_int[C1_BOOT_DONE] = boot_done;
+        bidir_oe_int[C1_BOOT_DONE] = 1'b1;
+
+        bidir_out_int[C1_DEBUG_MODE_ID] = debug_mode;
+        bidir_oe_int[C1_DEBUG_MODE_ID] = 1'b1;
+
+        bidir_out_int[C1_RST_N_ID] = core_rst_n;
+        bidir_oe_int[C1_RST_N_ID] = 1'b1;
+
+        bidir_out_int[C1_CLK_ID] = clk;
+        bidir_oe_int[C1_CLK_ID] = 1'b1;
+
+        bidir_out_int[C1_TRAP_O_ID] = bidir_in[C1_TRAP_I_ID];
+        bidir_oe_int[C1_TRAP_O_ID] = 1'b1;
     end
 
     assign bidir_out = bidir_out_int;
     assign bidir_oe = bidir_oe_int;
 
-    housekeeping_top i_housekeeping_top (
+    housekeeping_top #(
+        .BOOT_SIZE      (BOOT_SIZE),
+        .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
+    ) i_housekeeping_top (
         .clk_i          (clk),
         .reset_ni       (rst_n),
         .spi_sck_o      (boot_spi_sck),
         .spi_mosi_o     (boot_spi_mosi),
-        .spi_miso_i     (bidir_in[PIN_BOOT_MISO]),
+        .spi_miso_i     (bidir_in[SPI_MISO_ID]),
         .flash_csb_o    (boot_flash_csb),
-        .pass_thru_en_i (debug_mode),
+        .pass_thru_en_i (boot_pass_en),
         .whoami_ready_i (whoami_ready),
         .mem_valid_o    (boot_mem_valid),
         .mem_addr_o     (boot_mem_addr),
