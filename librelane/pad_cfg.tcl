@@ -80,12 +80,46 @@ set vertical_sides $::vertical_sides
 set horizontal_sides $::horizontal_sides
 set row_names $::row_names
 
-set ::vertical_group_pad_count 10
-set ::vertical_group_gap 44.0
-set ::vertical_group_separation 240.0
-set vertical_group_pad_count $::vertical_group_pad_count
-set vertical_group_gap $::vertical_group_gap
-set vertical_group_separation $::vertical_group_separation
+proc env_int_or_default {name default} {
+    if {[info exists ::env($name)]} {
+        return [expr {int($::env($name))}]
+    }
+
+    return $default
+}
+
+proc env_float_or_default {name default} {
+    if {[info exists ::env($name)]} {
+        return [expr {double($::env($name))}]
+    }
+
+    return $default
+}
+
+proc env_str_or_default {name default} {
+    if {[info exists ::env($name)]} {
+        return [string tolower $::env($name)]
+    }
+
+    return $default
+}
+
+proc get_side_group_config {side} {
+    set placement [env_str_or_default ${side}_GROUP_PLACEMENT [env_str_or_default PAD_GROUP_PLACEMENT default]]
+    set group_count [env_int_or_default ${side}_GROUP_COUNT [env_int_or_default PAD_GROUP_COUNT 1]]
+    set pad_gap_um [env_float_or_default ${side}_GROUP_PAD_GAP_UM [env_float_or_default PAD_GROUP_PAD_GAP_UM 44.0]]
+    set group_gap_um [env_float_or_default ${side}_GROUP_GAP_UM [env_float_or_default PAD_GROUP_GAP_UM 240.0]]
+    set start_um [env_float_or_default ${side}_GROUP_START_UM [env_float_or_default PAD_GROUP_START_UM 0.0]]
+    set group_sizes {}
+
+    if {[info exists ::env(${side}_GROUP_SIZES)]} {
+        set group_sizes $::env(${side}_GROUP_SIZES)
+    } elseif {[info exists ::env(PAD_GROUP_SIZES)]} {
+        set group_sizes $::env(PAD_GROUP_SIZES)
+    }
+
+    return [list $placement $group_count $pad_gap_um $group_gap_um $start_um $group_sizes]
+}
 
 proc get_side_width {side} {
     global DIE_WIDTH DIE_HEIGHT pad_corner_site_width pad_corner_site_height horizontal_sides vertical_sides
@@ -188,22 +222,98 @@ proc place_side_with_default_spacing {side sum_of_cell_widths side_width} {
     }
 }
 
-proc place_side_with_vertical_group_spacing {side sum_of_cell_widths widths side_width} {
-    global row_names vertical_group_pad_count vertical_group_gap vertical_group_separation block units
+proc get_balanced_group_size {pad_count group_count group_index} {
+    set base_group_size [expr {$pad_count / $group_count}]
+    set remainder [expr {$pad_count % $group_count}]
+
+    if {$group_index < $remainder} {
+        return [expr {$base_group_size + 1}]
+    }
+
+    return $base_group_size
+}
+
+proc get_group_sizes {side pad_count group_count group_sizes_config} {
+    if {[llength $group_sizes_config] == 0} {
+        set sizes [list]
+        for {set group_index 0} {$group_index < $group_count} {incr group_index} {
+            lappend sizes [get_balanced_group_size $pad_count $group_count $group_index]
+        }
+        return $sizes
+    }
+
+    set explicit_group_count [llength $group_sizes_config]
+    if {$explicit_group_count != $group_count} {
+        puts stderr "\[ERROR\] PAD_GROUP_SIZES has $explicit_group_count entries, but PAD_GROUP_COUNT is $group_count."
+        exit 1
+    }
+
+    set total 0
+    set sizes [list]
+    foreach size $group_sizes_config {
+        set size [expr {int($size)}]
+        if {$size < 1} {
+            puts stderr "\[ERROR\] PAD_GROUP_SIZES entries must be positive integers."
+            exit 1
+        }
+        lappend sizes $size
+        set total [expr {$total + $size}]
+    }
+
+    if {$total != $pad_count} {
+        puts stderr "\[ERROR\] PAD_GROUP_SIZES sum to $total, but $side has $pad_count pads."
+        exit 1
+    }
+
+    return $sizes
+}
+
+proc place_side_with_group_spacing {side sum_of_cell_widths widths side_width placement group_count pad_gap_um group_gap_um start_um group_sizes_config} {
+    global row_names block units
 
     set pad_count [llength $::env($side)]
-    set group_count 2
-    set intra_group_gap_count [expr {$group_count * ($vertical_group_pad_count - 1)}]
-    set gap_span [expr {$intra_group_gap_count * $vertical_group_gap + $vertical_group_separation}]
-    set total_span [expr {$sum_of_cell_widths + $gap_span}]
-    assert_fits_side $side $total_span $side_width
 
-    set space_side [expr {round(($side_width - $total_span) / 2 * 1000) / 1000}]
-    puts "Using grouped vertical pad spacing for $side: $group_count groups of $vertical_group_pad_count pads, $vertical_group_gap um intra-group gap, $vertical_group_separation um group gap"
-    puts "grouped_pad_span: $total_span"
-    puts "space_side: $space_side"
+    if {$placement != "start" && $placement != "center"} {
+        puts stderr "\[ERROR\] ${side}_GROUP_PLACEMENT must be default, start, or center."
+        exit 1
+    }
+
+    if {$group_count < 1 || $group_count > $pad_count} {
+        puts stderr "\[ERROR\] ${side}_GROUP_COUNT ($group_count) must be between 1 and the pad count for $side ($pad_count)."
+        exit 1
+    }
+
+    if {$pad_gap_um < 0 || $group_gap_um < 0 || $start_um < 0} {
+        puts stderr "\[ERROR\] ${side}_GROUP_PAD_GAP_UM, ${side}_GROUP_GAP_UM, and ${side}_GROUP_START_UM must be non-negative."
+        exit 1
+    }
+
+    set group_sizes [get_group_sizes $side $pad_count $group_count $group_sizes_config]
+    set intra_group_gap $pad_gap_um
+    set group_gap $group_gap_um
+    set intra_group_gap_count [expr {$pad_count - $group_count}]
+    set group_gap_count [expr {$group_count - 1}]
+    set gap_span [expr {$intra_group_gap_count * $intra_group_gap + $group_gap_count * $group_gap}]
+    set grouped_span [expr {$sum_of_cell_widths + $gap_span}]
+
+    if {$placement == "center"} {
+        assert_fits_side $side $grouped_span $side_width
+        set space_side [expr {round(($side_width - $grouped_span) / 2 * 1000) / 1000}]
+        set total_span $grouped_span
+    } else {
+        set total_span [expr {$start_um + $grouped_span}]
+        assert_fits_side $side $total_span $side_width
+        set space_side $start_um
+    }
+
+    puts "Using grouped pad spacing for $side: $placement placement, $group_count groups ($group_sizes), $pad_gap_um um inside groups, $group_gap_um um between groups, $space_side um from placement side"
+    puts "grouped_pad_span: $grouped_span"
+    puts "remaining_fill_span: [expr {$side_width - $total_span}]"
 
     set cur_pos [get_side_start $side $space_side]
+    set group_index 0
+    set pad_index_in_group 0
+    set group_size [lindex $group_sizes $group_index]
     set pad_index 0
 
     foreach inst_name $::env($side) width $widths {
@@ -216,10 +326,16 @@ proc place_side_with_vertical_group_spacing {side sum_of_cell_widths widths side
 
         place_pad -row [dict get $row_names $side] -location $cur_pos $inst_name -master $master_name
 
-        if {$pad_index == [expr {$vertical_group_pad_count - 1}]} {
-            set gap $vertical_group_separation
+        if {$pad_index == [expr {$pad_count - 1}]} {
+            set gap 0
+        } elseif {$pad_index_in_group == [expr {$group_size - 1}]} {
+            set gap $group_gap
+            incr group_index
+            set pad_index_in_group 0
+            set group_size [lindex $group_sizes $group_index]
         } else {
-            set gap $vertical_group_gap
+            set gap $intra_group_gap
+            incr pad_index_in_group
         }
 
         set cur_pos [expr {$cur_pos + $width + $gap}]
@@ -242,10 +358,12 @@ foreach side $sides {
 
     assert_fits_side $side $sum_of_cell_widths $side_width
 
-    if {[lsearch -exact $vertical_sides $side] >= 0 && [llength $::env($side)] == 20} {
-        place_side_with_vertical_group_spacing $side $sum_of_cell_widths $widths $side_width
-    } else {
+    lassign [get_side_group_config $side] group_placement group_count pad_gap_um group_gap_um start_um group_sizes
+
+    if {$group_placement == "default"} {
         place_side_with_default_spacing $side $sum_of_cell_widths $side_width
+    } else {
+        place_side_with_group_spacing $side $sum_of_cell_widths $widths $side_width $group_placement $group_count $pad_gap_um $group_gap_um $start_um $group_sizes
     }
 }
 
