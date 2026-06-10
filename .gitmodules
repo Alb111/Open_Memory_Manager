@@ -4,3 +4,6 @@
 [submodule "ip/OMM_CPU"]
 	path = ip/OMM_CPU
 	url = git@github.com:nsgaither/Open_Memory_Manager_CPU.git
+[submodule "docs"]
+	path = docs
+	url = git@github.com:Alb111/Open_Memory_Manager.wiki.git
