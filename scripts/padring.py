@@ -60,6 +60,44 @@ class PadringFlow(SequentialFlow):
     ]
 
 
+PAD_GROUP_CONFIG_KEYS = (
+    "GROUP_PLACEMENT",
+    "GROUP_COUNT",
+    "GROUP_SIZES",
+    "GROUP_START_UM",
+    "GROUP_PAD_GAP_UM",
+    "GROUP_GAP_UM",
+)
+PAD_GROUP_CONFIG_SIDES = ("PAD_SOUTH", "PAD_EAST", "PAD_NORTH", "PAD_WEST")
+
+
+def tcl_env_value(value):
+    if isinstance(value, list):
+        return " ".join(str(item) for item in value)
+    return str(value)
+
+
+def export_pad_group_config(flow_cfg):
+    for suffix in PAD_GROUP_CONFIG_KEYS:
+        global_key = f"PAD_{suffix}"
+        if global_key in flow_cfg:
+            os.environ[global_key] = tcl_env_value(flow_cfg.pop(global_key))
+
+        for side in PAD_GROUP_CONFIG_SIDES:
+            side_key = f"{side}_{suffix}"
+            if side_key in flow_cfg:
+                os.environ[side_key] = tcl_env_value(flow_cfg.pop(side_key))
+
+
+def load_pad_group_config(config_path):
+    pad_group_path = os.path.join(os.path.dirname(config_path), "pad_groups.yaml")
+    if not os.path.exists(pad_group_path):
+        return {}
+
+    with open(pad_group_path) as f:
+        return yaml.safe_load(f) or {}
+
+
 def main(slot_config_path, config_path):
 
     PDK_ROOT = os.getenv("PDK_ROOT", os.path.expanduser("~/.ciel"))
@@ -70,6 +108,9 @@ def main(slot_config_path, config_path):
 
     flow_cfg = yaml.safe_load(open(slot_config_path))
     flow_cfg.update(yaml.safe_load(open(config_path)))
+    pad_group_cfg = load_pad_group_config(config_path)
+    export_pad_group_config(pad_group_cfg)
+    export_pad_group_config(flow_cfg)
 
     # Run flow
     flow = PadringFlow(

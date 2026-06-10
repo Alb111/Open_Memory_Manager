@@ -339,6 +339,6 @@ PDN_VERTICAL_HALO: 3
 
 PDN_CFG: dir::pdn_cfg.tcl
 
-# Custom padring placement: keep LibreLane's default spacing on most sides,
-# but place 20-pad east/west rows as two groups of ten pads.
+# Custom padring placement is configured in pad_groups.yaml. Keep these
+# settings out of this LibreLane config so KLayout/config validation accepts it.
 PAD_CFG: dir::pad_cfg.tcl
