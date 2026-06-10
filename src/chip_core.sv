@@ -121,12 +121,6 @@ module chip_core #(
     logic        dft_out;
 
 	//SERDES
-    logic        			ts_ready;
-    logic        			ts_req;
-    logic [SER_PINS-1:0]	ts_serial;
-    logic        			rs_valid;
-    logic [71:0] 			rs_data;
-
     logic [SER_PINS-1:0] c0_serial_tx;
     logic [SER_PINS-1:0] c1_serial_tx;
     logic [SER_PINS-1:0] c0_serial_rx;
@@ -278,40 +272,6 @@ module chip_core #(
   	.serial_o           (c1_serial_tx)
     );
 
-    // TODO: Clarify whether this standalone serializer/receiver loopback is a
-    // placeholder for off-chip SERDES pads. It is driven with valid_i=0 and its
-    // receive outputs are unused, so it has no functional effect today.
-    tserializer #(
-        .NUM_PINS   (SER_PINS),
-        .MAX_MSG_LEN(68),
-        .MSG_LEN_0  (4),
-        .MSG_LEN_1  (12),
-        .MSG_LEN_2  (36),
-        .MSG_LEN_3  (68)
-    ) i_t_serializer (
-        .clk_i      (clk),
-        .rst_ni     (core_rst_n),
-        .valid_i    (1'b0),
-        .data_in    (72'h0),
-        .msg_type   (2'b00),
-        .ready_o    (ts_ready),
-        .req_o      (ts_req),
-        .serial_o   (ts_serial)
-    );
-
-    rserializer #(
-        .NUM_PINS   (SER_PINS),
-        .MAX_MSG_LEN(68)
-    ) i_r_serializer (
-        .clk_i      (clk),
-        .rst_ni     (core_rst_n),
-        .serial_i   (ts_serial),
-        .req_i      (ts_req),
-        .valid_o    (rs_valid),
-        .data_o     (rs_data),
-        .ready_i    (1'b1)
-    );
-
     directory_controller i_directory_controller (
   	.clk_i                  (clk),
   	.rst_ni                 (core_rst_n),
@@ -407,7 +367,7 @@ module chip_core #(
     );
 
     logic _unused;
-    assign _unused = &{bidir_in, ts_ready, rs_valid, rs_data[0], c0_reset_done, c1_reset_done};
+    assign _unused = &{bidir_in, c0_reset_done, c1_reset_done};
 
 endmodule
 
