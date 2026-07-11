@@ -18,7 +18,10 @@ module wrr_arbiter #(
     input logic rst_ni,                    // active low reset
     input logic [NUM_REQ-1:0] req_i,       // req[0], req[1]
     output logic [NUM_REQ-1:0] grant_o,    // one-hot grant
-    output logic [NUM_REQ-1:0] req_o       // pass-through of who is requesting to whatever else may need it (kept in for Rishi)
+    output logic [NUM_REQ-1:0] req_o,      // pass-through of who is requesting to whatever else may need it (kept in for Rishi)
+    input logic scan_en_i,
+    input logic scan_in_i,
+    output logic scan_out_o
 );
     // ENUMS??? (maybe down the line for more readability)
     localparam PTR_MASK = NUM_REQ-1;
@@ -65,11 +68,15 @@ module wrr_arbiter #(
             curr_ptr   <= '0;
             credit_cnt <= weight_table[0]; // set to first requester (if set to '0 it will skip first)
         end
-        else begin
+        else if (scan_en_i) begin
+            curr_ptr   <= (curr_ptr << 1) | scan_in_i;
+            credit_cnt <= (credit_cnt << 1) | curr_ptr[$bits(curr_ptr)-1];
+        end else begin
             curr_ptr   <= next_ptr;
             credit_cnt <= next_credit_cnt;
         end
     end
     assign grant_o = !rst_ni ? '0 : next_grant; // grant_o combinational logic
     assign req_o = req_i; // pass-through
+    assign scan_out_o = credit_cnt[WEIGHT_W-1];
 endmodule

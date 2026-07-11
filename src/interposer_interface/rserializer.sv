@@ -13,7 +13,11 @@ module rserializer #(
 
     output logic                  valid_o,
     output logic [int'($ceil(real'(MAX_MSG_LEN) / NUM_PINS) * NUM_PINS) - 1:0] data_o,
-    input  logic                  ready_i        
+    input  logic                  ready_i,
+
+    input  logic                  scan_en_i,
+    input  logic                  scan_in_i,
+    output logic                  scan_out_o
 
 );
 
@@ -30,6 +34,8 @@ module rserializer #(
     always_ff @( posedge clk_i ) begin : state_reg
         if (!rst_ni)
             current_state <= IDLE;
+        else if (scan_en_i)
+            current_state <= state'(scan_in_i);
         else
             current_state <= next_state;
     end
@@ -50,6 +56,8 @@ module rserializer #(
             for (int i = 0; i < shift_depth; i++) begin : rst_shift
                 shift_arr[i] <= '0;
             end
+        end else if (scan_en_i) begin
+            shift_arr <= (shift_arr << 1) | current_state;
         end else if (req_i) begin
             shift_arr[0] <= serial_i;
             for (int i = 1; i < shift_depth; i++) begin : shift
@@ -64,6 +72,8 @@ module rserializer #(
     always_ff @( posedge clk_i ) begin : valid_reg
         if (!rst_ni) begin
             valid_o <= '0;
+        end else if (scan_en_i) begin
+            valid_o <= shift_arr[shift_depth-1][shift_width-1];
         end else if ((current_state == RECEIVE) & (next_state == IDLE)) begin
             valid_o <= '1;
         end else if ((current_state == IDLE) & (next_state == RECEIVE)) begin
@@ -72,6 +82,8 @@ module rserializer #(
             valid_o <= '0;
         end
     end
+
+    assign scan_out_o = valid_o;
 
     // flatten shift array for output
     always_comb begin

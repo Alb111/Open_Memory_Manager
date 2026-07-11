@@ -70,7 +70,10 @@ module whoami_wrapper #(
         .mem_instr_o    (boot_mem_instr),
         .cores_en_o     (cores_en_o),
         .boot_done_o    (boot_done_o),
-        .whoami_pulse_o (whoami_pulse)
+        .whoami_pulse_o (whoami_pulse),
+        .scan_en_i      (1'b0),
+        .scan_in_i      (1'b0),
+        .scan_out_o     ()
     );
 
     // S25FL128L flash model
@@ -119,7 +122,10 @@ module whoami_wrapper #(
         .req_i             (1'b0),
         .serial_i          ({SER_PINS{1'b0}}),
         .req_o             (req_o_0),
-        .serial_o          (serial_o_0)
+        .serial_o          (serial_o_0),
+        .scan_en_i         (1'b0),
+        .scan_in_i         (1'b0),
+        .scan_out_o        ()
     );
 
     // directory_interface_1 — cpu_id = 0x01
@@ -153,7 +159,10 @@ module whoami_wrapper #(
         .req_i             (1'b0),
         .serial_i          ({SER_PINS{1'b0}}),
         .req_o             (req_o_1),
-        .serial_o          (serial_o_1)
+        .serial_o          (serial_o_1),
+        .scan_en_i         (1'b0),
+        .scan_in_i         (1'b0),
+        .scan_out_o        ()
     );
 
 endmodule

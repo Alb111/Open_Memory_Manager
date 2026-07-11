@@ -34,7 +34,11 @@ module directory_mem
   input  wire        boot_mem_instr_i,
   input  wire [31:0] boot_mem_addr_i,
   input  wire [31:0] boot_mem_wdata_i,
-  input  wire [3:0]  boot_mem_wstrb_i
+  input  wire [3:0]  boot_mem_wstrb_i,
+
+  input  wire        scan_en_i,
+  input  wire        scan_in_i,
+  output logic       scan_out_o
 
   `ifdef USE_POWER_PINS
     ,inout wire VDD,
@@ -137,6 +141,15 @@ module directory_mem
       w_sharers_q    <= 2'b00;
       w_owner_q      <= 1'b0;
       w_valid_data_q <= 1'b0;
+    end else if (scan_en_i) begin
+      state_q <= state_t'((state_q << 1) | scan_in_i);
+      addr_q <= (addr_q << 1) | state_q[$bits(state_q)-1];
+      w_data_q <= (w_data_q << 1) | addr_q[31];
+      wstrb_q <= (wstrb_q << 1) | w_data_q[31];
+      w_state_q <= (w_state_q << 1) | wstrb_q[3];
+      w_sharers_q <= (w_sharers_q << 1) | w_state_q[1];
+      w_owner_q <= w_sharers_q[1];
+      w_valid_data_q <= w_owner_q;
     end else begin
       state_q <= state_d;
 
@@ -151,6 +164,8 @@ module directory_mem
       end
     end
   end
+
+  assign scan_out_o = w_valid_data_q;
 
   always_comb begin
     state_d = state_q;

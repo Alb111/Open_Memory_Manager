@@ -73,7 +73,10 @@ module boot_mem_wrapper #(
         .mem_wstrb_o(boot_mem_wstrb),
         .mem_instr_o(boot_mem_instr),
         .cores_en_o(cores_en_o),
-        .boot_done_o(boot_done_o)
+        .boot_done_o(boot_done_o),
+        .scan_en_i(1'b0),
+        .scan_in_i(1'b0),
+        .scan_out_o()
     );
 
     // S25FL128L flash model instance

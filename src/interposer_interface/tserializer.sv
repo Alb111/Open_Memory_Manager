@@ -19,7 +19,11 @@ module tserializer #(
 
     // serial interface
     output logic                   req_o,
-    output logic [NUM_PINS-1:0]    serial_o 
+    output logic [NUM_PINS-1:0]    serial_o,
+
+    input  logic                   scan_en_i,
+    input  logic                   scan_in_i,
+    output logic                   scan_out_o
 );  
 
     // parameters
@@ -45,6 +49,8 @@ module tserializer #(
     always_ff @( posedge clk_i ) begin : state_reg
         if (!rst_ni)
             current_state <= IDLE;
+        else if (scan_en_i)
+            current_state <= state'(scan_in_i);
         else
             current_state <= next_state;
     end
@@ -62,6 +68,7 @@ module tserializer #(
     logic [depth_cnt_width-1:0] curr_msg_len;
     always_ff @( posedge clk_i ) begin : msg_length_reg
         if (!rst_ni) curr_msg_len <= '0;
+        else if (scan_en_i) curr_msg_len <= (curr_msg_len << 1) | current_state;
         else if (current_state != SEND) begin
             case (msg_type)
                 2'b00: curr_msg_len <= type0_depth;
@@ -79,6 +86,8 @@ module tserializer #(
     always_ff @( posedge clk_i ) begin : msg_cntr
         if (!rst_ni) begin
             count <= '0;
+        end else if (scan_en_i) begin
+            count <= (count << 1) | curr_msg_len[depth_cnt_width-1];
         end else if (current_state != SEND) begin
             count <= '0;
         end else begin
@@ -95,6 +104,8 @@ module tserializer #(
             for (int i = 0; i < shift_depth; i++) begin : rst_shift
                 shift_arr[i] <= '0;
             end
+        end else if (scan_en_i) begin
+            shift_arr <= (shift_arr << 1) | count[depth_cnt_width-1];
         end else if (current_state == SEND) begin
             for (int i = 1; i < shift_depth; i++) begin : shift
                 shift_arr[i] <= shift_arr[i-1];
@@ -110,6 +121,7 @@ module tserializer #(
     assign serial_o = shift_arr[curr_msg_len-1];
     assign req_o = (current_state == SEND);
     assign ready_o = (current_state != SEND);
+    assign scan_out_o = shift_arr[shift_depth-1][shift_width-1];
 
 
 endmodule

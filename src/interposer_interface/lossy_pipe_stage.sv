@@ -14,7 +14,11 @@ module lossy_pipe_stage #(
     // Downstream Interface
     output logic              valid_o,
     output logic [WIDTH-1:0]  data_o,
-    input  logic              ready_i
+    input  logic              ready_i,
+
+    input  logic              scan_en_i,
+    input  logic              scan_in_i,
+    output logic              scan_out_o
 );
 
     logic             valid_o_r;
@@ -29,6 +33,8 @@ module lossy_pipe_stage #(
     always_ff @(posedge clk_i) begin
         if (!rst_ni) begin
             valid_o_r <= 1'b0;
+        end else if (scan_en_i) begin
+            valid_o_r <= scan_in_i;
         end else begin
             if (valid_i) begin
                 valid_o_r <= 1'b1;
@@ -41,9 +47,13 @@ module lossy_pipe_stage #(
     always_ff @(posedge clk_i) begin
         if (!rst_ni) begin
             data_r <= '0;
+        end else if (scan_en_i) begin
+            data_r <= (data_r << 1) | valid_o_r;
         end else if (valid_i) begin
             data_r <= data_i;
         end
     end
+
+    assign scan_out_o = data_r[WIDTH-1];
 
 endmodule

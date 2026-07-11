@@ -57,7 +57,10 @@ module boot_flash_wrapper #(
         .mem_instr_o    (),              
         .cores_en_o     (cores_en_o),
         .boot_done_o    (boot_done_o),
-        .whoami_pulse_o (whoami_pulse)
+        .whoami_pulse_o (whoami_pulse),
+        .scan_en_i      (1'b0),
+        .scan_in_i      (1'b0),
+        .scan_out_o     ()
     );
 
     assign sram_wr_en_o = sram_wr_en;

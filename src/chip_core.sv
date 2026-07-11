@@ -50,6 +50,7 @@ module chip_core #(
 
     localparam int DFT_START_ID = 32;
     localparam int DFT_PINS = 8;
+    localparam int DFT_CHAINS = DFT_PINS / 2;
 
     localparam int C1_REQ_O_ID = 40;
     localparam int C1_SERIAL_O_START_ID = 41;
@@ -130,6 +131,10 @@ module chip_core #(
     logic        core_mem_select;
     logic        core_rst_n;
 
+    logic [DFT_CHAINS-1:0] scan_in;
+    logic [DFT_CHAINS-1:0] scan_out;
+    logic                  controller_scan_out;
+
 	//SERDES
     logic [SER_PINS-1:0] c0_serial_tx;
     logic [SER_PINS-1:0] c1_serial_tx;
@@ -153,6 +158,7 @@ module chip_core #(
     assign boot_pass_en = bidir_in[BOOT_PASS_EN_ID];
     assign core_mem_select = debug_mode | boot_done;
     assign core_rst_n = rst_n & (debug_mode | cores_en);
+    assign scan_in = bidir_in[DFT_START_ID +: DFT_CHAINS];
 
     assign c0_serial_rx = bidir_in[C0_SERIAL_I_START_ID +: SER_PINS];
     assign c1_serial_rx = bidir_in[C1_SERIAL_I_START_ID +: SER_PINS];
@@ -171,6 +177,11 @@ module chip_core #(
 
         bidir_out_int[SPI_SCLK_ID] = boot_spi_sck;
         bidir_oe_int[SPI_SCLK_ID] = !boot_pass_en;
+
+        // The lower half of the DFT range remains inputs. The upper half is
+        // driven by the four parallel scan-chain outputs.
+        bidir_out_int[DFT_START_ID + DFT_CHAINS +: DFT_CHAINS] = scan_out;
+        bidir_oe_int[DFT_START_ID + DFT_CHAINS +: DFT_CHAINS] = {DFT_CHAINS{debug_mode}};
 
         bidir_out_int[C0_REQ_O_ID] = c0_req_tx;
         bidir_oe_int[C0_REQ_O_ID] = 1'b1;
@@ -237,7 +248,10 @@ module chip_core #(
         .mem_instr_o    (boot_mem_instr),
         .cores_en_o     (cores_en),
         .boot_done_o    (boot_done),
-        .whoami_pulse_o (whoami_pulse)
+        .whoami_pulse_o (whoami_pulse),
+        .scan_en_i      (debug_mode),
+        .scan_in_i      (scan_in[0]),
+        .scan_out_o     (scan_out[0])
     );
 
     directory_interface #(
@@ -275,7 +289,10 @@ module chip_core #(
   	.req_i              (c0_req_rx),
   	.serial_i           (c0_serial_rx),
   	.req_o              (c0_req_tx),
-  	.serial_o           (c0_serial_tx)
+	.serial_o           (c0_serial_tx),
+    .scan_en_i          (debug_mode),
+    .scan_in_i          (scan_in[1]),
+    .scan_out_o         (scan_out[1])
     );
 
     directory_interface #(
@@ -313,7 +330,10 @@ module chip_core #(
   	.req_i              (c1_req_rx),
   	.serial_i           (c1_serial_rx),
   	.req_o              (c1_req_tx),
-  	.serial_o           (c1_serial_tx)
+	.serial_o           (c1_serial_tx),
+    .scan_en_i          (debug_mode),
+    .scan_in_i          (scan_in[2]),
+    .scan_out_o         (scan_out[2])
     );
 
     directory_controller i_directory_controller (
@@ -371,7 +391,10 @@ module chip_core #(
   	.dir_mem_r_valid_data_i (dir_mem_r_valid_data),
   	.dir_mem_resp_ready_o   (dir_mem_resp_ready),
 
-  	.dir_state_invalidated_o(dir_state_invalidated)
+	.dir_state_invalidated_o(dir_state_invalidated),
+    .scan_en_i              (debug_mode),
+    .scan_in_i              (scan_in[3]),
+    .scan_out_o             (controller_scan_out)
     );
 	
     directory_mem i_directory_mem (
@@ -403,7 +426,10 @@ module chip_core #(
 	.boot_mem_instr_i  (boot_mem_instr),
 	.boot_mem_addr_i   (boot_mem_addr),
 	.boot_mem_wdata_i  (boot_mem_wdata),
-	.boot_mem_wstrb_i  (boot_mem_wstrb)
+	.boot_mem_wstrb_i  (boot_mem_wstrb),
+    .scan_en_i        (debug_mode),
+    .scan_in_i        (controller_scan_out),
+    .scan_out_o       (scan_out[3])
     `ifdef USE_POWER_PINS
       ,.VDD            (VDD)
       ,.VSS            (VSS)

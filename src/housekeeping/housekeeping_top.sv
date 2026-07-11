@@ -28,7 +28,11 @@ module housekeeping_top #(
    output logic cores_en_o,
    output logic boot_done_o,
 
-   output logic whoami_pulse_o
+   output logic whoami_pulse_o,
+
+   input  logic scan_en_i,
+   input  logic scan_in_i,
+   output logic scan_out_o
 );
    
    // wires between spi and fsm
@@ -45,6 +49,8 @@ module housekeeping_top #(
 
    logic boot_started;
    logic whoami_sent;
+   logic spi_scan_out;
+   logic boot_scan_out;
 
    //boot_fsm signals to memory controller interface
    assign mem_valid_o = boot_wr_en;
@@ -60,6 +66,8 @@ module housekeeping_top #(
    always_ff @(posedge clk_i) begin
       if (!reset_ni)
          clear_counter <= '0;
+      else if (scan_en_i)
+         clear_counter <= (clear_counter << 1) | boot_scan_out;
       else if (!clear_done)
          clear_counter <= clear_counter + 1'b1;
    end
@@ -70,7 +78,7 @@ module housekeeping_top #(
    // spi engine
    spi_engine spi_master (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i && clear_done),
+      .reset_ni(reset_ni && (scan_en_i || (!pass_thru_en_i && clear_done))),
       .start_i(spi_start),
       .data_in_i(spi_data_out),
       .data_out_o(spi_data_in),
@@ -78,7 +86,10 @@ module housekeeping_top #(
       .busy_o(spi_busy),
       .spi_sck_o(spi_sck_o), 
       .spi_mosi_o(spi_mosi_o),
-      .spi_miso_i(spi_miso_i)
+      .spi_miso_i(spi_miso_i),
+      .scan_en_i(scan_en_i),
+      .scan_in_i(scan_in_i),
+      .scan_out_o(spi_scan_out)
    );
    
    // boot fsm
@@ -87,7 +98,7 @@ module housekeeping_top #(
       .SRAM_BASE_ADDR (SRAM_BASE_ADDR)
    ) boot_controller (
       .clk_i(clk_i),
-      .reset_ni(reset_ni && !pass_thru_en_i && clear_done), 
+      .reset_ni(reset_ni && (scan_en_i || (!pass_thru_en_i && clear_done))),
       .spi_start_o(spi_start),
       .spi_out_o(spi_data_out),
       .spi_in_i(spi_data_in),
@@ -99,18 +110,24 @@ module housekeeping_top #(
       .sram_data_o(boot_data),
       .cores_en_o(cores_en_o),
       .boot_done_o(boot_done_o),
-      .boot_started_o(boot_started)
+      .boot_started_o(boot_started),
+      .scan_en_i(scan_en_i),
+      .scan_in_i(spi_scan_out),
+      .scan_out_o(boot_scan_out)
    );
 
    // hold whoami_pulse high until the directory interface accepts it
    always_ff @(posedge clk_i) begin
       if (!reset_ni)
          whoami_sent <= 1'b0;
+      else if (scan_en_i)
+         whoami_sent <= clear_counter[$bits(clear_counter)-1];
       else if (whoami_pulse_o && whoami_ready_i)
          whoami_sent <= 1'b1;
    end
 
    // assert pulse once boot starts, hold until accepted, never repeat
    assign whoami_pulse_o = boot_started && !whoami_sent;
+   assign scan_out_o = whoami_sent;
 
 endmodule
