@@ -4,9 +4,60 @@
 `define NUM_DVDD_PADS 14
 `define NUM_DVSS_PADS 16
 
+`define NUM_VDD_PADS 0
+`define NUM_VSS_PADS 0
+
 // Signal pads
 `define NUM_INPUT_PADS 0
 `define NUM_BIDIR_PADS 66
 `define NUM_ANALOG_PADS 0
+
+`endif
+
+`ifdef SLOT_0P5X1
+
+// Power/ground pads for core and I/O
+`define NUM_DVDD_PADS 7
+`define NUM_DVSS_PADS 7
+
+`define NUM_VDD_PADS 1
+`define NUM_VSS_PADS 1
+
+// Signal pads
+`define NUM_INPUT_PADS 4
+`define NUM_BIDIR_PADS 44
+`define NUM_ANALOG_PADS 6
+
+`endif
+
+`ifdef SLOT_1X0P5
+
+// Power/ground pads for core and I/O
+`define NUM_DVDD_PADS 7
+`define NUM_DVSS_PADS 7
+
+`define NUM_VDD_PADS 1
+`define NUM_VSS_PADS 1
+
+// Signal pads
+`define NUM_INPUT_PADS 4
+`define NUM_BIDIR_PADS 46
+`define NUM_ANALOG_PADS 4
+
+`endif
+
+`ifdef SLOT_0P5X0P5
+
+// Power/ground pads for core and I/O
+`define NUM_DVDD_PADS 3
+`define NUM_DVSS_PADS 3
+
+`define NUM_VDD_PADS 1
+`define NUM_VSS_PADS 1
+
+// Signal pads
+`define NUM_INPUT_PADS 4
+`define NUM_BIDIR_PADS 38
+`define NUM_ANALOG_PADS 4
 
 `endif

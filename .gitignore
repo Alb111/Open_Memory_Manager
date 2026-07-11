@@ -11,3 +11,4 @@ ip/picorv32/
 src/housekeeping/cypress_model/
 cocotb/boot_image.mem
 .venv/
+generated_defines.svh

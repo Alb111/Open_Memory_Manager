@@ -1,0 +1,204 @@
+MACROS:
+  # required: will be replaced with actual content
+  gf180mcu_ws_ip__qrcode_id:
+    gds:
+      - dir::../ip/gf180mcu_ws_ip__qrcode_id/gds/gf180mcu_ws_ip__qrcode_id.gds
+    lef:
+      - dir::../ip/gf180mcu_ws_ip__qrcode_id/lef/gf180mcu_ws_ip__qrcode_id.lef
+    vh:
+      - dir::../ip/gf180mcu_ws_ip__qrcode_id/vh/gf180mcu_ws_ip__qrcode_id.v
+    lib:
+      "*":
+        - dir::../ip/gf180mcu_ws_ip__qrcode_id/lib/gf180mcu_ws_ip__qrcode_id.lib
+    instances:
+      qrcode_id:
+        location: [26, 26]
+        orientation: N
+
+  # required: will be replaced with actual content
+  gf180mcu_ws_ip__shuttle_id:
+    gds:
+      - dir::../ip/gf180mcu_ws_ip__shuttle_id/gds/gf180mcu_ws_ip__shuttle_id.gds
+    lef:
+      - dir::../ip/gf180mcu_ws_ip__shuttle_id/lef/gf180mcu_ws_ip__shuttle_id.lef
+    vh:
+      - dir::../ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v
+    lib:
+      "*":
+        - dir::../ip/gf180mcu_ws_ip__shuttle_id/lib/gf180mcu_ws_ip__shuttle_id.lib
+    instances:
+      shuttle_id:
+        location: [26, 175.6]
+        orientation: E
+
+  # required: will be replaced with actual content
+  gf180mcu_ws_ip__project_id:
+    gds:
+      - dir::../ip/gf180mcu_ws_ip__project_id/gds/gf180mcu_ws_ip__project_id.gds
+    lef:
+      - dir::../ip/gf180mcu_ws_ip__project_id/lef/gf180mcu_ws_ip__project_id.lef
+    vh:
+      - dir::../ip/gf180mcu_ws_ip__project_id/vh/gf180mcu_ws_ip__project_id.v
+    lib:
+      "*":
+        - dir::../ip/gf180mcu_ws_ip__project_id/lib/gf180mcu_ws_ip__project_id.lib
+    instances:
+      project_id:
+        location: [175.6, 26]
+        orientation: N
+
+  # required: top right corner marker
+  gf180mcu_ws_ip__marker:
+    gds:
+      - dir::../ip/gf180mcu_ws_ip__marker/gds/gf180mcu_ws_ip__marker.gds
+    lef:
+      - dir::../ip/gf180mcu_ws_ip__marker/lef/gf180mcu_ws_ip__marker.lef
+    vh:
+      - dir::../ip/gf180mcu_ws_ip__marker/vh/gf180mcu_ws_ip__marker.v
+    lib:
+      "*":
+        - dir::../ip/gf180mcu_ws_ip__marker/lib/gf180mcu_ws_ip__marker.lib
+    instances:
+      marker:
+        location: ["expr::($DIE_AREA[2] - (245 + 36))", "expr::($DIE_AREA[3] - (245 + 36))"]
+        orientation: N
+
+  gf180mcu_ws_ip__logo:
+    gds:
+      - dir::../ip/gf180mcu_ws_ip__logo/gds/gf180mcu_ws_ip__logo.gds
+    lef:
+      - dir::../ip/gf180mcu_ws_ip__logo/lef/gf180mcu_ws_ip__logo.lef
+    vh:
+      - dir::../ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v
+    lib:
+      "*":
+        - dir::../ip/gf180mcu_ws_ip__logo/lib/gf180mcu_ws_ip__logo.lib
+    instances:
+      wafer_space_logo:
+        location: [26, "expr::$DIE_AREA[3] - 169.25"]
+        orientation: N
+
+  # 5V SRAM
+  gf180mcu_fd_ip_sram__sram512x8m8wm1:
+    gds:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/gds/gf180mcu_fd_ip_sram__sram512x8m8wm1.gds
+    lef:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lef/gf180mcu_fd_ip_sram__sram512x8m8wm1.lef
+    vh:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1__blackbox_pp.v
+    lib:
+      "*_tt_025C_5v00":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__tt_025C_5v00.lib
+      "*_ff_n40C_5v50":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ff_n40C_5v50.lib
+      "*_ss_125C_4v50":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
+    instances:
+      # SRAMs instantiated inside directory_mem's mem_ctrl_2048x32
+      # Keep them in a centered 4x4 grid with routing channels between macros.
+      # Apply a uniform +5um X nudge to avoid marginal M3.2b markers at SRAM M3 edges.
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0:
+        location: [625, 720]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1:
+        location: [1380, 720]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2:
+        location: [2135, 720]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3:
+        location: [2890, 720]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0:
+        location: [625, 1805]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1:
+        location: [1380, 1805]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2:
+        location: [2135, 1805]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3:
+        location: [2890, 1805]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0:
+        location: [625, 2890]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1:
+        location: [1380, 2890]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2:
+        location: [2135, 2890]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3:
+        location: [2890, 2890]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0:
+        location: [625, 3975]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1:
+        location: [1380, 3975]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2:
+        location: [2135, 3975]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3:
+        location: [2890, 3975]
+        orientation: N
+
+  gf180mcu_fd_ip_sram__sram64x8m8wm1:
+    gds:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/gds/gf180mcu_fd_ip_sram__sram64x8m8wm1.gds
+    lef:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lef/gf180mcu_fd_ip_sram__sram64x8m8wm1.lef
+    vh:
+      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1__blackbox_pp.v
+    lib:
+      "*_tt_025C_5v00":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__tt_025C_5v00.lib
+      "*_ff_n40C_5v50":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__ff_n40C_5v50.lib
+      "*_ss_125C_4v50":
+        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__ss_125C_4v50.lib
+    instances:
+      # Directory metadata 64x8 SRAMs. Keep them in the routing channel
+      # between the first and second 512x8 SRAM rows.
+      i_chip_core.i_directory_mem.i_mem64x8.sram0:
+        location: [625, 1385]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem64x8.sram1:
+        location: [1755, 1385]
+        orientation: N
+      i_chip_core.i_directory_mem.i_mem64x8.sram2:
+        location: [2890, 1385]
+        orientation: N
+
+# This is an alternative method compared to
+# specifying the power connections in the RTL
+PDN_MACRO_CONNECTIONS:
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem64x8.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem64x8.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_directory_mem.i_mem64x8.sram2 VDD VSS VDD VSS"
+
+# Halo size around macros while cutting rows.
+# Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
+FP_MACRO_HORIZONTAL_HALO: 5
+FP_MACRO_VERTICAL_HALO: 5
+PDN_HORIZONTAL_HALO: 3
+PDN_VERTICAL_HALO: 3

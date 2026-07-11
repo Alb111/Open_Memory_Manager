@@ -13,7 +13,7 @@ def emit_shell_exports(config):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Emit shell exports for librelane/pad_groups.yaml."
+        description="Emit shell exports for the project's pad_groups.yaml."
     )
     parser.add_argument("config", help="path to the main LibreLane config.yaml")
     args = parser.parse_args()

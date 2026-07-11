@@ -49,9 +49,18 @@ def export_pad_group_config(flow_cfg, consume=False):
 
 def load_pad_group_config(config_path):
     config_path = os.fspath(config_path)
-    pad_group_path = os.path.join(os.path.dirname(config_path), "pad_groups.yaml")
-    if not os.path.exists(pad_group_path):
-        return {}
+    config_dir = os.path.dirname(config_path)
 
-    with open(pad_group_path) as f:
-        return yaml.safe_load(f) or {}
+    # New templates keep pad-related files in librelane/pad, while projects
+    # created from older templates keep pad_groups.yaml next to config.yaml.
+    # Accept both layouts so template updates do not silently disable custom
+    # placement. Prefer the new location when both are present.
+    for pad_group_path in (
+        os.path.join(config_dir, "pad", "pad_groups.yaml"),
+        os.path.join(config_dir, "pad_groups.yaml"),
+    ):
+        if os.path.exists(pad_group_path):
+            with open(pad_group_path) as f:
+                return yaml.safe_load(f) or {}
+
+    return {}
