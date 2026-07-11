@@ -184,7 +184,7 @@ module chip_core #(
         bidir_out_int[C0_DEBUG_MODE_ID] = debug_mode;
         bidir_oe_int[C0_DEBUG_MODE_ID] = 1'b1;
 
-        bidir_out_int[C0_RST_N_ID] = core_rst_n;
+        bidir_out_int[C0_RST_N_ID] = rst_n;
         bidir_oe_int[C0_RST_N_ID] = 1'b1;
 
         bidir_out_int[C0_CLK_ID] = clk;
@@ -205,7 +205,7 @@ module chip_core #(
         bidir_out_int[C1_DEBUG_MODE_ID] = debug_mode;
         bidir_oe_int[C1_DEBUG_MODE_ID] = 1'b1;
 
-        bidir_out_int[C1_RST_N_ID] = core_rst_n;
+        bidir_out_int[C1_RST_N_ID] = rst_n;
         bidir_oe_int[C1_RST_N_ID] = 1'b1;
 
         bidir_out_int[C1_CLK_ID] = clk;
@@ -245,7 +245,7 @@ module chip_core #(
     .NUM_RPINS(9)
     ) i_directory_interface_0 (
   	.clk_i              (clk),
-  	.rst_ni             (core_rst_n),
+  	.rst_ni             (rst_n),
 
   	.bus_valid_o        (c0_bus_valid),
   	.bus_addr_o         (c0_bus_addr),
@@ -283,7 +283,7 @@ module chip_core #(
   	.NUM_RPINS(SER_PINS)
     ) i_directory_interface_1 (
   	.clk_i              (clk),
-  	.rst_ni             (core_rst_n),
+  	.rst_ni             (rst_n),
 
   	.bus_valid_o        (c1_bus_valid),
   	.bus_addr_o         (c1_bus_addr),
