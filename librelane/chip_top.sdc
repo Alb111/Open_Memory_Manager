@@ -2,6 +2,20 @@ current_design $::env(DESIGN_NAME)
 set_units -time ns
 
 set clock_port __VIRTUAL_CLK__
+set timing_clock_period $::env(CLOCK_PERIOD)
+
+# chip_top_scan.sdc sets this flag before sourcing this file. P&R uses the
+# default functional mode; scan timing can be checked separately at its much
+# slower shift frequency.
+set scan_timing_mode 0
+if { [info exists ::SCAN_TIMING_MODE] && $::SCAN_TIMING_MODE } {
+    set scan_timing_mode 1
+    if { [info exists ::env(SCAN_CLOCK_PERIOD)] } {
+        set timing_clock_period $::env(SCAN_CLOCK_PERIOD)
+    } else {
+        set timing_clock_period 1000
+    }
+}
 if { [info exists ::env(CLOCK_PORT)] } {
     set port_count [llength $::env(CLOCK_PORT)]
 
@@ -24,10 +38,10 @@ if { $::env(CLOCK_PORT) == $::env(CLOCK_NET) } {
 }
 
 puts "\[INFO] Using clock $clock_port…"
-create_clock {*}$port_args -name $clock_port -period $::env(CLOCK_PERIOD)
+create_clock {*}$port_args -name $clock_port -period $timing_clock_period
 
-set input_delay_value [expr $::env(CLOCK_PERIOD) * $::env(IO_DELAY_CONSTRAINT) / 100]
-set output_delay_value [expr $::env(CLOCK_PERIOD) * $::env(IO_DELAY_CONSTRAINT) / 100]
+set input_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
+set output_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
 puts "\[INFO] Setting output delay to: $output_delay_value"
 puts "\[INFO] Setting input delay to: $input_delay_value"
 
@@ -73,8 +87,19 @@ puts "\[INFO] Setting timing derate to: $::env(TIME_DERATING_CONSTRAINT)%"
 set_timing_derate -early [expr 1-[expr $::env(TIME_DERATING_CONSTRAINT) / 100]]
 set_timing_derate -late [expr 1+[expr $::env(TIME_DERATING_CONSTRAINT) / 100]]
 
+# bidir[0].pad/Y drives the buffered debug/scan-mode tree. Case analysis
+# removes the inactive side of every scan/functional mux from timing analysis
+# without false-pathing the pads used for scan data.
+set debug_mode_pin [get_pins {bidir[0].pad/Y}]
+if { [llength $debug_mode_pin] != 1 } {
+    error "Could not uniquely identify debug/scan-mode pin bidir[0].pad/Y"
+}
+set_case_analysis $scan_timing_mode $debug_mode_pin
+
 if { [info exists ::env(OPENLANE_SDC_IDEAL_CLOCKS)] && $::env(OPENLANE_SDC_IDEAL_CLOCKS) } {
     unset_propagated_clock [all_clocks]
 } else {
     set_propagated_clock [all_clocks]
 }
+
+set_false_path -from [get_ports {rst_n_PAD}]

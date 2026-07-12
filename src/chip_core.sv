@@ -17,6 +17,10 @@ module chip_core #(
     input  wire clk,
     input  wire rst_n,
 
+    // Physically buffered scan/functional-mode controls. Separate branches
+    // prevent one pad-driven net from spanning every scan mux in the core.
+    input  wire [3:0] debug_mode_i,
+
     input  wire [NUM_BIDIR_PADS-1:0] bidir_in, 	//Input value
     output wire [NUM_BIDIR_PADS-1:0] bidir_out, //Output value
     output wire [NUM_BIDIR_PADS-1:0] bidir_oe,  //Output enable
@@ -30,7 +34,6 @@ module chip_core #(
     localparam int BOOT_SIZE = 512;
     localparam int SRAM_BASE_ADDR = 0;
 
-    localparam int DEBUG_MODE_ID = 0;
     localparam int BOOT_PASS_EN_ID = 1;
     localparam int FLASH_CSB_ID = 2;
     localparam int SPI_MISO_ID = 3;
@@ -126,7 +129,6 @@ module chip_core #(
     logic        boot_flash_csb;
     logic        boot_done;
     logic        cores_en;
-    logic        debug_mode;
     logic        boot_pass_en;
     logic        core_mem_select;
     logic        core_rst_n;
@@ -154,10 +156,9 @@ module chip_core #(
 
     assign whoami_ready = c0_tser_ready && c1_tser_ready;
 
-    assign debug_mode = bidir_in[DEBUG_MODE_ID];
     assign boot_pass_en = bidir_in[BOOT_PASS_EN_ID];
-    assign core_mem_select = debug_mode | boot_done;
-    assign core_rst_n = rst_n & (debug_mode | cores_en);
+    assign core_mem_select = debug_mode_i[3] | boot_done;
+    assign core_rst_n = rst_n & (debug_mode_i[3] | cores_en);
     assign scan_in = bidir_in[DFT_START_ID +: DFT_CHAINS];
 
     assign c0_serial_rx = bidir_in[C0_SERIAL_I_START_ID +: SER_PINS];
@@ -181,7 +182,7 @@ module chip_core #(
         // The lower half of the DFT range remains inputs. The upper half is
         // driven by the four parallel scan-chain outputs.
         bidir_out_int[DFT_START_ID + DFT_CHAINS +: DFT_CHAINS] = scan_out;
-        bidir_oe_int[DFT_START_ID + DFT_CHAINS +: DFT_CHAINS] = {DFT_CHAINS{debug_mode}};
+        bidir_oe_int[DFT_START_ID + DFT_CHAINS +: DFT_CHAINS] = {DFT_CHAINS{debug_mode_i[0]}};
 
         bidir_out_int[C0_REQ_O_ID] = c0_req_tx;
         bidir_oe_int[C0_REQ_O_ID] = 1'b1;
@@ -192,7 +193,7 @@ module chip_core #(
         bidir_out_int[C0_BOOT_DONE] = boot_done;
         bidir_oe_int[C0_BOOT_DONE] = 1'b1;
 
-        bidir_out_int[C0_DEBUG_MODE_ID] = debug_mode;
+        bidir_out_int[C0_DEBUG_MODE_ID] = debug_mode_i[1];
         bidir_oe_int[C0_DEBUG_MODE_ID] = 1'b1;
 
         bidir_out_int[C0_RST_N_ID] = rst_n;
@@ -213,7 +214,7 @@ module chip_core #(
         bidir_out_int[C1_BOOT_DONE] = boot_done;
         bidir_oe_int[C1_BOOT_DONE] = 1'b1;
 
-        bidir_out_int[C1_DEBUG_MODE_ID] = debug_mode;
+        bidir_out_int[C1_DEBUG_MODE_ID] = debug_mode_i[2];
         bidir_oe_int[C1_DEBUG_MODE_ID] = 1'b1;
 
         bidir_out_int[C1_RST_N_ID] = rst_n;
@@ -249,7 +250,7 @@ module chip_core #(
         .cores_en_o     (cores_en),
         .boot_done_o    (boot_done),
         .whoami_pulse_o (whoami_pulse),
-        .scan_en_i      (debug_mode),
+        .scan_en_i      (debug_mode_i[0]),
         .scan_in_i      (scan_in[0]),
         .scan_out_o     (scan_out[0])
     );
@@ -290,7 +291,7 @@ module chip_core #(
   	.serial_i           (c0_serial_rx),
   	.req_o              (c0_req_tx),
 	.serial_o           (c0_serial_tx),
-    .scan_en_i          (debug_mode),
+    .scan_en_i          (debug_mode_i[1]),
     .scan_in_i          (scan_in[1]),
     .scan_out_o         (scan_out[1])
     );
@@ -331,7 +332,7 @@ module chip_core #(
   	.serial_i           (c1_serial_rx),
   	.req_o              (c1_req_tx),
 	.serial_o           (c1_serial_tx),
-    .scan_en_i          (debug_mode),
+    .scan_en_i          (debug_mode_i[2]),
     .scan_in_i          (scan_in[2]),
     .scan_out_o         (scan_out[2])
     );
@@ -392,7 +393,7 @@ module chip_core #(
   	.dir_mem_resp_ready_o   (dir_mem_resp_ready),
 
 	.dir_state_invalidated_o(dir_state_invalidated),
-    .scan_en_i              (debug_mode),
+    .scan_en_i              (debug_mode_i[3]),
     .scan_in_i              (scan_in[3]),
     .scan_out_o             (controller_scan_out)
     );
@@ -427,7 +428,7 @@ module chip_core #(
 	.boot_mem_addr_i   (boot_mem_addr),
 	.boot_mem_wdata_i  (boot_mem_wdata),
 	.boot_mem_wstrb_i  (boot_mem_wstrb),
-    .scan_en_i        (debug_mode),
+    .scan_en_i        (debug_mode_i[3]),
     .scan_in_i        (controller_scan_out),
     .scan_out_o       (scan_out[3])
     `ifdef USE_POWER_PINS
