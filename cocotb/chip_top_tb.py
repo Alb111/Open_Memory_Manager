@@ -595,6 +595,38 @@ async def test_00_pin_map_and_basic_reset_smoke(dut):
 
 
 @cocotb.test()
+async def test_reset_deassertion_is_synchronized(dut):
+    """Raw reset asserts immediately and releases after two clock edges."""
+    await enable_power_if_present(dut)
+    drive_bidir_inputs(dut, debug_mode=1, boot_pass_en=0)
+    dut.clk_PAD.value = 0
+    dut.rst_n_PAD.value = 0
+    await start_clock(dut.clk_PAD)
+
+    await ClockCycles(dut.clk_PAD, 2)
+    assert int(dut.rst_n_sync.value) == 0
+
+    # Move deassertion away from the active edge. The first edge fills the
+    # synchronizer; the second releases every downstream reset consumer.
+    await Timer(2, "ns")
+    dut.rst_n_PAD.value = 1
+
+    for _ in range(4):
+        await RisingEdge(dut.clk_PAD)
+        await Timer(1, "ps")
+        if int(dut.reset_sync_ff.value) & 1:
+            break
+    else:
+        raise AssertionError("reset synchronizer first stage never released")
+
+    assert int(dut.rst_n_sync.value) == 0
+
+    await RisingEdge(dut.clk_PAD)
+    await Timer(1, "ps")
+    assert int(dut.rst_n_sync.value) == 1
+
+
+@cocotb.test()
 async def test_debug_mode_propagates_to_top_chip_pads(dut):
     """
     The bottom debug mode pad should be forwarded to both top-chip debug pads.
@@ -988,6 +1020,8 @@ def chip_top_runner():
     else:
         # RTL simulation.
         sources += [
+            scl_dir / "primitives.v",
+            scl_dir / f"{scl}.v",
             proj_path / "../src/chip_top.sv",
             proj_path / "../src/chip_core.sv",
 
@@ -1013,7 +1047,6 @@ def chip_top_runner():
     sources += [
         # IO pad models.
         io_dir / "gf180mcu_fd_io.v",
-        io_dir / "gf180mcu_ws_io.v",
 
         # SRAM macro models.
         sram_dir / "gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
@@ -1021,8 +1054,16 @@ def chip_top_runner():
 
         # Custom IP required by chip_top.
         proj_path / "../ip/gf180mcu_ws_ip__id/vh/gf180mcu_ws_ip__id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__qrcode_id/vh/gf180mcu_ws_ip__qrcode_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__project_id/vh/gf180mcu_ws_ip__project_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__marker/vh/gf180mcu_ws_ip__marker.v",
         proj_path / "../ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v",
     ]
+
+    ws_io_model = io_dir / "gf180mcu_ws_io.v"
+    if ws_io_model.exists():
+        sources.append(ws_io_model)
 
     if sim == "icarus":
         build_args = ["-g2012"]

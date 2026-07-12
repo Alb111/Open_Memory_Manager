@@ -102,4 +102,6 @@ if { [info exists ::env(OPENLANE_SDC_IDEAL_CLOCKS)] && $::env(OPENLANE_SDC_IDEAL
     set_propagated_clock [all_clocks]
 }
 
+# Raw reset asynchronously asserts only the two-flop synchronizer. Paths from
+# the synchronizer output remain timed to guarantee same-cycle core release.
 set_false_path -from [get_ports {rst_n_PAD}]
