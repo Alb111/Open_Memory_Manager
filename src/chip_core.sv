@@ -40,10 +40,12 @@ module chip_core #(
     localparam int SPI_MOSI_ID = 4;
     localparam int SPI_SCLK_ID = 5;
 
-    localparam int C0_REQ_O_ID = 6;
-    localparam int C0_SERIAL_O_START_ID = 7;
-    localparam int C0_REQ_I_ID = 16;
-    localparam int C0_SERIAL_I_START_ID = 17;
+    // I/O suffixes are from this chip's perspective: *_I pads are driven by
+    // the external chips, while *_O pads are driven by this chip.
+    localparam int C0_REQ_I_ID = 6;
+    localparam int C0_SERIAL_I_START_ID = 7;
+    localparam int C0_REQ_O_ID = 16;
+    localparam int C0_SERIAL_O_START_ID = 17;
     localparam int C0_BOOT_DONE = 26;
     localparam int C0_DEBUG_MODE_ID = 27;
     localparam int C0_RST_N_ID = 28;
@@ -55,10 +57,10 @@ module chip_core #(
     localparam int DFT_PINS = 8;
     localparam int DFT_CHAINS = DFT_PINS / 2;
 
-    localparam int C1_REQ_O_ID = 40;
-    localparam int C1_SERIAL_O_START_ID = 41;
-    localparam int C1_REQ_I_ID = 50;
-    localparam int C1_SERIAL_I_START_ID = 51;
+    localparam int C1_REQ_I_ID = 40;
+    localparam int C1_SERIAL_I_START_ID = 41;
+    localparam int C1_REQ_O_ID = 50;
+    localparam int C1_SERIAL_O_START_ID = 51;
     localparam int C1_BOOT_DONE = 60;
     localparam int C1_DEBUG_MODE_ID = 61;
     localparam int C1_RST_N_ID = 62;
