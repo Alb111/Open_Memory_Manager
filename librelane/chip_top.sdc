@@ -40,6 +40,23 @@ if { $::env(CLOCK_PORT) == $::env(CLOCK_NET) } {
 puts "\[INFO] Using clock $clock_port…"
 create_clock {*}$port_args -name $clock_port -period $timing_clock_period
 
+# The two top-chip clocks are forwarded versions of clk_PAD, not synchronous
+# data outputs. Model each dedicated-buffer and output-pad path as a generated
+# clock related to the received primary clock at clk_pad/Y.
+set forwarded_clock_ports [get_ports {
+    bidir_PAD[29]
+    bidir_PAD[63]
+}]
+if { [llength $forwarded_clock_ports] != 2 } {
+    error "Could not uniquely identify both forwarded-clock pads"
+}
+create_generated_clock -name c0_forwarded_clk \
+    -source $port_args -master_clock $clock_port -combinational \
+    [get_ports {bidir_PAD[29]}]
+create_generated_clock -name c1_forwarded_clk \
+    -source $port_args -master_clock $clock_port -combinational \
+    [get_ports {bidir_PAD[63]}]
+
 set input_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
 set output_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
 puts "\[INFO] Setting output delay to: $output_delay_value"
@@ -56,9 +73,16 @@ if { [info exists ::env(MAX_CAPACITANCE_CONSTRAINT)] } {
 set clocks [get_clocks $clock_port]
 
 # Bidirectional pads
-set clk_core_inout_ports [get_ports { 
-    bidir_PAD[*]
-}] 
+set clk_core_inout_names {}
+for {set i 0} {$i < 66} {incr i} {
+    if {$i != 29 && $i != 63} {
+        lappend clk_core_inout_names [format {bidir_PAD[%d]} $i]
+    }
+}
+set clk_core_inout_ports [get_ports $clk_core_inout_names]
+if { [llength $clk_core_inout_ports] != 64 } {
+    error "Could not uniquely identify all non-clock bidirectional pads"
+}
 
 set_input_delay -min 0 -clock $clocks $clk_core_inout_ports
 set_input_delay -max $input_delay_value -clock $clocks $clk_core_inout_ports

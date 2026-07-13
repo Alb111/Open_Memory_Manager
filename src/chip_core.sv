@@ -50,7 +50,6 @@ module chip_core #(
     localparam int C0_BOOT_DONE = 26;
     localparam int C0_DEBUG_MODE_ID = 27;
     localparam int C0_RST_N_ID = 28;
-    localparam int C0_CLK_ID = 29;
     localparam int C0_TRAP_I_ID = 65;
     localparam int C0_TRAP_O_ID = 64;
 
@@ -64,7 +63,6 @@ module chip_core #(
     localparam int C1_BOOT_DONE = 60;
     localparam int C1_DEBUG_MODE_ID = 61;
     localparam int C1_RST_N_ID = 62;
-    localparam int C1_CLK_ID = 63;
     localparam int C1_TRAP_I_ID = 31;
     localparam int C1_TRAP_O_ID = 30;
 
@@ -197,9 +195,6 @@ module chip_core #(
         bidir_out_int[C0_RST_N_ID] = rst_n;
         bidir_oe_int[C0_RST_N_ID] = 1'b1;
 
-        bidir_out_int[C0_CLK_ID] = clk;
-        bidir_oe_int[C0_CLK_ID] = 1'b1;
-
         bidir_out_int[C0_TRAP_O_ID] = bidir_in[C0_TRAP_I_ID];
         bidir_oe_int[C0_TRAP_O_ID] = 1'b1;
 
@@ -217,9 +212,6 @@ module chip_core #(
 
         bidir_out_int[C1_RST_N_ID] = rst_n;
         bidir_oe_int[C1_RST_N_ID] = 1'b1;
-
-        bidir_out_int[C1_CLK_ID] = clk;
-        bidir_oe_int[C1_CLK_ID] = 1'b1;
 
         bidir_out_int[C1_TRAP_O_ID] = bidir_in[C1_TRAP_I_ID];
         bidir_oe_int[C1_TRAP_O_ID] = 1'b1;

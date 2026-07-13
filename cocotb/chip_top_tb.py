@@ -6,7 +6,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import Timer, ClockCycles, RisingEdge
+from cocotb.triggers import Timer, ClockCycles, RisingEdge, FallingEdge
 from cocotb_tools.runner import get_runner
 
 
@@ -682,6 +682,34 @@ async def test_top_chip_reset_and_clock_outputs(dut):
 
     await assert_pad_toggles(dut, PIN_C0_CLK, "PIN_C0_CLK")
     await assert_pad_toggles(dut, PIN_C1_CLK, "PIN_C1_CLK")
+
+
+@cocotb.test()
+async def test_forwarded_clocks_bypass_core_output_bus(dut):
+    """Dedicated top-level buffers, rather than chip_core, drive clock pads."""
+    if gl:
+        return
+
+    await start_up(dut, debug_mode=1, boot_pass_en=0)
+    core = dut.i_chip_core
+
+    assert str(core.bidir_out.value[PIN_C0_CLK]) == "0"
+    assert str(core.bidir_out.value[PIN_C1_CLK]) == "0"
+    assert str(core.bidir_oe.value[PIN_C0_CLK]) == "0"
+    assert str(core.bidir_oe.value[PIN_C1_CLK]) == "0"
+    assert str(dut.bidir_PAD_OE.value[PIN_C0_CLK]) == "1"
+    assert str(dut.bidir_PAD_OE.value[PIN_C1_CLK]) == "1"
+    assert str(dut.bidir_PAD_IE.value[PIN_C0_CLK]) == "0"
+    assert str(dut.bidir_PAD_IE.value[PIN_C1_CLK]) == "0"
+
+    for edge, expected in ((RisingEdge, 1), (FallingEdge, 0)):
+        await edge(dut.clk_PAD)
+        # Allow the foundry input/output pad functional models to settle.
+        await Timer(10, unit="ns")
+        assert int(dut.c0_clk_to_pad.value) == expected
+        assert int(dut.c1_clk_to_pad.value) == expected
+        assert read_bidir_pin(dut, PIN_C0_CLK) == str(expected)
+        assert read_bidir_pin(dut, PIN_C1_CLK) == str(expected)
 
 
 @cocotb.test()

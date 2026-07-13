@@ -78,6 +78,9 @@ module chip_top #(
     wire [NUM_BIDIR_PADS-1:0] bidir_PAD2CORE;
     wire [NUM_BIDIR_PADS-1:0] bidir_CORE2PAD;
     wire [NUM_BIDIR_PADS-1:0] bidir_CORE2PAD_OE;
+    wire [NUM_BIDIR_PADS-1:0] bidir_PAD_DRIVE;
+    wire [NUM_BIDIR_PADS-1:0] bidir_PAD_OE;
+    wire [NUM_BIDIR_PADS-1:0] bidir_PAD_IE;
     wire [NUM_BIDIR_PADS-1:0] bidir_CORE2PAD_CS;
     wire [NUM_BIDIR_PADS-1:0] bidir_CORE2PAD_SL;
     wire [NUM_BIDIR_PADS-1:0] bidir_CORE2PAD_IE;
@@ -97,11 +100,19 @@ module chip_top #(
     // one for receive-state logic and four shared round-robin by shift words.
     localparam int C0_REQ_I_ID = 6;
     localparam int C1_REQ_I_ID = 40;
+    localparam int C0_CLK_ID = 29;
+    localparam int C1_CLK_ID = 63;
     localparam int REQ_I_BRANCHES = 5;
     wire c0_req_i_root;
     wire c1_req_i_root;
     wire [REQ_I_BRANCHES-1:0] c0_req_i_branches;
     wire [REQ_I_BRANCHES-1:0] c1_req_i_branches;
+
+    // Forward the received clock through dedicated, kept output drivers. The
+    // functional core clock remains on clk_PAD2CORE and is handled by CTS;
+    // these two branches bypass the generic chip_core output-data network.
+    wire c0_clk_to_pad;
+    wire c1_clk_to_pad;
 
     // In the foundry pads, the I/O and
     // core voltage domains are shorted
@@ -177,6 +188,28 @@ module chip_top #(
         .PU     (1'b0),
         .PD     (1'b0)
     );
+
+    (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 c0_clk_forward_buf (
+        `ifdef USE_POWER_PINS
+        .VDD (VDD),
+        .VSS (VSS),
+        .VNW (VDD),
+        .VPW (VSS),
+        `endif
+        .I   (clk_PAD2CORE),
+        .Z   (c0_clk_to_pad)
+    );
+
+    (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 c1_clk_forward_buf (
+        `ifdef USE_POWER_PINS
+        .VDD (VDD),
+        .VSS (VSS),
+        .VNW (VDD),
+        .VPW (VSS),
+        `endif
+        .I   (clk_PAD2CORE),
+        .Z   (c1_clk_to_pad)
+    );
     
     // Normal input
     `gf180mcu_xxx_io__in_c rst_n_pad (
@@ -196,6 +229,20 @@ module chip_top #(
 
     generate
     for (genvar i=0; i<NUM_BIDIR_PADS; i++) begin : bidir
+        if (i == C0_CLK_ID) begin : c0_forwarded_clock
+            assign bidir_PAD_DRIVE[i] = c0_clk_to_pad;
+            assign bidir_PAD_OE[i] = 1'b1;
+            assign bidir_PAD_IE[i] = 1'b0;
+        end else if (i == C1_CLK_ID) begin : c1_forwarded_clock
+            assign bidir_PAD_DRIVE[i] = c1_clk_to_pad;
+            assign bidir_PAD_OE[i] = 1'b1;
+            assign bidir_PAD_IE[i] = 1'b0;
+        end else begin : core_signal
+            assign bidir_PAD_DRIVE[i] = bidir_CORE2PAD[i];
+            assign bidir_PAD_OE[i] = bidir_CORE2PAD_OE[i];
+            assign bidir_PAD_IE[i] = bidir_CORE2PAD_IE[i];
+        end
+
         (* keep *)
         `gf180mcu_xxx_io__bi_24t pad (
             `ifdef USE_POWER_PINS
@@ -205,14 +252,14 @@ module chip_top #(
             .VSS    (VSS),
             `endif
         
-            .A      (bidir_CORE2PAD[i]),
-            .OE     (bidir_CORE2PAD_OE[i]),
+            .A      (bidir_PAD_DRIVE[i]),
+            .OE     (bidir_PAD_OE[i]),
             .Y      (bidir_PAD2CORE[i]),
             .PAD    (bidir_PAD[i]),
             
             .CS     (bidir_CORE2PAD_CS[i]),
             .SL     (bidir_CORE2PAD_SL[i]),
-            .IE     (bidir_CORE2PAD_IE[i]),
+            .IE     (bidir_PAD_IE[i]),
 
             .PU     (bidir_CORE2PAD_PU[i]),
             .PD     (bidir_CORE2PAD_PD[i])
