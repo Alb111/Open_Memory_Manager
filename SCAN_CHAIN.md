@@ -39,6 +39,8 @@ Reset has priority over scan. With `debug_mode == 0`, every sequential block
 executes its original functional branch. Scan shifts toward each vector's most
 significant bit: a serial bit enters bit 0, then advances through increasing
 bit indices. The tables below list elements from scan input to scan output.
+Serializer leaf modules name the scan selector `debug_mode_i`; the enclosing
+directory interfaces connect their regional `scan_en_i` branch to that port.
 
 ## Chain 0: housekeeping and boot
 
@@ -129,3 +131,7 @@ Scan selection is implemented as an `else if (scan_en_i)` branch after reset
 and before the pre-existing functional branch in each sequential block. Since
 `scan_en_i` is driven by `debug_mode`, the pre-existing functional assignments
 are selected unchanged whenever debug mode is low.
+
+The two request-input distribution trees are purely combinational and add no
+scan elements. They therefore do not change the chain lengths or ordering
+listed above.

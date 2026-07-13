@@ -119,7 +119,7 @@ module whoami_wrapper #(
         .cpu_id_i          (8'h00),
         .reset_done_o      (),
         // serial — exposed to testbench
-        .req_i             (1'b0),
+        .req_i_branches    (5'b0),
         .serial_i          ({SER_PINS{1'b0}}),
         .req_o             (req_o_0),
         .serial_o          (serial_o_0),
@@ -156,7 +156,7 @@ module whoami_wrapper #(
         .cpu_id_i          (8'h01),
         .reset_done_o      (),
         // serial — exposed to testbench
-        .req_i             (1'b0),
+        .req_i_branches    (5'b0),
         .serial_i          ({SER_PINS{1'b0}}),
         .req_o             (req_o_1),
         .serial_o          (serial_o_1),

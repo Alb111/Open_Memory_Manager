@@ -20,6 +20,8 @@ module chip_core #(
     // Physically buffered scan/functional-mode controls. Separate branches
     // prevent one pad-driven net from spanning every scan mux in the core.
     input  wire [3:0] debug_mode_i,
+    input  wire [4:0] c0_req_i_branches,
+    input  wire [4:0] c1_req_i_branches,
 
     input  wire [NUM_BIDIR_PADS-1:0] bidir_in, 	//Input value
     output wire [NUM_BIDIR_PADS-1:0] bidir_out, //Output value
@@ -42,7 +44,6 @@ module chip_core #(
 
     // I/O suffixes are from this chip's perspective: *_I pads are driven by
     // the external chips, while *_O pads are driven by this chip.
-    localparam int C0_REQ_I_ID = 6;
     localparam int C0_SERIAL_I_START_ID = 7;
     localparam int C0_REQ_O_ID = 16;
     localparam int C0_SERIAL_O_START_ID = 17;
@@ -57,7 +58,6 @@ module chip_core #(
     localparam int DFT_PINS = 8;
     localparam int DFT_CHAINS = DFT_PINS / 2;
 
-    localparam int C1_REQ_I_ID = 40;
     localparam int C1_SERIAL_I_START_ID = 41;
     localparam int C1_REQ_O_ID = 50;
     localparam int C1_SERIAL_O_START_ID = 51;
@@ -146,8 +146,6 @@ module chip_core #(
     logic [SER_PINS-1:0] c1_serial_rx;
     logic                c0_req_tx;
     logic                c1_req_tx;
-    logic                c0_req_rx;
-    logic                c1_req_rx;
 
 
     logic [NUM_BIDIR_PADS-1:0] bidir_out_int;
@@ -165,8 +163,6 @@ module chip_core #(
 
     assign c0_serial_rx = bidir_in[C0_SERIAL_I_START_ID +: SER_PINS];
     assign c1_serial_rx = bidir_in[C1_SERIAL_I_START_ID +: SER_PINS];
-    assign c0_req_rx = bidir_in[C0_REQ_I_ID];
-    assign c1_req_rx = bidir_in[C1_REQ_I_ID];
 
     always_comb begin
         bidir_out_int = '0;
@@ -289,7 +285,7 @@ module chip_core #(
   	.cpu_id_i           (8'h00),
   	.reset_done_o       (c0_reset_done),
 
-  	.req_i              (c0_req_rx),
+	.req_i_branches     (c0_req_i_branches),
   	.serial_i           (c0_serial_rx),
   	.req_o              (c0_req_tx),
 	.serial_o           (c0_serial_tx),
@@ -330,7 +326,7 @@ module chip_core #(
   	.cpu_id_i           (8'h01),
   	.reset_done_o       (c1_reset_done),
 
-  	.req_i              (c1_req_rx),
+	.req_i_branches     (c1_req_i_branches),
   	.serial_i           (c1_serial_rx),
   	.req_o              (c1_req_tx),
 	.serial_o           (c1_serial_tx),

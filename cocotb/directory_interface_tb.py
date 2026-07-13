@@ -64,6 +64,8 @@ async def start_clock(dut):
 
 async def reset_dut(dut):
     dut.rst_ni.value = 0
+    dut.scan_en_i.value = 0
+    dut.scan_in_i.value = 0
 
     # zero all inputs
     dut.dir_valid_i.value = 0
@@ -75,7 +77,7 @@ async def reset_dut(dut):
 
     dut.snoop_ready_i.value = 0
 
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
     dut.serial_i.value = 0
 
     dut.cpu_id_i.value = 0
@@ -117,7 +119,7 @@ async def send_message(dut, data, msg_len):
     else:
         NUM_PINS = 9
 
-    dut.req_i.value = 1
+    dut.req_i_branches.value = 0x1F
 
     t_len = ceil(msg_len / NUM_PINS)
     mask = (1 << NUM_PINS) - 1
@@ -129,7 +131,7 @@ async def send_message(dut, data, msg_len):
         dut.serial_i.value = curr_data
         await FallingEdge(dut.clk_i)
     
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
     dut.serial_i.value = 0
 
 def set_packet(dut, dcmd : DCMD1H, mem_addr, mem_wdata):
@@ -154,6 +156,45 @@ class CycleCounter:
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
+@cocotb.test
+async def test_scan_chain_continuity(dut):
+    """A marker must traverse the complete directory-interface scan chain."""
+    if gl:
+        return
+
+    num_pins = len(dut.serial_i)
+    tx_depth = ceil(36 / num_pins)
+    tx_chain_len = 1 + 2 * tx_depth.bit_length() + tx_depth * num_pins
+    rx_chain_len = 2 + ceil(68 / num_pins) * num_pins
+    pipe_chain_len = (1 + 69) + (1 + 35)
+    chain_len = tx_chain_len + rx_chain_len + pipe_chain_len
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    await FallingEdge(dut.clk_i)
+    dut.scan_en_i.value = 1
+    dut.scan_in_i.value = 0
+    for _ in range(chain_len):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+
+    assert int(dut.scan_out_o.value) == 0
+    dut.scan_in_i.value = 1
+    for cycle in range(chain_len):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+        expected = int(cycle == chain_len - 1)
+        assert int(dut.scan_out_o.value) == expected, (
+            f"scan marker observed at cycle {cycle + 1}, expected {chain_len}"
+        )
+        dut.scan_in_i.value = 0
+
+    await RisingEdge(dut.clk_i)
+    await Timer(1, unit="ps")
+    assert int(dut.scan_out_o.value) == 0
+
+
 @cocotb.test
 async def test_send_SnoopBusRD(dut):
     if not gl:

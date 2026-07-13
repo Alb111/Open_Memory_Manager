@@ -93,6 +93,16 @@ module chip_top #(
     wire       debug_mode_root;
     wire [3:0] debug_mode_branches;
 
+    // Each receive-request pad drives a strong root and five local branches:
+    // one for receive-state logic and four shared round-robin by shift words.
+    localparam int C0_REQ_I_ID = 6;
+    localparam int C1_REQ_I_ID = 40;
+    localparam int REQ_I_BRANCHES = 5;
+    wire c0_req_i_root;
+    wire c1_req_i_root;
+    wire [REQ_I_BRANCHES-1:0] c0_req_i_branches;
+    wire [REQ_I_BRANCHES-1:0] c1_req_i_branches;
+
     // In the foundry pads, the I/O and
     // core voltage domains are shorted
     `ifdef USE_POWER_PINS
@@ -210,6 +220,55 @@ module chip_top #(
     end
     endgenerate
 
+    (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 c0_req_i_root_buf (
+        `ifdef USE_POWER_PINS
+        .VDD (VDD),
+        .VSS (VSS),
+        .VNW (VDD),
+        .VPW (VSS),
+        `endif
+        .I   (bidir_PAD2CORE[C0_REQ_I_ID]),
+        .Z   (c0_req_i_root)
+    );
+
+    (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 c1_req_i_root_buf (
+        `ifdef USE_POWER_PINS
+        .VDD (VDD),
+        .VSS (VSS),
+        .VNW (VDD),
+        .VPW (VSS),
+        `endif
+        .I   (bidir_PAD2CORE[C1_REQ_I_ID]),
+        .Z   (c1_req_i_root)
+    );
+
+    generate
+    for (genvar i=0; i<REQ_I_BRANCHES; i++) begin : c0_req_i_tree
+        (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 branch_buf (
+            `ifdef USE_POWER_PINS
+            .VDD (VDD),
+            .VSS (VSS),
+            .VNW (VDD),
+            .VPW (VSS),
+            `endif
+            .I   (c0_req_i_root),
+            .Z   (c0_req_i_branches[i])
+        );
+    end
+    for (genvar i=0; i<REQ_I_BRANCHES; i++) begin : c1_req_i_tree
+        (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 branch_buf (
+            `ifdef USE_POWER_PINS
+            .VDD (VDD),
+            .VSS (VSS),
+            .VNW (VDD),
+            .VPW (VSS),
+            `endif
+            .I   (c1_req_i_root),
+            .Z   (c1_req_i_branches[i])
+        );
+    end
+    endgenerate
+
     (* keep *) gf180mcu_fd_sc_mcu7t5v0__buf_16 debug_mode_root_buf (
         `ifdef USE_POWER_PINS
         .VDD (VDD),
@@ -250,6 +309,8 @@ module chip_top #(
         .rst_n      (rst_n_sync),
 
         .debug_mode_i (debug_mode_branches),
+        .c0_req_i_branches (c0_req_i_branches),
+        .c1_req_i_branches (c1_req_i_branches),
 
         .bidir_in   (bidir_PAD2CORE),
         .bidir_out  (bidir_CORE2PAD),

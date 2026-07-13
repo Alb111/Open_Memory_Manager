@@ -642,6 +642,24 @@ async def test_debug_mode_propagates_to_top_chip_pads(dut):
 
 
 @cocotb.test()
+async def test_req_i_buffer_trees_are_independent(dut):
+    """Each request pad must drive all five branches of only its own tree."""
+    await start_up(dut, debug_mode=0, boot_pass_en=0)
+
+    if gl:
+        # Post-layout optimization may rename or flatten the internal branch
+        # buses; gate-level pad behavior is covered by the link tests.
+        return
+
+    for c0_req, c1_req in ((0, 0), (1, 0), (0, 1), (1, 1), (0, 0)):
+        drive_control_inputs(dut, c0_req_i=c0_req, c1_req_i=c1_req)
+        await Timer(2, unit="ns")
+
+        assert int(dut.c0_req_i_branches.value) == (0x1F if c0_req else 0)
+        assert int(dut.c1_req_i_branches.value) == (0x1F if c1_req else 0)
+
+
+@cocotb.test()
 async def test_top_chip_reset_and_clock_outputs(dut):
     """
     Top-chip reset outputs follow the gated core reset, and clock pads follow

@@ -42,7 +42,7 @@ module directory_interface #(
 
     // UPSTREAM --------------------------------------
     // wrapped serializer IO
-    input  logic                req_i,
+    input  logic [4:0]          req_i_branches,
     input  logic [NUM_RPINS-1:0] serial_i,
     output logic                req_o,
     output logic [NUM_TPINS-1:0] serial_o,
@@ -143,6 +143,9 @@ module directory_interface #(
     ) u_tserializer (
         .clk_i    (clk_i),
         .rst_ni   (rst_ni),
+        .debug_mode_i(scan_en_i),
+        .scan_in_i(scan_in_i),
+        .scan_out_o(tserializer_scan_out),
 
         .req_o    (req_o),
         .serial_o (serial_o),
@@ -150,10 +153,7 @@ module directory_interface #(
         .valid_i  (tserial_valid),
         .data_in  (t_packet[35:0]),
         .msg_type (t_packet[37:36]),
-        .ready_o  (dir_ready_o),
-        .scan_en_i(scan_en_i),
-        .scan_in_i(scan_in_i),
-        .scan_out_o(tserializer_scan_out)
+        .ready_o  (dir_ready_o)
 
     );
     // -----------------------------------------------
@@ -161,23 +161,23 @@ module directory_interface #(
     // RECEIVING -------------------------------------
     wire [(int'($ceil(real'(68) / NUM_RPINS)) * NUM_RPINS)-1:0] rpacket_full;
     wire rvalid_o;
-    assign rbusy_o = req_i;
+    assign rbusy_o = req_i_branches[0];
     rserializer #(
         .NUM_PINS    (NUM_RPINS),
         .MAX_MSG_LEN (68)
     ) u_rserializer (
         .clk_i    (clk_i),
         .rst_ni   (rst_ni),
+        .debug_mode_i(scan_en_i),
+        .scan_in_i(tserializer_scan_out),
+        .scan_out_o(rserializer_scan_out),
         
         .serial_i (serial_i),
-        .req_i    (req_i),
+        .req_i_branches(req_i_branches),
 
         .valid_o  (rvalid_o),
         .data_o   (rpacket_full),
-        .ready_i  (1'b1),
-        .scan_en_i(scan_en_i),
-        .scan_in_i(tserializer_scan_out),
-        .scan_out_o(rserializer_scan_out)
+        .ready_i  (1'b1)
     );
 
     logic [3:0] rmetadata;
@@ -248,6 +248,9 @@ module directory_interface #(
     ) bus_ack_pipe (
         .clk_i   (clk_i),
         .rst_ni  (rst_ni),
+        .debug_mode_i(scan_en_i),
+        .scan_in_i(rserializer_scan_out),
+        .scan_out_o(bus_pipe_scan_out),
 
         // Upstream Interface
         .valid_i (bus_valid_d),
@@ -257,10 +260,7 @@ module directory_interface #(
         // Downstream Interface
         .valid_o (bus_valid_o),
         .data_o  ({bus_cache_cmd_o, bus_wdata_o, bus_addr_o}),
-        .ready_i (bus_ready_i),
-        .scan_en_i(scan_en_i),
-        .scan_in_i(rserializer_scan_out),
-        .scan_out_o(bus_pipe_scan_out)
+        .ready_i (bus_ready_i)
     );
 
     // snoop data interface
@@ -270,6 +270,9 @@ module directory_interface #(
     ) snoop_pipe (
         .clk_i   (clk_i),
         .rst_ni  (rst_ni),
+        .debug_mode_i(scan_en_i),
+        .scan_in_i(bus_pipe_scan_out),
+        .scan_out_o(scan_out_o),
 
         // Upstream Interface
         .valid_i (snoop_valid_d),
@@ -279,10 +282,7 @@ module directory_interface #(
         // Downstream Interface
         .valid_o (snoop_valid_o),
         .data_o  ({snoop_cache_cmd_o, snoop_data_o}),
-        .ready_i (snoop_ready_i),
-        .scan_en_i(scan_en_i),
-        .scan_in_i(bus_pipe_scan_out),
-        .scan_out_o(scan_out_o)
+        .ready_i (snoop_ready_i)
     );
     // -----------------------------------------------
 endmodule
