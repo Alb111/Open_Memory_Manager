@@ -54,7 +54,7 @@ SLANG_ARGUMENTS: ['--keep-hierarchy']
 SYNTH_STRATEGY: "DELAY 4"
 # The explicit debug-mode distribution tree handles the largest control net.
 # A limit of 32 avoids excessive buffering of non-critical scan/control paths
-# while remaining conservative for functional logic at 20 MHz.
+# while remaining conservative for functional logic at 35 MHz.
 MAX_FANOUT_CONSTRAINT: 32
 
 DESIGN_REPAIR_MAX_WIRE_LENGTH: 0
@@ -107,7 +107,7 @@ IGNORE_DISCONNECTED_MODULES:
 # Clock
 CLOCK_PORT: clk_PAD
 CLOCK_NET: clk_pad/Y
-CLOCK_PERIOD: 50 # 20 MHz
+CLOCK_PERIOD: 28.571 # 35 MHz
 
 # Fix hold violations
 PL_RESIZER_HOLD_SLACK_MARGIN: 0.35

@@ -34,8 +34,9 @@ sdf = env_flag("SDF")
 sdf_file = os.getenv("SDF_FILE", "")
 sdf_corner = os.getenv("SDF_CORNER", "max_tt_025C_5v00")
 
-# The actual chip target is 20 MHz = 50 ns period.
-CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "20"))
+# The actual chip target is 35 MHz = 28.571 ns period.
+CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "35"))
+BOOT_PASS_WAIT_NS = 25
 RESET_TIME_NS = int(os.getenv("RESET_TIME_NS", "1000"))
 
 # Pin configurations mapping back to the chip top pad frame.
@@ -483,13 +484,19 @@ async def enable_power_if_present(dut):
 
 
 async def start_clock(clock):
-    period_ns = 1000.0 / CLOCK_FREQ_MHZ
+    # Cocotb requires a period that is exactly representable at the simulator's
+    # 1 ps precision. Round to the nearest picosecond so frequencies such as
+    # 35 MHz do not produce an unrepresentable fractional-nanosecond period.
+    # Use an even number of picoseconds so Cocotb can generate a 50% duty
+    # cycle without introducing a sub-picosecond half-period.
+    period_ps = 2 * round(500_000 / CLOCK_FREQ_MHZ)
+    period_ns = period_ps / 1000
     cocotb.log.info(
         f"Starting chip clock at {CLOCK_FREQ_MHZ} MHz "
         f"({period_ns} ns period)"
     )
 
-    c = Clock(clock, period_ns, "ns")
+    c = Clock(clock, period_ps, unit="ps")
     cocotb.start_soon(c.start())
 
 
@@ -917,7 +924,7 @@ async def test_boot_spi_outputs_disable_when_boot_pass_en_is_asserted_late(dut):
     await ClockCycles(dut.clk_PAD, 20)
 
     drive_control_inputs(dut, boot_pass_en=1)
-    await ClockCycles(dut.clk_PAD, 10)
+    await Timer(BOOT_PASS_WAIT_NS, unit="ns")
 
     for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
@@ -935,7 +942,7 @@ async def test_boot_spi_outputs_reenable_after_boot_pass_en_is_cleared(dut):
     await ClockCycles(dut.clk_PAD, 20)
 
     drive_control_inputs(dut, boot_pass_en=0)
-    await ClockCycles(dut.clk_PAD, 20)
+    await Timer(BOOT_PASS_WAIT_NS, unit="ns")
 
     for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)

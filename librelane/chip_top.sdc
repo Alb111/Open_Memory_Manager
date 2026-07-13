@@ -59,8 +59,18 @@ create_generated_clock -name c1_forwarded_clk \
 
 set input_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
 set output_delay_value [expr $timing_clock_period * $::env(IO_DELAY_CONSTRAINT) / 100]
+# boot_pass_en is an asynchronous ownership handoff for the off-chip SPI flash,
+# not cycle-by-cycle data. Bound its physical pad-to-pad release time separately
+# from the clock-relative I/O budget.
+set boot_pass_handoff_max_delay 20.0
+set boot_pass_sdc_max_delay [expr {
+    $boot_pass_handoff_max_delay
+    + $output_delay_value
+    + $::env(CLOCK_UNCERTAINTY_CONSTRAINT)
+}]
 puts "\[INFO] Setting output delay to: $output_delay_value"
 puts "\[INFO] Setting input delay to: $input_delay_value"
+puts "\[INFO] Setting boot-pass handoff max delay to: $boot_pass_handoff_max_delay"
 
 set_max_fanout $::env(MAX_FANOUT_CONSTRAINT) [current_design]
 if { [info exists ::env(MAX_TRANSITION_CONSTRAINT)] } {
@@ -72,21 +82,55 @@ if { [info exists ::env(MAX_CAPACITANCE_CONSTRAINT)] } {
 
 set clocks [get_clocks $clock_port]
 
-# Bidirectional pads
+# Bidirectional pads. Pad 1 is boot_pass_en and therefore does not receive the
+# synchronous input delay. Pads 29 and 63 are forwarded clocks.
 set clk_core_inout_names {}
+set synchronous_inout_input_names {}
 for {set i 0} {$i < 66} {incr i} {
     if {$i != 29 && $i != 63} {
         lappend clk_core_inout_names [format {bidir_PAD[%d]} $i]
+        if {$i != 1} {
+            lappend synchronous_inout_input_names [format {bidir_PAD[%d]} $i]
+        }
     }
 }
 set clk_core_inout_ports [get_ports $clk_core_inout_names]
+set synchronous_inout_input_ports [get_ports $synchronous_inout_input_names]
 if { [llength $clk_core_inout_ports] != 64 } {
     error "Could not uniquely identify all non-clock bidirectional pads"
 }
+if { [llength $synchronous_inout_input_ports] != 63 } {
+    error "Could not uniquely identify all synchronous bidirectional inputs"
+}
 
-set_input_delay -min 0 -clock $clocks $clk_core_inout_ports
-set_input_delay -max $input_delay_value -clock $clocks $clk_core_inout_ports
+set_input_delay -min 0 -clock $clocks $synchronous_inout_input_ports
+set_input_delay -max $input_delay_value -clock $clocks $synchronous_inout_input_ports
 set_output_delay $output_delay_value -clock $clocks $clk_core_inout_ports
+
+set boot_pass_port [get_ports {bidir_PAD[1]}]
+set boot_spi_output_ports [get_ports {
+    bidir_PAD[2]
+    bidir_PAD[4]
+    bidir_PAD[5]
+}]
+if { [llength $boot_pass_port] != 1 || [llength $boot_spi_output_ports] != 3 } {
+    error "Could not uniquely identify the boot-pass SPI handoff ports"
+}
+# Give the asynchronous input a zero boundary delay so it is not reported as
+# missing an input constraint. OpenSTA subtracts the clock uncertainty and the
+# outputs' external delay from a port-to-port set_max_delay. Add those values to
+# the SDC exception so the resulting internal pad-to-pad requirement is exactly
+# boot_pass_handoff_max_delay, independent of the functional clock period.
+set_input_delay -min 0 -clock $clocks $boot_pass_port
+set_input_delay -max 0 -clock $clocks $boot_pass_port
+set_max_delay $boot_pass_sdc_max_delay \
+    -from $boot_pass_port -to $boot_spi_output_ports
+# The same asynchronous ownership control holds the boot SPI engine and boot
+# FSM in reset while the external master owns the flash. It is not sampled as
+# functional cycle data, so do not let its paths to sequential state determine
+# the functional clock frequency. The explicit pad-output max delay above
+# remains active because it has a disjoint endpoint set.
+set_false_path -from $boot_pass_port -to [all_registers]
 
 # Input-only pads
 set clk_core_input_ports [get_ports { 

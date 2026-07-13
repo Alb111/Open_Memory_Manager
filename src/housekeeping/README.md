@@ -34,7 +34,10 @@ After `rst_n` is de-asserted:
  
 ## Flash Reprogramming (Pass-Through Mode)
  
-The subsystem supports external flash reprogramming using an external SPI master (e.g. USB-to-SPI bridge). The flash pins are shared between the bootloader and the external programmer, controlled by `pass_thru_en_i` (mapped to `debug_mode` on the chip pad ring).
+The subsystem supports external flash reprogramming using an external SPI
+master (e.g. USB-to-SPI bridge). The flash pins are shared between the
+bootloader and the external programmer, controlled by `pass_thru_en_i`, which
+is driven by `boot_pass_en` on `bidir_PAD[1]`.
  
 **When `pass_thru_en_i = 1` (programmer connected):**
 - Boot controller and SPI engine are held in reset.
@@ -44,6 +47,12 @@ The subsystem supports external flash reprogramming using an external SPI master
 **When `pass_thru_en_i = 0` (normal boot):**
 - Tri-state is removed and the boot controller becomes active.
 - Boot controller reads flash and copies the program image into SRAM.
+
+The external master must be idle while changing ownership. Assert
+`boot_pass_en`, wait at least 25 ns, and then begin driving flash `CSB`, `MOSI`,
+and `SCLK`. Before returning ownership, stop driving those signals, deassert
+`boot_pass_en`, and wait at least 25 ns. Physical STA constrains either
+ownership transition to reach all three output pads within 20 ns.
 
 ---
  
@@ -105,6 +114,4 @@ make test-boot-mem
 ```
  
 > **Note:** The Cypress S25FL128L Verilog model files (`s25fl128l.v`, `s25fl128l.mem`, `s25fl128lSECR.mem`) are proprietary and not committed to the repository. Place them in `src/housekeeping/cypress_model/` before running `boot_flash_test.py`, `boot_mem_test.py`, or `whoami_boot_tb.py`. The `boot_image.mem` file is generated automatically by the test runner and does not need to be committed.
-
-
 
