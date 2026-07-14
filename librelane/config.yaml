@@ -32,15 +32,15 @@ DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
-- dir::../src/directory_controller/directory_controller.sv
+- dir::../src/directory_controller/directory_controller_full.sv
+- dir::../src/directory_controller/memory_reset_generator.sv
 - dir::../src/arb/wrr_arbiter.sv
 - dir::../src/housekeeping/boot_fsm.sv
 - dir::../src/housekeeping/housekeeping_top.sv
 - dir::../src/housekeeping/spi_engine.sv
 - dir::../src/mem_ctrl/mem2048x32.sv
 - dir::../src/mem_ctrl/mem512x32.sv
-- dir::../src/mem_ctrl/directory_mem.sv
-- dir::../src/mem_ctrl/mem64x8.sv
+- dir::../src/mem2048x3/mem2048x3.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv
@@ -103,6 +103,19 @@ VDD_NETS:
 - VDD
 GND_NETS:
 - VSS
+
+# IR-drop voltage sources (OpenROAD.IRDropReport / PSM).
+# Only the true supply-INPUT dvdd/dvss pads are listed as sources. The pads that
+# deliver power up to the stacked top chips (dvdd_pads[]/dvss_pads[] indices
+# 2,3,6,9,10,13) are deliberately excluded so PSM does not treat them as ideal
+# supplies. Regenerate after any padring change:
+#   python3 scripts/gen_vsrc_loc.py --outdir librelane/pdn --vdd-voltage 5.0 \
+#       --exclude 2,3,6,9,10,13
+# TODO(Part 2): once the top-chip flows exist, model the current those excluded
+# pads draw for the top chips as loads (PSM sees only on-die instance power).
+VSRC_LOC_FILES:
+  VDD: dir::pdn/vsrc_dvdd.loc
+  VSS: dir::pdn/vsrc_dvss.loc
 
 # We need to add gf180mcu_fd_io__bi_24t
 # due to the unused Y output for output only pads
