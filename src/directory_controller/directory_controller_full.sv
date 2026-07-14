@@ -16,7 +16,9 @@
 //   * packet (de)serialization                -> directory_interface
 //   * directory metadata storage + its reset  -> external mem2048x3 + reset
 //   * main memory storage + its reset          -> external mem_ctrl_2048x32
-//   * scan chain                               -> added after logic validation
+// DFT: a concat scan chain over all functional registers is included below
+// (debug_mode_i gated). Chain order: scan_in_i -> [18 controller regs] ->
+// u_wrr_arbiter (curr_ptr, credit_cnt) -> scan_out_o.
 //
 // Metadata entry (3 bits, matches mem2048x3):
 //   [1:0] sharers : bit0 = cache 0 holds a copy, bit1 = cache 1 holds a copy
@@ -91,7 +93,12 @@ module directory_controller_full #(
   output logic [3:0]  mm_wstrb_o,      // per-byte write enable, 0 = read
   output logic [31:0] mm_wdata_o,
   input  logic [31:0] mm_rdata_i,
-  input  logic        mm_ready_i
+  input  logic        mm_ready_i,
+
+  // DFT scan chain (debug_mode_i is the scan/functional select).
+  input  logic        debug_mode_i,
+  input  logic        scan_in_i,
+  output logic        scan_out_o
 );
 
   // ---------------------------------------------------------------------------
@@ -170,7 +177,6 @@ module directory_controller_full #(
   logic [1:0] arb_req;
   logic [1:0] arb_grant;
   logic [1:0] arb_req_passthrough_unused;
-  logic       arb_scan_out_unused;
 
   logic selected_valid;
   logic selected_cache;
@@ -195,7 +201,25 @@ module directory_controller_full #(
   logic [31:0] snoop_ack_data;
 
   // ---------------------------------------------------------------------------
-  // Arbitration (inside the controller). Scan tied off until validated.
+  // DFT scan chain: concat of all 18 functional registers. A serial bit enters
+  // at state_q (LSB); the vector MSB feeds u_wrr_arbiter, whose scan_out_o is
+  // this module's scan_out_o. The register block below selects scan vs.
+  // functional on debug_mode_i.
+  // ---------------------------------------------------------------------------
+  localparam int SCAN_N = 156;
+  logic [SCAN_N-1:0] scan_state;
+  assign scan_state = {
+    data_read_then_snoop_q, pending_data_q, pending_data_write_q,
+    pending_write_dirty_q, pending_write_sharers_q, pending_write_q,
+    pending_snoop_cmd_q, pending_snoop_cache_q,
+    pending_ack_data_q, pending_ack_cmd_q, pending_ack_cache_q,
+    line_dirty_q, line_sharers_q,
+    request_cmd_q, request_data_q, request_addr_q, request_cache_q,
+    state_q
+  };
+
+  // ---------------------------------------------------------------------------
+  // Arbitration (inside the controller). Scan chained after the controller regs.
   // ---------------------------------------------------------------------------
   assign arb_req = {c1_bus_valid_i, c0_bus_valid_i};
 
@@ -209,9 +233,9 @@ module directory_controller_full #(
     .req_i     (arb_req),
     .grant_o   (arb_grant),
     .req_o     (arb_req_passthrough_unused),
-    .scan_en_i (1'b0),
-    .scan_in_i (1'b0),
-    .scan_out_o(arb_scan_out_unused)
+    .scan_en_i (debug_mode_i),
+    .scan_in_i (scan_state[SCAN_N-1]),
+    .scan_out_o(scan_out_o)
   );
 
   assign selected_valid = (arb_grant != 2'b00);
@@ -665,7 +689,8 @@ module directory_controller_full #(
   end
 
   // ---------------------------------------------------------------------------
-  // Registers (scan chain deferred until logic is validated).
+  // Registers. reset > scan (debug_mode_i) > functional, so functional updates
+  // are selected unchanged whenever debug mode is low.
   // ---------------------------------------------------------------------------
   always_ff @(posedge clk_i) begin
     if (!rst_ni) begin
@@ -694,6 +719,17 @@ module directory_controller_full #(
       pending_data_q       <= 32'b0;
 
       data_read_then_snoop_q <= 1'b0;
+    end else if (debug_mode_i) begin
+      // DFT scan shift: load the concat one bit, scan_in at the LSB (state_q).
+      {
+        data_read_then_snoop_q, pending_data_q, pending_data_write_q,
+        pending_write_dirty_q, pending_write_sharers_q, pending_write_q,
+        pending_snoop_cmd_q, pending_snoop_cache_q,
+        pending_ack_data_q, pending_ack_cmd_q, pending_ack_cache_q,
+        line_dirty_q, line_sharers_q,
+        request_cmd_q, request_data_q, request_addr_q, request_cache_q,
+        state_q
+      } <= {scan_state[SCAN_N-2:0], scan_in_i};
     end else begin
       state_q <= state_d;
 

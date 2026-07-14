@@ -56,7 +56,12 @@ module memory_reset_generator (
   output logic [31:0] mm_addr_o,
   output logic [3:0]  mm_wstrb_o,     // per-byte write enable, 0 = read
   output logic [31:0] mm_wdata_o,
-  input  logic        mm_ready_i
+  input  logic        mm_ready_i,
+
+  // DFT scan chain (debug_mode_i is the scan/functional select).
+  input  logic        debug_mode_i,
+  input  logic        scan_in_i,
+  output logic        scan_out_o
 );
 
   // Metadata rows: addr[10:3] indexes 256 rows, each holding eight lines.
@@ -83,6 +88,14 @@ module memory_reset_generator (
   logic start_q;
   logic start_pulse;
   assign start_pulse = start_i && !start_q;
+
+  // DFT scan chain: concat of all functional registers. scan_in enters state_q
+  // (LSB); scan_out is the MSB. debug_mode_i selects scan vs functional below.
+  localparam int RG_SCAN_N = 24;
+  logic [RG_SCAN_N-1:0] scan_state;
+  assign scan_state = {start_q, ready_q, mm_done_q, mm_word_q,
+                       md_done_q, md_row_q, state_q};
+  assign scan_out_o = scan_state[RG_SCAN_N-1];
 
   // ---------------------------------------------------------------------------
   // Memory port outputs.
@@ -177,6 +190,9 @@ module memory_reset_generator (
       mm_done_q <= 1'b0;
       ready_q   <= 1'b0;
       start_q   <= 1'b0;
+    end else if (debug_mode_i) begin
+      {start_q, ready_q, mm_done_q, mm_word_q,
+       md_done_q, md_row_q, state_q} <= {scan_state[RG_SCAN_N-2:0], scan_in_i};
     end else begin
       state_q   <= state_d;
       md_row_q  <= md_row_d;

@@ -145,6 +145,8 @@ module chip_core #(
 
     logic [DFT_CHAINS-1:0] scan_in;
     logic [DFT_CHAINS-1:0] scan_out;
+    // Chain 3 internal stitch: directory controller -> reset generator.
+    logic dir_ctrl_scan_out;
 
 	//SERDES
     logic [SER_PINS-1:0] c0_serial_tx;
@@ -439,7 +441,12 @@ module chip_core #(
         .mm_wstrb_o           (ctrl_mm_wstrb),
         .mm_wdata_o           (ctrl_mm_wdata),
         .mm_rdata_i           (mm_rdata),
-        .mm_ready_i           (mm_ready)
+        .mm_ready_i           (mm_ready),
+
+        // DFT scan chain 3: directory controller (+ its wrr_arbiter) first.
+        .debug_mode_i         (debug_mode_i[3]),
+        .scan_in_i            (scan_in[3]),
+        .scan_out_o           (dir_ctrl_scan_out)
     );
 
     memory_reset_generator i_memory_reset_generator (
@@ -460,7 +467,12 @@ module chip_core #(
         .mm_addr_o     (rg_mm_addr),
         .mm_wstrb_o    (rg_mm_wstrb),
         .mm_wdata_o    (rg_mm_wdata),
-        .mm_ready_i    (mm_ready)
+        .mm_ready_i    (mm_ready),
+
+        // DFT scan chain 3: reset generator chained after the directory controller.
+        .debug_mode_i  (debug_mode_i[3]),
+        .scan_in_i     (dir_ctrl_scan_out),
+        .scan_out_o    (scan_out[3])
     );
 
     mem2048x3 i_dir_metadata (
@@ -493,9 +505,8 @@ module chip_core #(
         `endif
     );
 
-    // Scan/DFT re-stitch for the new directory subsystem is deferred; bypass
-    // its scan-chain slot for now so the chain stays continuous.
-    assign scan_out[3] = scan_in[3];
+    // Scan/DFT chain 3 = directory controller (+ wrr_arbiter) -> reset generator,
+    // wired at the two instances above (scan_in[3] -> ... -> scan_out[3]).
 
     logic _unused;
     assign _unused = &{bidir_in, c0_reset_done, c1_reset_done};

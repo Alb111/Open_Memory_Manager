@@ -997,6 +997,51 @@ async def test_boundary_last_in_range_line_is_served_normally(dut):
     assert_mem_read_seen(mem, addr)
 
 
+@cocotb.test()
+async def test_scan_chain_continuity(dut):
+    """A single marker must traverse the whole directory-controller scan chain:
+    18 controller regs (156 bits) then u_wrr_arbiter (curr_ptr[1] + credit_cnt[3])
+    = 160 bits, in exactly that many cycles under debug_mode_i."""
+    CHAIN_LEN = 156 + 4
+
+    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
+    # Quiesce functional inputs; scan mode ignores them but avoids X propagation.
+    for sig in ("c0_bus_valid_i", "c1_bus_valid_i", "c0_snoop_valid_i",
+                "c1_snoop_valid_i", "c0_dir_ready_i", "c1_dir_ready_i", "mm_ready_i"):
+        if hasattr(dut, sig):
+            getattr(dut, sig).value = 0
+    dut.debug_mode_i.value = 0
+    dut.scan_in_i.value = 0
+    dut.rst_ni.value = 0
+    for _ in range(3):
+        await RisingEdge(dut.clk_i)
+    dut.rst_ni.value = 1
+    await RisingEdge(dut.clk_i)
+
+    # Enter scan mode and flush the chain to zero.
+    dut.debug_mode_i.value = 1
+    dut.scan_in_i.value = 0
+    for _ in range(CHAIN_LEN):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+    assert int(dut.scan_out_o.value) == 0, "chain not flushed to 0"
+
+    # Inject a single 1; it must appear at scan_out exactly at the last cycle.
+    dut.scan_in_i.value = 1
+    for cycle in range(CHAIN_LEN):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+        if cycle == 0:
+            dut.scan_in_i.value = 0
+        expected = int(cycle == CHAIN_LEN - 1)
+        assert int(dut.scan_out_o.value) == expected, (
+            f"scan marker at cycle {cycle + 1}, expected {CHAIN_LEN}"
+        )
+    await RisingEdge(dut.clk_i)
+    await Timer(1, unit="ps")
+    assert int(dut.scan_out_o.value) == 0
+
+
 def find_source_file():
     env_source = os.getenv("DIRECTORY_CONTROLLER_RTL")
     if env_source:
