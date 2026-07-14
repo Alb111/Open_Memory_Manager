@@ -1078,7 +1078,8 @@ def chip_top_runner():
             proj_path / "../src/chip_top.sv",
             proj_path / "../src/chip_core.sv",
 
-            proj_path / "../src/directory_controller/directory_controller.sv",
+            proj_path / "../src/directory_controller/directory_controller_full.sv",
+            proj_path / "../src/directory_controller/memory_reset_generator.sv",
 
             proj_path / "../src/arb/wrr_arbiter.sv",
 
@@ -1089,8 +1090,7 @@ def chip_top_runner():
 
             proj_path / "../src/mem_ctrl/mem2048x32.sv",
             proj_path / "../src/mem_ctrl/mem512x32.sv",
-            proj_path / "../src/mem_ctrl/directory_mem.sv",
-            proj_path / "../src/mem_ctrl/mem64x8.sv",
+            proj_path / "../src/mem2048x3/mem2048x3.sv",
 
             proj_path / "../src/housekeeping/boot_fsm.sv",
             proj_path / "../src/housekeeping/housekeeping_top.sv",
@@ -1103,7 +1103,7 @@ def chip_top_runner():
 
         # SRAM macro models.
         sram_dir / "gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
-        sram_dir / "gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
+        sram_dir / "gf180mcu_fd_ip_sram__sram256x8m8wm1.v",
 
         # Custom IP required by chip_top.
         proj_path / "../ip/gf180mcu_ws_ip__id/vh/gf180mcu_ws_ip__id.v",

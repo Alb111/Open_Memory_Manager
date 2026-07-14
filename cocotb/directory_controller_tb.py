@@ -8,8 +8,9 @@ from cocotb.triggers import RisingEdge, Timer
 from cocotb_tools.runner import get_runner
 
 SIM = os.getenv("SIM", "icarus")
-HDL_TOPLEVEL = "directory_controller"
+HDL_TOPLEVEL = "directory_controller_full"
 
+# Cache request commands (one-hot), matching directory_controller_full.
 CACHE_CMD_NONE = 0b00000
 CACHE_CMD_BUS_RD = 0b00001
 CACHE_CMD_BUS_RDX = 0b00010
@@ -17,6 +18,8 @@ CACHE_CMD_BUS_UPGR = 0b00100
 CACHE_CMD_EVICT_CLEAN = 0b01000
 CACHE_CMD_EVICT_DIRTY = 0b10000
 
+# Snoop acknowledgement commands. Only "not NONE" matters to the controller; the
+# flushed data rides on the snoop data channel regardless of the exact code.
 SNOOP_ACK_NONE = 0b000
 SNOOP_ACK_BUS_RD = 0b001
 SNOOP_ACK_BUS_RDX = 0b010
@@ -30,178 +33,109 @@ DIR_CMD_SNOOP_BUS_RD = 0b001000
 DIR_CMD_SNOOP_BUS_RDX = 0b010000
 DIR_CMD_SNOOP_BUS_UPGR = 0b100000
 
-LINE_INVALID = 0b00
-LINE_SHARED = 0b01
-LINE_MODIFIED = 0b10
-
+# The controller tracks one line per metadata index, index = request_addr[10:0].
 DIRECTORY_LINE_MIN = 0
-DIRECTORY_LINE_MAX = 127
-META_BASE = 0
-CACHE0_BACKUP_BASE = 1792
-CACHE1_BACKUP_BASE = 1920
+DIRECTORY_LINE_MAX = 2047
 
-INIT_TIMEOUT_CYCLES = 1500
 TIMEOUT_CYCLES = 900
-SETTLE_CYCLES = 80
+SETTLE_CYCLES = 40
+
+
+# Metadata is a 3-bit word {dirty, sharers[1:0]} (matches mem2048x3):
+#   sharers[0] = cache 0 holds a copy, sharers[1] = cache 1 holds a copy
+#   dirty      = the single sharer owns a modified copy (memory is stale)
+# Derived states: INVALID = sharers == 0; SHARED = !dirty && sharers != 0;
+# MODIFIED = dirty (exactly one sharer bit set, which names the owner).
+def meta_code(sharers, dirty):
+    return ((dirty & 1) << 2) | (sharers & 0b11)
+
+
+def meta_sharers(code):
+    return code & 0b11
+
+
+def meta_dirty(code):
+    return (code >> 2) & 1
 
 
 class DirectoryMemModel:
-    """Behavioral model for the directory_mem abstraction.
+    """Behavioral model of the two external memories the controller drives.
 
-    Addresses 0 through 127 are metadata entries. Addresses 1792 through 1919
-    are cache 0 backup words. Addresses 1920 through 2047 are cache 1 backup
-    words. The model responds through the same split data and metadata fields
-    that the RTL directory controller uses.
+    * Metadata memory (mem2048x3): one 3-bit ``{dirty, sharers}`` code per line.
+      It is a synchronous SRAM whose read data appears the cycle after the
+      access, so this model presents a registered read output (``md_q``). Reset
+      of the metadata array is external, modelled here as all-zero (INVALID).
+    * Main memory (mem_ctrl_2048x32): one 32-bit data word per line address,
+      accessed through a ``valid``/``ready`` handshake. Reads are combinational
+      for the addressed word; writes commit on an accepted beat.
     """
 
-    def __init__(self, ready_pattern=None):
-        self.ready_pattern = ready_pattern or [1]
+    def __init__(self, mem_ready_pattern=None):
+        self.meta = [0] * 2048          # 3-bit codes; external reset -> 0 (INVALID)
+        self.mem = {}                   # addr -> 32-bit word
+        self.md_q = 0                   # registered metadata read output
+        self.mem_ready_pattern = mem_ready_pattern or [1]
         self.cycle = 0
         self.log = []
-        self.meta = [
-            {"state": LINE_INVALID, "sharers": 0, "owner": 0, "valid": 0}
-            for _ in range(128)
-        ]
-        self.backup = {}
 
     def clear_log(self):
         self.log.clear()
 
-    @staticmethod
-    def line_index(addr):
-        return addr & 0x7F
+    def set_mem(self, addr, data):
+        self.mem[addr & 0xFFFFFFFF] = data & 0xFFFFFFFF
 
-    @staticmethod
-    def backup_addr(cache, addr):
-        base = CACHE1_BACKUP_BASE if cache else CACHE0_BACKUP_BASE
-        return base + (addr & 0x7F)
-
-    def set_backup(self, cache, addr, data):
-        self.backup[self.backup_addr(cache, addr)] = data & 0xFFFFFFFF
-
-    def read_backup(self, cache, addr):
-        return self.backup.get(self.backup_addr(cache, addr), 0) & 0xFFFFFFFF
-
-    def classify_addr(self, addr):
-        if META_BASE <= addr <= META_BASE + 127:
-            return "metadata"
-        if CACHE0_BACKUP_BASE <= addr <= CACHE0_BACKUP_BASE + 127:
-            return "backup0"
-        if CACHE1_BACKUP_BASE <= addr <= CACHE1_BACKUP_BASE + 127:
-            return "backup1"
-        return "other"
-
-    def read_outputs_for_addr(self, addr):
-        kind = self.classify_addr(addr)
-        r_data = 0
-        r_state = LINE_INVALID
-        r_sharers = 0
-        r_owner = 0
-        r_valid = 0
-
-        if kind == "metadata":
-            entry = self.meta[self.line_index(addr)]
-            r_state = entry["state"] & 0x3
-            r_sharers = entry["sharers"] & 0x3
-            r_owner = entry["owner"] & 0x1
-            r_valid = entry["valid"] & 0x1
-        elif kind in ("backup0", "backup1"):
-            r_data = self.backup.get(addr, 0) & 0xFFFFFFFF
-
-        return r_data, r_state, r_sharers, r_owner, r_valid
-
-    def commit_write(self, addr, wstrb, data, state, sharers, owner, valid):
-        kind = self.classify_addr(addr)
-
-        if kind == "metadata":
-            self.meta[self.line_index(addr)] = {
-                "state": state & 0x3,
-                "sharers": sharers & 0x3,
-                "owner": owner & 0x1,
-                "valid": valid & 0x1,
-            }
-        elif kind in ("backup0", "backup1"):
-            old = self.backup.get(addr, 0) & 0xFFFFFFFF
-            new = old
-            for byte in range(4):
-                if (wstrb >> byte) & 1:
-                    mask = 0xFF << (8 * byte)
-                    new = (new & ~mask) | (data & mask)
-            self.backup[addr] = new & 0xFFFFFFFF
-
-    def drive_read_outputs(self, dut, addr):
-        r_data, r_state, r_sharers, r_owner, r_valid = self.read_outputs_for_addr(addr)
-        dut.dir_mem_r_data_i.value = r_data
-        dut.dir_mem_r_state_i.value = r_state
-        dut.dir_mem_r_sharers_i.value = r_sharers
-        dut.dir_mem_r_owner_i.value = r_owner
-        dut.dir_mem_r_valid_data_i.value = r_valid
+    def read_mem(self, addr):
+        return self.mem.get(addr & 0xFFFFFFFF, 0) & 0xFFFFFFFF
 
     async def tick(self, dut):
-        ready = self.ready_pattern[self.cycle % len(self.ready_pattern)]
-        dut.dir_mem_ready_i.value = ready
+        mem_ready = self.mem_ready_pattern[self.cycle % len(self.mem_ready_pattern)]
 
         await Timer(1, unit="ns")
 
+        # Registered metadata read data and the main-memory ready line.
+        dut.md_rdata_i.value = self.md_q & 0b111
+        dut.mm_ready_i.value = mem_ready
+
         if int(dut.rst_ni.value) == 0:
-            dut.dir_mem_r_data_i.value = 0
-            dut.dir_mem_r_state_i.value = LINE_INVALID
-            dut.dir_mem_r_sharers_i.value = 0
-            dut.dir_mem_r_owner_i.value = 0
-            dut.dir_mem_r_valid_data_i.value = 0
+            dut.mm_rdata_i.value = 0
             await RisingEdge(dut.clk_i)
+            self.md_q = 0
             self.cycle += 1
             return
 
-        valid = int(dut.dir_mem_valid_o.value)
-        addr = int(dut.dir_mem_addr_o.value) & 0xFFFFFFFF
-        wstrb = int(dut.dir_mem_wstrb_o.value) & 0xF
-        w_data = int(dut.dir_mem_w_data_o.value) & 0xFFFFFFFF
-        w_state = int(dut.dir_mem_w_state_o.value) & 0x3
-        w_sharers = int(dut.dir_mem_w_sharers_o.value) & 0x3
-        w_owner = int(dut.dir_mem_w_owner_o.value) & 0x1
-        w_valid = int(dut.dir_mem_w_valid_data_o.value) & 0x1
+        # Metadata memory controls.
+        md_en_n = int(dut.md_enable_n_o.value)
+        md_we = int(dut.md_we_o.value)
+        md_addr = int(dut.md_addr_o.value) & 0x7FF
+        md_wdata = int(dut.md_wdata_o.value) & 0b111
 
-        r_data, r_state, r_sharers, r_owner, r_valid = self.read_outputs_for_addr(addr)
+        # Main memory controls.
+        mm_valid = int(dut.mm_valid_o.value)
+        mm_addr = int(dut.mm_addr_o.value) & 0xFFFFFFFF
+        mm_wstrb = int(dut.mm_wstrb_o.value) & 0xF
+        mm_wdata = int(dut.mm_wdata_o.value) & 0xFFFFFFFF
+
+        # Combinational main-memory read data for the addressed word.
+        dut.mm_rdata_i.value = self.read_mem(mm_addr)
 
         await RisingEdge(dut.clk_i)
 
-        if valid and ready:
-            if wstrb:
-                self.commit_write(
-                    addr,
-                    wstrb,
-                    w_data,
-                    w_state,
-                    w_sharers,
-                    w_owner,
-                    w_valid,
-                )
-                r_data, r_state, r_sharers, r_owner, r_valid = (
-                    self.read_outputs_for_addr(addr)
-                )
+        # Commit the metadata access (SRAM latches on the clock edge).
+        if md_en_n == 0:
+            if md_we:
+                self.meta[md_addr] = md_wdata
+                self.log.append({"kind": "meta_write", "addr": md_addr, "code": md_wdata})
+            else:
+                self.md_q = self.meta[md_addr]
+                self.log.append({"kind": "meta_read", "addr": md_addr, "code": self.md_q})
 
-            self.log.append({
-                "addr": addr,
-                "kind": self.classify_addr(addr),
-                "wstrb": wstrb,
-                "w_data": w_data,
-                "w_state": w_state,
-                "w_sharers": w_sharers,
-                "w_owner": w_owner,
-                "w_valid": w_valid,
-                "r_data": r_data,
-                "r_state": r_state,
-                "r_sharers": r_sharers,
-                "r_owner": r_owner,
-                "r_valid": r_valid,
-            })
-
-            dut.dir_mem_r_data_i.value = r_data
-            dut.dir_mem_r_state_i.value = r_state
-            dut.dir_mem_r_sharers_i.value = r_sharers
-            dut.dir_mem_r_owner_i.value = r_owner
-            dut.dir_mem_r_valid_data_i.value = r_valid
+        # Commit the main-memory access on an accepted beat.
+        if mm_valid and mem_ready:
+            if mm_wstrb:
+                self.set_mem(mm_addr, mm_wdata)
+                self.log.append({"kind": "mem_write", "addr": mm_addr, "data": mm_wdata})
+            else:
+                self.log.append({"kind": "mem_read", "addr": mm_addr, "data": self.read_mem(mm_addr)})
 
         self.cycle += 1
 
@@ -230,22 +164,9 @@ def set_input_defaults(dut):
     dut.c1_snoop_cache_cmd_i.value = SNOOP_ACK_NONE
     dut.c1_dir_ready_i.value = 1
 
-    dut.dir_mem_ready_i.value = 1
-    dut.dir_mem_r_data_i.value = 0
-    dut.dir_mem_r_state_i.value = LINE_INVALID
-    dut.dir_mem_r_sharers_i.value = 0
-    dut.dir_mem_r_owner_i.value = 0
-    dut.dir_mem_r_valid_data_i.value = 0
-
-
-async def wait_for_initialization(dut, mem):
-    for _ in range(INIT_TIMEOUT_CYCLES):
-        await Timer(1, unit="ns")
-        if int(dut.dir_state_invalidated_o.value):
-            return
-        await mem.tick(dut)
-
-    assert False, "directory state invalidation did not complete"
+    dut.md_rdata_i.value = 0
+    dut.mm_rdata_i.value = 0
+    dut.mm_ready_i.value = 1
 
 
 async def reset_dut(dut, mem):
@@ -253,14 +174,13 @@ async def reset_dut(dut, mem):
     dut.rst_ni.value = 0
     await wait_cycles(dut, mem, 5)
     dut.rst_ni.value = 1
-    await wait_for_initialization(dut, mem)
     await wait_cycles(dut, mem, 3)
     mem.clear_log()
 
 
-async def start_test(dut, ready_pattern=None):
+async def start_test(dut, mem_ready_pattern=None):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    mem = DirectoryMemModel(ready_pattern=ready_pattern)
+    mem = DirectoryMemModel(mem_ready_pattern=mem_ready_pattern)
     await reset_dut(dut, mem)
     return mem
 
@@ -344,10 +264,6 @@ async def send_snoop_ack(dut, mem, cache, command, data=0):
     assert False, f"cache {cache} snoop ack was not accepted"
 
 
-async def send_dirty_flush(dut, mem, cache, addr, data):
-    await send_bus_request(dut, mem, cache, CACHE_CMD_EVICT_DIRTY, addr, data)
-
-
 async def wait_for_dir_packet(dut, mem, cache, hold_ready_low=0):
     sig = cache_signals(dut, cache)
 
@@ -411,67 +327,64 @@ async def bus_request_and_expect(
         await wait_cycles(dut, mem, SETTLE_CYCLES)
 
 
-def assert_meta(mem, addr, state=None, sharers=None, owner=None, valid=None):
-    entry = mem.meta[addr & 0x7F]
-    if state is not None:
-        assert entry["state"] == state, entry
+def assert_meta(mem, addr, sharers=None, dirty=None):
+    code = mem.meta[addr & 0x7FF]
     if sharers is not None:
-        assert entry["sharers"] == sharers, entry
-    if owner is not None:
-        assert entry["owner"] == owner, entry
-    if valid is not None:
-        assert entry["valid"] == valid, entry
-
-
-def assert_access_seen(mem, kind, addr, write=None, data=None):
-    addr &= 0xFFFFFFFF
-    matches = []
-    for item in mem.log:
-        if item["kind"] != kind or item["addr"] != addr:
-            continue
-        if write is not None and bool(item["wstrb"]) != write:
-            continue
-        if data is not None and item["w_data"] != (data & 0xFFFFFFFF):
-            continue
-        matches.append(item)
-
-    assert matches, f"expected access kind={kind} addr={addr} write={write}"
+        assert meta_sharers(code) == sharers, (
+            f"line {addr:#x} sharers {meta_sharers(code):02b}, expected {sharers:02b}"
+        )
+    if dirty is not None:
+        assert meta_dirty(code) == dirty, (
+            f"line {addr:#x} dirty {meta_dirty(code)}, expected {dirty}"
+        )
 
 
 def assert_meta_read_seen(mem, addr):
-    assert_access_seen(mem, "metadata", addr & 0x7F, write=False)
+    idx = addr & 0x7FF
+    assert any(i["kind"] == "meta_read" and i["addr"] == idx for i in mem.log), (
+        f"expected a metadata read for line index {idx}"
+    )
 
 
-def assert_meta_write_seen(mem, addr, state=None, sharers=None, owner=None, valid=None):
-    idx = addr & 0x7F
+def assert_meta_write_seen(mem, addr, sharers=None, dirty=None):
+    idx = addr & 0x7FF
     for item in mem.log:
-        if item["kind"] != "metadata" or item["addr"] != idx or item["wstrb"] == 0:
+        if item["kind"] != "meta_write" or item["addr"] != idx:
             continue
-        if state is not None and item["w_state"] != state:
+        if sharers is not None and meta_sharers(item["code"]) != sharers:
             continue
-        if sharers is not None and item["w_sharers"] != sharers:
-            continue
-        if owner is not None and item["w_owner"] != owner:
-            continue
-        if valid is not None and item["w_valid"] != valid:
+        if dirty is not None and meta_dirty(item["code"]) != dirty:
             continue
         return
 
-    assert False, f"expected metadata write for index {idx}"
+    assert False, f"expected metadata write for line index {idx}"
 
 
-def assert_backup_read_seen(mem, cache, addr):
-    kind = "backup1" if cache else "backup0"
-    assert_access_seen(mem, kind, mem.backup_addr(cache, addr), write=False)
+def assert_mem_read_seen(mem, addr):
+    a = addr & 0xFFFFFFFF
+    assert any(i["kind"] == "mem_read" and i["addr"] == a for i in mem.log), (
+        f"expected a main-memory read at {a:#x}"
+    )
 
 
-def assert_backup_write_seen(mem, cache, addr, data):
-    kind = "backup1" if cache else "backup0"
-    assert_access_seen(mem, kind, mem.backup_addr(cache, addr), write=True, data=data)
+def assert_mem_write_seen(mem, addr, data):
+    a = addr & 0xFFFFFFFF
+    assert any(
+        i["kind"] == "mem_write" and i["addr"] == a and i["data"] == (data & 0xFFFFFFFF)
+        for i in mem.log
+    ), f"expected a main-memory write of {data & 0xFFFFFFFF:#x} at {a:#x}"
 
 
-async def make_modified(dut, mem, cache, addr, backup_data=0):
-    mem.set_backup(cache, addr, backup_data)
+def assert_no_mem_write(mem, addr=None):
+    for item in mem.log:
+        if item["kind"] != "mem_write":
+            continue
+        if addr is None or item["addr"] == (addr & 0xFFFFFFFF):
+            assert False, f"unexpected main-memory write in log: {item}"
+
+
+async def make_modified(dut, mem, cache, addr, data=0):
+    mem.set_mem(addr, data)
     await bus_request_and_expect(
         dut,
         mem,
@@ -480,21 +393,20 @@ async def make_modified(dut, mem, cache, addr, backup_data=0):
         addr=addr,
         data=0,
         expected_command=DIR_CMD_BUS_RDX_ACK,
-        expected_data=backup_data,
+        expected_data=data,
     )
-    assert_meta(mem, addr, state=LINE_MODIFIED, sharers=0, owner=cache, valid=1)
+    assert_meta(mem, addr, sharers=(1 << cache), dirty=1)
 
 
 async def make_shared_both(dut, mem, addr, data=0):
-    mem.set_backup(0, addr, data)
-    mem.set_backup(1, addr, data)
+    mem.set_mem(addr, data)
     await bus_request_and_expect(
         dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
     )
     await bus_request_and_expect(
         dut, mem, 1, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
     )
-    assert_meta(mem, addr, state=LINE_SHARED, sharers=0b11, owner=0, valid=1)
+    assert_meta(mem, addr, sharers=0b11, dirty=0)
 
 
 async def dirty_evict(dut, mem, cache, addr, data):
@@ -502,10 +414,9 @@ async def dirty_evict(dut, mem, cache, addr, data):
     await send_bus_request(dut, mem, cache, CACHE_CMD_EVICT_DIRTY, addr, data)
     await expect_no_dir_packet(dut, mem, cache, cycles=20)
     await wait_cycles(dut, mem, SETTLE_CYCLES)
-    assert_backup_write_seen(mem, 0, addr, data)
-    assert_backup_write_seen(mem, 1, addr, data)
-    assert_meta_write_seen(mem, addr, state=LINE_INVALID, sharers=0, owner=0, valid=0)
-    assert_meta(mem, addr, state=LINE_INVALID, sharers=0, owner=0, valid=0)
+    assert_mem_write_seen(mem, addr, data)
+    assert_meta_write_seen(mem, addr, sharers=0, dirty=0)
+    assert_meta(mem, addr, sharers=0, dirty=0)
 
 
 async def clean_evict(dut, mem, cache, addr):
@@ -516,42 +427,32 @@ async def clean_evict(dut, mem, cache, addr):
 
 
 @cocotb.test()
-async def test_reset_invalidates_all_metadata_entries(dut):
+async def test_reset_leaves_all_lines_invalid(dut):
     mem = await start_test(dut)
 
-    assert int(dut.dir_state_invalidated_o.value) == 1
-    assert int(dut.dir_mem_resp_ready_o.value) == 1
-
-    for index in range(128):
-        assert_meta(mem, index, state=LINE_INVALID, sharers=0, owner=0, valid=0)
-
-
-@cocotb.test()
-async def test_requests_are_not_accepted_before_invalidation_finishes(dut):
-    cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
-    mem = DirectoryMemModel(ready_pattern=[1, 0, 1, 0, 1])
-
-    set_input_defaults(dut)
-    dut.rst_ni.value = 0
-    await wait_cycles(dut, mem, 4)
-    dut.rst_ni.value = 1
-
-    dut.c0_bus_valid_i.value = 1
-    dut.c0_bus_addr_i.value = 0x10
-    dut.c0_bus_cache_cmd_i.value = CACHE_CMD_BUS_RD
-
-    for _ in range(40):
-        await Timer(1, unit="ns")
-        assert int(dut.dir_state_invalidated_o.value) == 0
-        assert int(dut.c0_bus_ready_o.value) == 0
-        await mem.tick(dut)
-
-    dut.c0_bus_valid_i.value = 0
-    dut.c0_bus_cache_cmd_i.value = CACHE_CMD_NONE
+    # Metadata storage is cleared externally; the model reflects that as all
+    # lines INVALID (sharers == 0, dirty == 0) right after reset.
+    for index in (0, 1, 2, 63, 64, 1023, 1024, 2046, 2047):
+        assert_meta(mem, index, sharers=0, dirty=0)
 
 
 @cocotb.test()
-async def test_cold_bus_rd_from_each_cache_uses_that_cache_backup(dut):
+async def test_request_served_without_init_delay(dut):
+    # There is no reset-time invalidation phase anymore, so the very first
+    # request after reset must be accepted and answered.
+    mem = await start_test(dut)
+
+    addr = 0x12
+    data = 0x1234ABCD
+    mem.set_mem(addr, data)
+    await bus_request_and_expect(
+        dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
+    )
+    assert_meta(mem, addr, sharers=0b01, dirty=0)
+
+
+@cocotb.test()
+async def test_cold_bus_rd_from_each_cache_reads_main_memory(dut):
     mem = await start_test(dut)
 
     cases = [
@@ -560,7 +461,7 @@ async def test_cold_bus_rd_from_each_cache_uses_that_cache_backup(dut):
     ]
 
     for cache, addr, data in cases:
-        mem.set_backup(cache, addr, data)
+        mem.set_mem(addr, data)
         mem.clear_log()
         await bus_request_and_expect(
             dut,
@@ -572,11 +473,11 @@ async def test_cold_bus_rd_from_each_cache_uses_that_cache_backup(dut):
             expected_command=DIR_CMD_BUS_RD_ACK,
             expected_data=data,
         )
-        assert_meta(mem, addr, state=LINE_SHARED, sharers=(1 << cache), valid=1)
+        assert_meta(mem, addr, sharers=(1 << cache), dirty=0)
         assert_meta_read_seen(mem, addr)
-        assert_backup_read_seen(mem, cache, addr)
-        assert_backup_write_seen(mem, 0, addr, data)
-        assert_backup_write_seen(mem, 1, addr, data)
+        assert_mem_read_seen(mem, addr)
+        # A clean read never writes memory back.
+        assert_no_mem_write(mem, addr)
 
 
 @cocotb.test()
@@ -587,7 +488,7 @@ async def test_bus_rdx_direct_from_each_cache_sets_modified_owner(dut):
         (0, 0x20, 0x11110020),
         (1, 0x21, 0x22220021),
     ]:
-        mem.set_backup(cache, addr, data)
+        mem.set_mem(addr, data)
         mem.clear_log()
         await bus_request_and_expect(
             dut,
@@ -599,36 +500,34 @@ async def test_bus_rdx_direct_from_each_cache_sets_modified_owner(dut):
             expected_command=DIR_CMD_BUS_RDX_ACK,
             expected_data=data,
         )
-        assert_meta(mem, addr, state=LINE_MODIFIED, sharers=0, owner=cache, valid=1)
-        assert_backup_read_seen(mem, cache, addr)
-        assert_backup_write_seen(mem, 0, addr, data)
-        assert_backup_write_seen(mem, 1, addr, data)
+        assert_meta(mem, addr, sharers=(1 << cache), dirty=1)
+        assert_mem_read_seen(mem, addr)
+        assert_no_mem_write(mem, addr)
 
 
 @cocotb.test()
-async def test_dirty_evict_writes_both_backups_invalidates_metadata_no_ack(dut):
+async def test_dirty_evict_writes_memory_and_invalidates_no_ack(dut):
     mem = await start_test(dut)
 
     addr = 0x30
     data = 0xDEAD0030
-    await make_modified(dut, mem, cache=0, addr=addr, backup_data=0x1000)
+    await make_modified(dut, mem, cache=0, addr=addr, data=0x1000)
     await dirty_evict(dut, mem, cache=0, addr=addr, data=data)
 
-    assert mem.read_backup(0, addr) == data
-    assert mem.read_backup(1, addr) == data
+    assert mem.read_mem(addr) == data
 
 
 @cocotb.test()
-async def test_modified_owner_snoop_bus_rd_uses_dirty_flush_both_directions(dut):
+async def test_modified_owner_snoop_bus_rd_flushes_to_requester_and_memory(dut):
     mem = await start_test(dut)
 
     cases = [
-        (0, 1, 0x40, 0xFACE0040, 0xBAD00040),
-        (1, 0, 0x41, 0xBEEF0041, 0xBAD00041),
+        (0, 1, 0x40, 0xBAD00040),
+        (1, 0, 0x41, 0xBAD00041),
     ]
 
-    for owner, requester, addr, flush_data, ack_data in cases:
-        await make_modified(dut, mem, cache=owner, addr=addr, backup_data=0x33330000)
+    for owner, requester, addr, flush_data in cases:
+        await make_modified(dut, mem, cache=owner, addr=addr, data=0x33330000)
         mem.clear_log()
 
         await send_bus_request(dut, mem, requester, CACHE_CMD_BUS_RD, addr, 0)
@@ -637,21 +536,21 @@ async def test_modified_owner_snoop_bus_rd_uses_dirty_flush_both_directions(dut)
         assert payload == 0
         assert snoop_addr == addr
 
-        await send_dirty_flush(dut, mem, owner, addr, flush_data)
-        await send_snoop_ack(dut, mem, owner, SNOOP_ACK_BUS_RD, ack_data)
+        # The owner flushes its dirty line inline on the snoop-ack channel.
+        await send_snoop_ack(dut, mem, owner, SNOOP_ACK_BUS_RD, flush_data)
         cmd, payload, ack_addr = await wait_for_dir_packet(dut, mem, requester)
         assert cmd == DIR_CMD_BUS_RD_ACK
         assert payload == flush_data
         assert ack_addr == addr
 
         await wait_cycles(dut, mem, SETTLE_CYCLES)
-        assert_meta(mem, addr, state=LINE_SHARED, sharers=0b11, owner=0, valid=1)
-        assert_backup_write_seen(mem, 0, addr, flush_data)
-        assert_backup_write_seen(mem, 1, addr, flush_data)
+        assert_meta(mem, addr, sharers=0b11, dirty=0)
+        assert_mem_write_seen(mem, addr, flush_data)
+        assert mem.read_mem(addr) == flush_data
 
 
 @cocotb.test()
-async def test_modified_owner_snoop_bus_rdx_uses_snoop_ack_both_directions(dut):
+async def test_modified_owner_snoop_bus_rdx_transfers_ownership(dut):
     mem = await start_test(dut)
 
     cases = [
@@ -660,7 +559,7 @@ async def test_modified_owner_snoop_bus_rdx_uses_snoop_ack_both_directions(dut):
     ]
 
     for owner, requester, addr, ack_data in cases:
-        await make_modified(dut, mem, cache=owner, addr=addr, backup_data=0x44440000)
+        await make_modified(dut, mem, cache=owner, addr=addr, data=0x44440000)
         mem.clear_log()
 
         await send_bus_request(dut, mem, requester, CACHE_CMD_BUS_RDX, addr, 0)
@@ -676,20 +575,22 @@ async def test_modified_owner_snoop_bus_rdx_uses_snoop_ack_both_directions(dut):
         assert ack_addr == addr
 
         await wait_cycles(dut, mem, SETTLE_CYCLES)
-        assert_meta(mem, addr, state=LINE_MODIFIED, sharers=0, owner=requester, valid=1)
-        assert_backup_write_seen(mem, 0, addr, ack_data)
-        assert_backup_write_seen(mem, 1, addr, ack_data)
+        assert_meta(mem, addr, sharers=(1 << requester), dirty=1)
+        assert_mem_write_seen(mem, addr, ack_data)
+        assert mem.read_mem(addr) == ack_data
 
 
 @cocotb.test()
 async def test_shared_bus_rdx_and_bus_upgr_invalidate_other_sharer(dut):
     mem = await start_test(dut)
 
+    shared_data = 0x50500050
+
     for command, expected_ack, addr, expected_data in [
-        (CACHE_CMD_BUS_RDX, DIR_CMD_BUS_RDX_ACK, 0x50, 0x50500050),
+        (CACHE_CMD_BUS_RDX, DIR_CMD_BUS_RDX_ACK, 0x50, shared_data),
         (CACHE_CMD_BUS_UPGR, DIR_CMD_BUS_UPGR_ACK, 0x51, 0),
     ]:
-        await make_shared_both(dut, mem, addr, data=0x50500050)
+        await make_shared_both(dut, mem, addr, data=shared_data)
         mem.clear_log()
 
         await send_bus_request(dut, mem, 0, command, addr, 0)
@@ -705,7 +606,9 @@ async def test_shared_bus_rdx_and_bus_upgr_invalidate_other_sharer(dut):
         assert ack_addr == addr
 
         await wait_cycles(dut, mem, SETTLE_CYCLES)
-        assert_meta(mem, addr, state=LINE_MODIFIED, sharers=0, owner=0, valid=1)
+        assert_meta(mem, addr, sharers=0b01, dirty=1)
+        # Neither a shared upgrade nor an upgrade-hit writes memory back.
+        assert_no_mem_write(mem, addr)
 
 
 @cocotb.test()
@@ -714,7 +617,7 @@ async def test_single_sharer_bus_upgr_does_not_snoop_other_cache(dut):
 
     addr = 0x58
     data = 0x58580058
-    mem.set_backup(0, addr, data)
+    mem.set_mem(addr, data)
     await bus_request_and_expect(
         dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
     )
@@ -722,7 +625,7 @@ async def test_single_sharer_bus_upgr_does_not_snoop_other_cache(dut):
         dut, mem, 0, CACHE_CMD_BUS_UPGR, addr, 0, DIR_CMD_BUS_UPGR_ACK, 0,
     )
     await expect_no_dir_packet(dut, mem, 1)
-    assert_meta(mem, addr, state=LINE_MODIFIED, sharers=0, owner=0, valid=1)
+    assert_meta(mem, addr, sharers=0b01, dirty=1)
 
 
 @cocotb.test()
@@ -730,17 +633,17 @@ async def test_clean_evict_last_sharer_and_one_of_two_sharers(dut):
     mem = await start_test(dut)
 
     last_addr = 0x60
-    mem.set_backup(0, last_addr, 0x60600060)
+    mem.set_mem(last_addr, 0x60600060)
     await bus_request_and_expect(
         dut, mem, 0, CACHE_CMD_BUS_RD, last_addr, 0, DIR_CMD_BUS_RD_ACK, 0x60600060,
     )
     await clean_evict(dut, mem, 0, last_addr)
-    assert_meta(mem, last_addr, state=LINE_INVALID, sharers=0, owner=0, valid=0)
+    assert_meta(mem, last_addr, sharers=0, dirty=0)
 
     shared_addr = 0x61
     await make_shared_both(dut, mem, shared_addr, data=0x61610061)
     await clean_evict(dut, mem, 0, shared_addr)
-    assert_meta(mem, shared_addr, state=LINE_SHARED, sharers=0b10, owner=0, valid=1)
+    assert_meta(mem, shared_addr, sharers=0b10, dirty=0)
 
     await bus_request_and_expect(
         dut,
@@ -753,7 +656,7 @@ async def test_clean_evict_last_sharer_and_one_of_two_sharers(dut):
         0,
     )
     await expect_no_dir_packet(dut, mem, 0)
-    assert_meta(mem, shared_addr, state=LINE_MODIFIED, sharers=0, owner=1, valid=1)
+    assert_meta(mem, shared_addr, sharers=0b10, dirty=1)
 
 
 @cocotb.test()
@@ -763,6 +666,7 @@ async def test_repeated_same_line_state_transition_stress(dut):
     addr = 0x70
     await make_shared_both(dut, mem, addr, data=0x70700070)
 
+    # Shared -> Modified (cache 0) via upgrade, snooping the other sharer.
     await send_bus_request(dut, mem, 0, CACHE_CMD_BUS_UPGR, addr, 0)
     cmd, _, _ = await wait_for_dir_packet(dut, mem, 1)
     assert cmd == DIR_CMD_SNOOP_BUS_UPGR
@@ -770,8 +674,9 @@ async def test_repeated_same_line_state_transition_stress(dut):
     cmd, _, _ = await wait_for_dir_packet(dut, mem, 0)
     assert cmd == DIR_CMD_BUS_UPGR_ACK
     await wait_cycles(dut, mem, SETTLE_CYCLES)
-    assert_meta(mem, addr, state=LINE_MODIFIED, owner=0, valid=1)
+    assert_meta(mem, addr, sharers=0b01, dirty=1)
 
+    # Modified (cache 0) -> Shared both via cache 1 read that flushes the owner.
     await send_bus_request(dut, mem, 1, CACHE_CMD_BUS_RD, addr, 0)
     cmd, _, _ = await wait_for_dir_packet(dut, mem, 0)
     assert cmd == DIR_CMD_SNOOP_BUS_RD
@@ -780,18 +685,21 @@ async def test_repeated_same_line_state_transition_stress(dut):
     assert cmd == DIR_CMD_BUS_RD_ACK
     assert payload == 0xAAAA0070
     await wait_cycles(dut, mem, SETTLE_CYCLES)
-    assert_meta(mem, addr, state=LINE_SHARED, sharers=0b11, valid=1)
+    assert_meta(mem, addr, sharers=0b11, dirty=0)
 
+    # Shared both -> Modified (cache 1) via exclusive read, snooping cache 0.
     await send_bus_request(dut, mem, 1, CACHE_CMD_BUS_RDX, addr, 0)
     cmd, _, _ = await wait_for_dir_packet(dut, mem, 0)
     assert cmd == DIR_CMD_SNOOP_BUS_UPGR
     await send_snoop_ack(dut, mem, 0, SNOOP_ACK_BUS_UPGR, 0)
     cmd, payload, _ = await wait_for_dir_packet(dut, mem, 1)
     assert cmd == DIR_CMD_BUS_RDX_ACK
+    # Requester keeps the shared copy it already had; data comes from memory.
     assert payload == 0xAAAA0070
     await wait_cycles(dut, mem, SETTLE_CYCLES)
-    assert_meta(mem, addr, state=LINE_MODIFIED, owner=1, valid=1)
+    assert_meta(mem, addr, sharers=0b10, dirty=1)
 
+    # Dirty writeback then a fresh cold read from cache 0.
     await dirty_evict(dut, mem, 1, addr, 0xBBBB0070)
     await bus_request_and_expect(
         dut,
@@ -811,7 +719,7 @@ async def test_output_ready_backpressure_holds_ack_packet_stable(dut):
 
     addr = 0x78
     data = 0x78780078
-    mem.set_backup(0, addr, data)
+    mem.set_mem(addr, data)
     await send_bus_request(dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0)
     cmd, payload, got_addr = await wait_for_dir_packet(
         dut, mem, 0, hold_ready_low=6,
@@ -822,24 +730,69 @@ async def test_output_ready_backpressure_holds_ack_packet_stable(dut):
 
 
 @cocotb.test()
-async def test_directory_mem_ready_backpressure_still_completes_request(dut):
-    mem = await start_test(dut, ready_pattern=[1, 0, 0, 1, 1, 0, 1])
+async def test_main_memory_ready_backpressure_still_completes_request(dut):
+    mem = await start_test(dut, mem_ready_pattern=[1, 0, 0, 1, 1, 0, 1])
 
     addr = 0x7A
     data = 0x7A7A007A
-    mem.set_backup(0, addr, data)
+    mem.set_mem(addr, data)
     await bus_request_and_expect(
         dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
     )
-    assert_meta(mem, addr, state=LINE_SHARED, sharers=0b01, valid=1)
+    assert_meta(mem, addr, sharers=0b01, dirty=0)
+
+
+@cocotb.test()
+async def test_main_memory_write_backpressure_still_completes_writeback(dut):
+    # A dirty eviction drives a main-memory write beat (StWriteData). With the
+    # memory holding ready low for several cycles, the controller must stall on
+    # mm_ready_i until the write is accepted, then still invalidate the line.
+    mem = await start_test(dut, mem_ready_pattern=[1, 0, 0, 0, 1, 1])
+
+    addr = 0x7C
+    data = 0x7C7C007C
+    await dirty_evict(dut, mem, cache=0, addr=addr, data=data)
+    assert mem.read_mem(addr) == data
+    assert_meta(mem, addr, sharers=0, dirty=0)
+
+
+@cocotb.test()
+async def test_snoop_send_backpressure_holds_snoop_packet_stable(dut):
+    # Force a SNOOP_BUS_RD, then hold the snoop target's dir_ready low. The
+    # controller must keep the snoop packet valid and stable in StSendSnoop
+    # until the target accepts it, and the flow must still complete afterwards.
+    mem = await start_test(dut)
+
+    owner, requester, addr = 0, 1, 0x7E
+    await make_modified(dut, mem, cache=owner, addr=addr, data=0x33330000)
+    mem.clear_log()
+
+    await send_bus_request(dut, mem, requester, CACHE_CMD_BUS_RD, addr, 0)
+    cmd, payload, snoop_addr = await wait_for_dir_packet(
+        dut, mem, owner, hold_ready_low=6,
+    )
+    assert cmd == DIR_CMD_SNOOP_BUS_RD
+    assert payload == 0
+    assert snoop_addr == addr
+
+    flush_data = 0xF10D007E
+    await send_snoop_ack(dut, mem, owner, SNOOP_ACK_BUS_RD, flush_data)
+    cmd, payload, ack_addr = await wait_for_dir_packet(dut, mem, requester)
+    assert cmd == DIR_CMD_BUS_RD_ACK
+    assert payload == flush_data
+    assert ack_addr == addr
+
+    await wait_cycles(dut, mem, SETTLE_CYCLES)
+    assert_meta(mem, addr, sharers=0b11, dirty=0)
+    assert_mem_write_seen(mem, addr, flush_data)
 
 
 @cocotb.test()
 async def test_simultaneous_requests_are_both_served_through_wrr_arbiter(dut):
     mem = await start_test(dut)
 
-    mem.set_backup(0, 0x74, 0x74740074)
-    mem.set_backup(1, 0x75, 0x75750075)
+    mem.set_mem(0x74, 0x74740074)
+    mem.set_mem(0x75, 0x75750075)
 
     dut.c0_bus_valid_i.value = 1
     dut.c0_bus_addr_i.value = 0x74
@@ -908,15 +861,15 @@ async def test_simultaneous_requests_are_both_served_through_wrr_arbiter(dut):
 
 
 @cocotb.test()
-async def test_directory_boundary_lines_zero_to_127(dut):
+async def test_directory_boundary_lines_zero_to_2047(dut):
     mem = await start_test(dut)
 
-    addresses = [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 65, 126, 127]
+    addresses = [0, 1, 2, 3, 4, 7, 8, 15, 16, 31, 1023, 1024, 1025, 2046, 2047]
 
     for index, addr in enumerate(addresses):
         cache = index % 2
         data = 0xABC00000 | addr
-        mem.set_backup(cache, addr, data)
+        mem.set_mem(addr, data)
         mem.clear_log()
         await bus_request_and_expect(
             dut,
@@ -928,8 +881,8 @@ async def test_directory_boundary_lines_zero_to_127(dut):
             expected_command=DIR_CMD_BUS_RD_ACK,
             expected_data=data,
         )
-        assert_meta(mem, addr, state=LINE_SHARED, sharers=(1 << cache), valid=1)
-        assert_backup_read_seen(mem, cache, addr)
+        assert_meta(mem, addr, sharers=(1 << cache), dirty=0)
+        assert_mem_read_seen(mem, addr)
 
 
 @cocotb.test()
@@ -964,14 +917,78 @@ async def test_seeded_random_dirty_writeback_readback_smoke(dut):
         )
 
 
-@cocotb.test(skip=True)
-async def test_out_of_range_addresses_are_not_part_of_this_controller_contract(dut):
-    """Documentation test.
+# Default ADDR_SPACE_WORDS for directory_controller_full: the valid space is
+# [0, 2048). Requests outside it are answered with zero data and must not reach
+# either memory.
+ADDR_SPACE_WORDS = 2048
 
-    This controller tracks 128 coherent line IDs. Addresses above 127 alias by
-    index and should only be used if that is intentional at the system level.
-    """
-    assert False
+
+@cocotb.test()
+async def test_out_of_range_read_requests_return_zero_without_touching_memory(dut):
+    mem = await start_test(dut)
+
+    oor_addrs = [ADDR_SPACE_WORDS, ADDR_SPACE_WORDS + 1, 0x1000, 0xDEADBEEF]
+    read_cases = [
+        (CACHE_CMD_BUS_RD, DIR_CMD_BUS_RD_ACK),
+        (CACHE_CMD_BUS_RDX, DIR_CMD_BUS_RDX_ACK),
+        (CACHE_CMD_BUS_UPGR, DIR_CMD_BUS_UPGR_ACK),
+    ]
+
+    for cache in (0, 1):
+        for addr in oor_addrs:
+            for command, expected_ack in read_cases:
+                mem.clear_log()
+                await send_bus_request(dut, mem, cache, command, addr, 0)
+                cmd, data, got_addr = await wait_for_dir_packet(dut, mem, cache)
+
+                assert cmd == expected_ack, (
+                    f"oor {command:05b} @ {addr:#x}: got cmd {cmd:06b}, "
+                    f"expected {expected_ack:06b}"
+                )
+                assert data == 0, (
+                    f"oor {command:05b} @ {addr:#x}: expected zero data, got {data:#x}"
+                )
+                assert got_addr == addr & 0xFFFFFFFF
+
+                assert not any(
+                    i["kind"] in ("meta_read", "meta_write") for i in mem.log
+                ), f"oor {command:05b} @ {addr:#x} touched metadata: {mem.log}"
+                assert not any(
+                    i["kind"] in ("mem_read", "mem_write") for i in mem.log
+                ), f"oor {command:05b} @ {addr:#x} touched main memory: {mem.log}"
+
+                await wait_cycles(dut, mem, SETTLE_CYCLES)
+
+
+@cocotb.test()
+async def test_out_of_range_evictions_are_dropped_without_memory_access(dut):
+    mem = await start_test(dut)
+
+    for command in (CACHE_CMD_EVICT_CLEAN, CACHE_CMD_EVICT_DIRTY):
+        mem.clear_log()
+        await send_bus_request(dut, mem, 0, command, 0x4000, 0xDEAD)
+        await expect_no_dir_packet(dut, mem, 0, cycles=30)
+        assert_no_mem_write(mem)
+        assert not any(
+            i["kind"] in ("meta_read", "meta_write") for i in mem.log
+        ), f"out-of-range evict touched metadata: {mem.log}"
+        await wait_cycles(dut, mem, SETTLE_CYCLES)
+
+
+@cocotb.test()
+async def test_boundary_last_in_range_line_is_served_normally(dut):
+    # ADDR_SPACE_WORDS-1 is the highest in-range line and must still be served.
+    mem = await start_test(dut)
+
+    addr = ADDR_SPACE_WORDS - 1
+    data = 0x5A5A5A5A
+    mem.set_mem(addr, data)
+    mem.clear_log()
+    await bus_request_and_expect(
+        dut, mem, 0, CACHE_CMD_BUS_RD, addr, 0, DIR_CMD_BUS_RD_ACK, data,
+    )
+    assert_meta(mem, addr, sharers=0b01, dirty=0)
+    assert_mem_read_seen(mem, addr)
 
 
 def find_source_file():
@@ -981,12 +998,10 @@ def find_source_file():
 
     here = Path(__file__).resolve()
     candidates = [
-        here.parent.parent / "src" / "directory_controller.sv",
-        here.parent / "directory_controller.sv",
-        here.parent / "directory_controller_directory_mem.sv",
-        here.parent / "directory_controller_metadata_only.sv",
-        here.parent.parent / "src" / "directory_controller" / "directory_controller.sv",
-        here.parent.parent / "directory_controller.sv",
+        here.parent.parent / "src" / "directory_controller" / "directory_controller_full.sv",
+        here.parent.parent / "src" / "directory_controller_full.sv",
+        here.parent / "directory_controller_full.sv",
+        here.parent.parent / "directory_controller_full.sv",
     ]
 
     for path in candidates:
@@ -994,8 +1009,8 @@ def find_source_file():
             return path.resolve()
 
     raise FileNotFoundError(
-        "Could not find directory_controller RTL. Set DIRECTORY_CONTROLLER_RTL "
-        "or place directory_controller.sv in src/."
+        "Could not find directory_controller_full RTL. Set "
+        "DIRECTORY_CONTROLLER_RTL or place directory_controller_full.sv in src/."
     )
 
 
@@ -1051,4 +1066,3 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
-
