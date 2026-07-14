@@ -96,7 +96,12 @@ module boot_fsm #(
 
             if (curr_state == WRITE_SRAM) begin
                 byte_in_word <= 2'd0;
-                sram_addr <= sram_addr + 4;
+                // Shared memory is word-indexed: write image word i at word
+                // index i (stride 1), matching the CPU side after sp_addr_handler
+                // translates its byte address to a word index. (Was +4, the old
+                // byte-address stride that only worked because the CPU path also
+                // omitted the byte->word shift.)
+                sram_addr <= sram_addr + 1;
             end
 
         end
