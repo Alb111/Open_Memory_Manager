@@ -75,25 +75,25 @@ module chip_core #(
 
 	//core0
     logic        c0_bus_valid, c0_bus_ready;
-    logic [4:0]  c0_bus_cache_cmd;
+    logic [3:0]  c0_bus_cache_cmd;
     logic [31:0] c0_bus_addr, c0_bus_wdata;
     logic        c0_snoop_valid, c0_snoop_ready;
-    logic [2:0]  c0_snoop_cache_cmd;
+    logic [3:0]  c0_snoop_cache_cmd;
     logic [31:0] c0_snoop_data;
     logic        c0_dir_valid, c0_reset_done;
-    logic [5:0]  c0_dir_cmd;
+    logic [3:0]  c0_dir_cmd;
     logic [31:0] c0_dir_data, c0_dir_addr;
     logic 		 c0_tser_ready;
 
 	//core1
     logic        c1_bus_valid, c1_bus_ready;
-    logic [4:0]  c1_bus_cache_cmd;
+    logic [3:0]  c1_bus_cache_cmd;
     logic [31:0] c1_bus_addr, c1_bus_wdata;
     logic        c1_snoop_valid, c1_snoop_ready;
-    logic [2:0]  c1_snoop_cache_cmd;
+    logic [3:0]  c1_snoop_cache_cmd;
     logic [31:0] c1_snoop_data;
     logic        c1_dir_valid, c1_reset_done;
-    logic [5:0]  c1_dir_cmd;
+    logic [3:0]  c1_dir_cmd;
     logic [31:0] c1_dir_data, c1_dir_addr;
     logic		 c1_tser_ready;
 

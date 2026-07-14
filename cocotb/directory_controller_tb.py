@@ -10,28 +10,29 @@ from cocotb_tools.runner import get_runner
 SIM = os.getenv("SIM", "icarus")
 HDL_TOPLEVEL = "directory_controller_full"
 
-# Cache request commands (one-hot), matching directory_controller_full.
-CACHE_CMD_NONE = 0b00000
-CACHE_CMD_BUS_RD = 0b00001
-CACHE_CMD_BUS_RDX = 0b00010
-CACHE_CMD_BUS_UPGR = 0b00100
-CACHE_CMD_EVICT_CLEAN = 0b01000
-CACHE_CMD_EVICT_DIRTY = 0b10000
+# Normalized 4-bit binary metadata command codes, matching directory_controller_full.
+CACHE_CMD_NONE = 0
+CACHE_CMD_BUS_RD = 1
+CACHE_CMD_BUS_RDX = 2
+CACHE_CMD_BUS_UPGR = 3
+CACHE_CMD_EVICT_CLEAN = 5
+CACHE_CMD_EVICT_DIRTY = 6
 
 # Snoop acknowledgement commands. Only "not NONE" matters to the controller; the
 # flushed data rides on the snoop data channel regardless of the exact code.
-SNOOP_ACK_NONE = 0b000
-SNOOP_ACK_BUS_RD = 0b001
-SNOOP_ACK_BUS_RDX = 0b010
-SNOOP_ACK_BUS_UPGR = 0b100
+SNOOP_ACK_NONE = 0
+SNOOP_ACK_BUS_RD = 9
+SNOOP_ACK_BUS_RDX = 10
+SNOOP_ACK_BUS_UPGR = 11
 
-DIR_CMD_NONE = 0b000000
-DIR_CMD_BUS_RD_ACK = 0b000001
-DIR_CMD_BUS_RDX_ACK = 0b000010
-DIR_CMD_BUS_UPGR_ACK = 0b000100
-DIR_CMD_SNOOP_BUS_RD = 0b001000
-DIR_CMD_SNOOP_BUS_RDX = 0b010000
-DIR_CMD_SNOOP_BUS_UPGR = 0b100000
+DIR_CMD_NONE = 0
+DIR_CMD_BUS_RD_ACK = 1
+DIR_CMD_BUS_RDX_ACK = 2
+DIR_CMD_BUS_UPGR_ACK = 3
+DIR_CMD_EVICT_DIRTY_ACK = 6          # echoes EvictDirty (writeback persisted)
+DIR_CMD_SNOOP_BUS_RD = 9
+DIR_CMD_SNOOP_BUS_RDX = 10
+DIR_CMD_SNOOP_BUS_UPGR = 11
 
 # The controller tracks one line per metadata index, index = request_addr[10:0].
 DIRECTORY_LINE_MIN = 0
@@ -412,7 +413,12 @@ async def make_shared_both(dut, mem, addr, data=0):
 async def dirty_evict(dut, mem, cache, addr, data):
     mem.clear_log()
     await send_bus_request(dut, mem, cache, CACHE_CMD_EVICT_DIRTY, addr, data)
-    await expect_no_dir_packet(dut, mem, cache, cycles=20)
+    # Part 2: the directory now acknowledges a dirty writeback once its data +
+    # metadata are persisted (echoes the EvictDirty code back to the requester).
+    cmd, _, _ = await wait_for_dir_packet(dut, mem, cache)
+    assert cmd == DIR_CMD_EVICT_DIRTY_ACK, (
+        f"expected EvictDirty ack {DIR_CMD_EVICT_DIRTY_ACK}, got {cmd}"
+    )
     await wait_cycles(dut, mem, SETTLE_CYCLES)
     assert_mem_write_seen(mem, addr, data)
     assert_meta_write_seen(mem, addr, sharers=0, dirty=0)
@@ -506,7 +512,7 @@ async def test_bus_rdx_direct_from_each_cache_sets_modified_owner(dut):
 
 
 @cocotb.test()
-async def test_dirty_evict_writes_memory_and_invalidates_no_ack(dut):
+async def test_dirty_evict_writes_memory_and_invalidates(dut):
     mem = await start_test(dut)
 
     addr = 0x30

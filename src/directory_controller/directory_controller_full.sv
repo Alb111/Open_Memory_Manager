@@ -41,40 +41,40 @@ module directory_controller_full #(
   input  logic        c0_bus_valid_i,
   input  logic [31:0] c0_bus_addr_i,
   input  logic [31:0] c0_bus_wdata_i,
-  input  logic [4:0]  c0_bus_cache_cmd_i,
+  input  logic [3:0]  c0_bus_cache_cmd_i,
   output logic        c0_bus_ready_o,
 
   // Cache 0 snoop acknowledgement path from directory_interface.
   input  logic        c0_snoop_valid_i,
   input  logic [31:0] c0_snoop_data_i,
-  input  logic [2:0]  c0_snoop_cache_cmd_i,
+  input  logic [3:0]  c0_snoop_cache_cmd_i,
   output logic        c0_snoop_ready_o,
 
   // Cache 0 directory response path to directory_interface.
   output logic        c0_dir_valid_o,
   output logic [31:0] c0_dir_data_o,
   output logic [31:0] c0_dir_addr_o,
-  output logic [5:0]  c0_dir_cmd_o,
+  output logic [3:0]  c0_dir_cmd_o,
   input  logic        c0_dir_ready_i,
 
   // Cache 1 request path from directory_interface.
   input  logic        c1_bus_valid_i,
   input  logic [31:0] c1_bus_addr_i,
   input  logic [31:0] c1_bus_wdata_i,
-  input  logic [4:0]  c1_bus_cache_cmd_i,
+  input  logic [3:0]  c1_bus_cache_cmd_i,
   output logic        c1_bus_ready_o,
 
   // Cache 1 snoop acknowledgement path from directory_interface.
   input  logic        c1_snoop_valid_i,
   input  logic [31:0] c1_snoop_data_i,
-  input  logic [2:0]  c1_snoop_cache_cmd_i,
+  input  logic [3:0]  c1_snoop_cache_cmd_i,
   output logic        c1_snoop_ready_o,
 
   // Cache 1 directory response path to directory_interface.
   output logic        c1_dir_valid_o,
   output logic [31:0] c1_dir_data_o,
   output logic [31:0] c1_dir_addr_o,
-  output logic [5:0]  c1_dir_cmd_o,
+  output logic [3:0]  c1_dir_cmd_o,
   input  logic        c1_dir_ready_i,
 
   // Directory metadata memory port (external mem2048x3). Reset/clear external.
@@ -97,21 +97,25 @@ module directory_controller_full #(
   // ---------------------------------------------------------------------------
   // Command / state encodings (values match directory_interface expectations).
   // ---------------------------------------------------------------------------
-  localparam logic [4:0] CACHE_CMD_BUS_RD      = 5'b00001;
-  localparam logic [4:0] CACHE_CMD_BUS_RDX     = 5'b00010;
-  localparam logic [4:0] CACHE_CMD_BUS_UPGR    = 5'b00100;
-  localparam logic [4:0] CACHE_CMD_EVICT_CLEAN = 5'b01000;
-  localparam logic [4:0] CACHE_CMD_EVICT_DIRTY = 5'b10000;
+  // Normalized 4-bit binary command codes (match the serial-packet `metadata`
+  // encoding end-to-end). Requests and their acks share a code; the transfer
+  // direction disambiguates.
+  localparam logic [3:0] CACHE_CMD_BUS_RD      = 4'd1;
+  localparam logic [3:0] CACHE_CMD_BUS_RDX     = 4'd2;
+  localparam logic [3:0] CACHE_CMD_BUS_UPGR    = 4'd3;
+  localparam logic [3:0] CACHE_CMD_EVICT_CLEAN = 4'd5;
+  localparam logic [3:0] CACHE_CMD_EVICT_DIRTY = 4'd6;
 
-  localparam logic [2:0] SNOOP_ACK_NONE = 3'b000;
+  localparam logic [3:0] SNOOP_ACK_NONE = 4'd0;
 
-  localparam logic [5:0] DIR_CMD_NONE           = 6'b000000;
-  localparam logic [5:0] DIR_CMD_BUS_RD_ACK     = 6'b000001;
-  localparam logic [5:0] DIR_CMD_BUS_RDX_ACK    = 6'b000010;
-  localparam logic [5:0] DIR_CMD_BUS_UPGR_ACK   = 6'b000100;
-  localparam logic [5:0] DIR_CMD_SNOOP_BUS_RD   = 6'b001000;
-  localparam logic [5:0] DIR_CMD_SNOOP_BUS_RDX  = 6'b010000;
-  localparam logic [5:0] DIR_CMD_SNOOP_BUS_UPGR = 6'b100000;
+  localparam logic [3:0] DIR_CMD_NONE            = 4'd0;
+  localparam logic [3:0] DIR_CMD_BUS_RD_ACK      = 4'd1;   // echoes BusRD
+  localparam logic [3:0] DIR_CMD_BUS_RDX_ACK     = 4'd2;   // echoes BusRDX
+  localparam logic [3:0] DIR_CMD_BUS_UPGR_ACK    = 4'd3;   // echoes BusUPGR
+  localparam logic [3:0] DIR_CMD_EVICT_DIRTY_ACK = 4'd6;   // echoes EvictDirty (writeback persisted)
+  localparam logic [3:0] DIR_CMD_SNOOP_BUS_RD    = 4'd9;
+  localparam logic [3:0] DIR_CMD_SNOOP_BUS_RDX   = 4'd10;
+  localparam logic [3:0] DIR_CMD_SNOOP_BUS_UPGR  = 4'd11;
 
   typedef enum logic [3:0] {
     StIdle,
@@ -125,6 +129,7 @@ module directory_controller_full #(
     StSendAck,
     StWriteData,
     StWriteMeta,
+    StSendEvictAck,
     StDone
   } dir_state_e;
 
@@ -134,7 +139,7 @@ module directory_controller_full #(
   logic        request_cache_d, request_cache_q;
   logic [31:0] request_addr_d,  request_addr_q;
   logic [31:0] request_data_d,  request_data_q;
-  logic [4:0]  request_cmd_d,   request_cmd_q;
+  logic [3:0]  request_cmd_d,   request_cmd_q;
 
   // Metadata read back for the current line.
   logic [1:0] line_sharers_d, line_sharers_q;
@@ -142,12 +147,12 @@ module directory_controller_full #(
 
   // Pending response to the requester.
   logic        pending_ack_cache_d, pending_ack_cache_q;
-  logic [5:0]  pending_ack_cmd_d,   pending_ack_cmd_q;
+  logic [3:0]  pending_ack_cmd_d,   pending_ack_cmd_q;
   logic [31:0] pending_ack_data_d,  pending_ack_data_q;
 
   // Pending snoop to the conflicting cache.
   logic       pending_snoop_cache_d, pending_snoop_cache_q;
-  logic [5:0] pending_snoop_cmd_d,   pending_snoop_cmd_q;
+  logic [3:0] pending_snoop_cmd_d,   pending_snoop_cmd_q;
 
   // Pending metadata write-back.
   logic       pending_write_d,         pending_write_q;
@@ -355,6 +360,21 @@ module directory_controller_full #(
         c0_dir_data_o  = pending_ack_data_q;
         c0_dir_addr_o  = request_addr_q;
         c0_dir_cmd_o   = pending_ack_cmd_q;
+      end
+    end
+
+    // Acknowledge a persisted dirty writeback to the requester (echoes the
+    // EvictDirty code). Gives the fire-and-forget evict flow control so the
+    // cache can't clobber it in the lossy request pipe with the following refill.
+    if (state_q == StSendEvictAck) begin
+      if (pending_ack_cache_q) begin
+        c1_dir_valid_o = 1'b1;
+        c1_dir_addr_o  = request_addr_q;
+        c1_dir_cmd_o   = DIR_CMD_EVICT_DIRTY_ACK;
+      end else begin
+        c0_dir_valid_o = 1'b1;
+        c0_dir_addr_o  = request_addr_q;
+        c0_dir_cmd_o   = DIR_CMD_EVICT_DIRTY_ACK;
       end
     end
 
@@ -625,7 +645,13 @@ module directory_controller_full #(
       end
 
       StWriteMeta: begin
-        state_d = StDone;
+        // A dirty eviction gets an explicit ack once its data+meta are persisted.
+        if (request_cmd_q == CACHE_CMD_EVICT_DIRTY) state_d = StSendEvictAck;
+        else                                        state_d = StDone;
+      end
+
+      StSendEvictAck: begin
+        if (ack_send_ready) state_d = StDone;
       end
 
       StDone: begin
@@ -648,7 +674,7 @@ module directory_controller_full #(
       request_cache_q <= 1'b0;
       request_addr_q  <= 32'b0;
       request_data_q  <= 32'b0;
-      request_cmd_q   <= 5'b0;
+      request_cmd_q   <= 4'b0;
 
       line_sharers_q <= 2'b00;
       line_dirty_q   <= 1'b0;
