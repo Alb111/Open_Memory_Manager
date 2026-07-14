@@ -58,6 +58,10 @@ module boot_flash_wrapper #(
         .cores_en_o     (cores_en_o),
         .boot_done_o    (boot_done_o),
         .whoami_pulse_o (whoami_pulse),
+        // Model the external reset generator as already done, so boot is not
+        // gated on a memory clear in this flash-focused unit wrapper.
+        .mem_clear_start_o (),
+        .mem_clear_done_i  (1'b1),
         .scan_en_i      (1'b0),
         .scan_in_i      (1'b0),
         .scan_out_o     ()

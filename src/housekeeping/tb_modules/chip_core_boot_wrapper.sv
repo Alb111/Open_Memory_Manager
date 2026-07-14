@@ -52,6 +52,11 @@ module chip_core_boot_wrapper #(
     ) dut (
         .clk       (clk),
         .rst_n     (rst_n),
+        // Boot-focused wrapper: no debug/scan and no external request branches.
+        // Tie these off so unconnected inputs don't drive X onto pad enables.
+        .debug_mode_i      (4'b0000),
+        .c0_req_i_branches (5'b0),
+        .c1_req_i_branches (5'b0),
         .bidir_in  (core_bidir_in),
         .bidir_out (bidir_out),
         .bidir_oe  (bidir_oe),

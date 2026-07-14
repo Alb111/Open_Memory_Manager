@@ -97,25 +97,35 @@ module chip_core #(
     logic [31:0] c1_dir_data, c1_dir_addr;
     logic		 c1_tser_ready;
 
-	//directory
-    logic        dir_mem_valid, dir_mem_ready;
-    logic [3:0]  dir_mem_wstrb;
-    logic [31:0] dir_mem_addr;
+	//directory subsystem (full-directory controller + external memories)
+    // Controller metadata port (drives mem2048x3 when reset generator is idle).
+    logic        ctrl_md_enable_n, ctrl_md_we;
+    logic [10:0] ctrl_md_addr;
+    logic [2:0]  ctrl_md_wdata;
 
-    logic [31:0] dir_mem_w_data;
-    logic [1:0]  dir_mem_w_state;
-    logic [1:0]  dir_mem_w_sharers;
-    logic        dir_mem_w_owner;
-    logic        dir_mem_w_valid_data;
+    // Controller main-memory port.
+    logic        ctrl_mm_valid, ctrl_mm_instr;
+    logic [31:0] ctrl_mm_addr, ctrl_mm_wdata;
+    logic [3:0]  ctrl_mm_wstrb;
 
-    logic [31:0] dir_mem_r_data;
-    logic [1:0]  dir_mem_r_state;
-    logic [1:0]  dir_mem_r_sharers;
-    logic [1:0]  dir_mem_r_owner;
-    logic [1:0]  dir_mem_r_valid_data;
- 
-    logic        dir_mem_resp_ready;
-    logic        dir_state_invalidated;
+    // Reset generator control + memory ports.
+    logic        rg_start, rg_busy, rg_ready;
+    logic        rg_md_enable_n, rg_md_we, rg_md_clear;
+    logic [10:0] rg_md_addr;
+    logic [2:0]  rg_md_wdata;
+    logic        rg_mm_valid, rg_mm_instr;
+    logic [31:0] rg_mm_addr, rg_mm_wdata;
+    logic [3:0]  rg_mm_wstrb;
+
+    // Muxed metadata memory (mem2048x3) port.
+    logic        md_enable_n, md_we, md_clear;
+    logic [10:0] md_addr;
+    logic [2:0]  md_wdata, md_rdata;
+
+    // Muxed main memory (mem_ctrl_2048x32) port.
+    logic        mm_valid, mm_instr, mm_ready;
+    logic [31:0] mm_addr, mm_wdata, mm_rdata;
+    logic [3:0]  mm_wstrb;
 
 
 	//boot
@@ -135,7 +145,6 @@ module chip_core #(
 
     logic [DFT_CHAINS-1:0] scan_in;
     logic [DFT_CHAINS-1:0] scan_out;
-    logic                  controller_scan_out;
 
 	//SERDES
     logic [SER_PINS-1:0] c0_serial_tx;
@@ -240,6 +249,8 @@ module chip_core #(
         .cores_en_o     (cores_en),
         .boot_done_o    (boot_done),
         .whoami_pulse_o (whoami_pulse),
+        .mem_clear_start_o (rg_start),
+        .mem_clear_done_i  (rg_ready),
         .scan_en_i      (debug_mode_i[0]),
         .scan_in_i      (scan_in[0]),
         .scan_out_o     (scan_out[0])
@@ -327,105 +338,164 @@ module chip_core #(
     .scan_out_o         (scan_out[2])
     );
 
-    directory_controller i_directory_controller (
-  	.clk_i                  (clk),
-  	.rst_ni                 (core_rst_n),
+    // Reset generator start (rg_start) and completion (rg_ready) form a clear
+    // handshake with housekeeping: housekeeping asserts the start out of reset
+    // and holds the boot FSM/SPI in reset until rg_ready, so the boot process
+    // cannot begin until both memories are fully cleared.
 
-  	.c0_bus_valid_i         (c0_bus_valid),
-  	.c0_bus_addr_i          (c0_bus_addr),
-  	.c0_bus_wdata_i         (c0_bus_wdata),
-  	.c0_bus_cache_cmd_i     (c0_bus_cache_cmd),
-  	.c0_bus_ready_o         (c0_bus_ready),
+    // ---- Memory port muxing (all outside the controller) -------------------
+    // Directory metadata: the reset generator owns the mem2048x3 port (in clear
+    // mode) while it is sweeping; otherwise the controller does.
+    // Main memory: reset generator > boot loader > controller, selected by the
+    // boot stage. rg_busy wins during the clear sweep; after it, core_mem_select
+    // (debug_mode_i[3] | boot_done) hands the bus from the boot loader to the
+    // controller. The reset generator (one word/cycle) clears each address well
+    // ahead of the SPI-paced boot loader reaching it.
+    always_comb begin
+        if (rg_busy) begin
+            md_enable_n = rg_md_enable_n;
+            md_we       = rg_md_we;
+            md_clear    = rg_md_clear;
+            md_addr     = rg_md_addr;
+            md_wdata    = rg_md_wdata;
+        end else begin
+            md_enable_n = ctrl_md_enable_n;
+            md_we       = ctrl_md_we;
+            md_clear    = 1'b0;
+            md_addr     = ctrl_md_addr;
+            md_wdata    = ctrl_md_wdata;
+        end
 
-  	.c0_snoop_valid_i       (c0_snoop_valid),
-  	.c0_snoop_data_i        (c0_snoop_data),
-  	.c0_snoop_cache_cmd_i   (c0_snoop_cache_cmd),
-  	.c0_snoop_ready_o       (c0_snoop_ready),
+        if (rg_busy) begin
+            mm_valid = rg_mm_valid;
+            mm_instr = rg_mm_instr;
+            mm_addr  = rg_mm_addr;
+            mm_wstrb = rg_mm_wstrb;
+            mm_wdata = rg_mm_wdata;
+        end else if (core_mem_select) begin
+            mm_valid = ctrl_mm_valid;
+            mm_instr = ctrl_mm_instr;
+            mm_addr  = ctrl_mm_addr;
+            mm_wstrb = ctrl_mm_wstrb;
+            mm_wdata = ctrl_mm_wdata;
+        end else begin
+            mm_valid = boot_mem_valid;
+            mm_instr = boot_mem_instr;
+            mm_addr  = boot_mem_addr;
+            mm_wstrb = boot_mem_wstrb;
+            mm_wdata = boot_mem_wdata;
+        end
+    end
 
-  	.c0_dir_valid_o         (c0_dir_valid),
-  	.c0_dir_data_o          (c0_dir_data),
-  	.c0_dir_addr_o          (c0_dir_addr),
-  	.c0_dir_cmd_o           (c0_dir_cmd),
-    .c0_dir_ready_i         (c0_tser_ready),
+    directory_controller_full i_directory_controller (
+        .clk_i                (clk),
+        .rst_ni               (core_rst_n),
 
-  	.c1_bus_valid_i         (c1_bus_valid),
-  	.c1_bus_addr_i          (c1_bus_addr),
-  	.c1_bus_wdata_i         (c1_bus_wdata),
-  	.c1_bus_cache_cmd_i     (c1_bus_cache_cmd),
-  	.c1_bus_ready_o         (c1_bus_ready),
+        .c0_bus_valid_i       (c0_bus_valid),
+        .c0_bus_addr_i        (c0_bus_addr),
+        .c0_bus_wdata_i       (c0_bus_wdata),
+        .c0_bus_cache_cmd_i   (c0_bus_cache_cmd),
+        .c0_bus_ready_o       (c0_bus_ready),
 
-  	.c1_snoop_valid_i       (c1_snoop_valid),
-  	.c1_snoop_data_i        (c1_snoop_data),
-  	.c1_snoop_cache_cmd_i   (c1_snoop_cache_cmd),
-  	.c1_snoop_ready_o       (c1_snoop_ready),
+        .c0_snoop_valid_i     (c0_snoop_valid),
+        .c0_snoop_data_i      (c0_snoop_data),
+        .c0_snoop_cache_cmd_i (c0_snoop_cache_cmd),
+        .c0_snoop_ready_o     (c0_snoop_ready),
 
-  	.c1_dir_valid_o         (c1_dir_valid),
-  	.c1_dir_data_o          (c1_dir_data),
-  	.c1_dir_addr_o          (c1_dir_addr),
-  	.c1_dir_cmd_o           (c1_dir_cmd),
-    .c1_dir_ready_i         (c1_tser_ready),
-	
-  	.dir_mem_valid_o        (dir_mem_valid),
-  	.dir_mem_ready_i        (dir_mem_ready),
-  	.dir_mem_addr_o         (dir_mem_addr),
-  	.dir_mem_wstrb_o        (dir_mem_wstrb),
-  	.dir_mem_w_data_o       (dir_mem_w_data),
-  	.dir_mem_w_state_o      (dir_mem_w_state),
-  	.dir_mem_w_sharers_o    (dir_mem_w_sharers),
-  	.dir_mem_w_owner_o      (dir_mem_w_owner),
-  	.dir_mem_w_valid_data_o (dir_mem_w_valid_data),
+        .c0_dir_valid_o       (c0_dir_valid),
+        .c0_dir_data_o        (c0_dir_data),
+        .c0_dir_addr_o        (c0_dir_addr),
+        .c0_dir_cmd_o         (c0_dir_cmd),
+        .c0_dir_ready_i       (c0_tser_ready),
 
-  	.dir_mem_r_data_i       (dir_mem_r_data),
-  	.dir_mem_r_state_i      (dir_mem_r_state),
-  	.dir_mem_r_sharers_i    (dir_mem_r_sharers),
-  	.dir_mem_r_owner_i      (dir_mem_r_owner),
-  	.dir_mem_r_valid_data_i (dir_mem_r_valid_data),
-  	.dir_mem_resp_ready_o   (dir_mem_resp_ready),
+        .c1_bus_valid_i       (c1_bus_valid),
+        .c1_bus_addr_i        (c1_bus_addr),
+        .c1_bus_wdata_i       (c1_bus_wdata),
+        .c1_bus_cache_cmd_i   (c1_bus_cache_cmd),
+        .c1_bus_ready_o       (c1_bus_ready),
 
-	.dir_state_invalidated_o(dir_state_invalidated),
-    .scan_en_i              (debug_mode_i[3]),
-    .scan_in_i              (scan_in[3]),
-    .scan_out_o             (controller_scan_out)
+        .c1_snoop_valid_i     (c1_snoop_valid),
+        .c1_snoop_data_i      (c1_snoop_data),
+        .c1_snoop_cache_cmd_i (c1_snoop_cache_cmd),
+        .c1_snoop_ready_o     (c1_snoop_ready),
+
+        .c1_dir_valid_o       (c1_dir_valid),
+        .c1_dir_data_o        (c1_dir_data),
+        .c1_dir_addr_o        (c1_dir_addr),
+        .c1_dir_cmd_o         (c1_dir_cmd),
+        .c1_dir_ready_i       (c1_tser_ready),
+
+        // Directory metadata memory port (muxed to mem2048x3).
+        .md_enable_n_o        (ctrl_md_enable_n),
+        .md_we_o              (ctrl_md_we),
+        .md_addr_o            (ctrl_md_addr),
+        .md_wdata_o           (ctrl_md_wdata),
+        .md_rdata_i           (md_rdata),
+
+        // Main memory port (muxed to mem_ctrl_2048x32).
+        .mm_valid_o           (ctrl_mm_valid),
+        .mm_instr_o           (ctrl_mm_instr),
+        .mm_addr_o            (ctrl_mm_addr),
+        .mm_wstrb_o           (ctrl_mm_wstrb),
+        .mm_wdata_o           (ctrl_mm_wdata),
+        .mm_rdata_i           (mm_rdata),
+        .mm_ready_i           (mm_ready)
     );
-	
-    directory_mem i_directory_mem (
-  	.clk_i             (clk),
-  	.rst_ni            (core_rst_n),
-	.mem_rst_ni        (rst_n),
 
-  	// Directory controller side
-  	.valid_i           (dir_mem_valid),
-  	.ready_o           (dir_mem_ready),
-  	.addr_i            (dir_mem_addr),
-  	.wstrb_i           (dir_mem_wstrb),
+    memory_reset_generator i_memory_reset_generator (
+        .clk_i         (clk),
+        .rst_ni        (rst_n),
+        .start_i       (rg_start),
+        .busy_o        (rg_busy),
+        .ready_o       (rg_ready),
 
-  	.w_data_i          (dir_mem_w_data),
-  	.w_state_i         (dir_mem_w_state),
-  	.w_sharers_i       (dir_mem_w_sharers),
-  	.w_owner_i         (dir_mem_w_owner),
-  	.w_valid_data_i    (dir_mem_w_valid_data),
+        .md_enable_n_o (rg_md_enable_n),
+        .md_we_o       (rg_md_we),
+        .md_clear_o    (rg_md_clear),
+        .md_addr_o     (rg_md_addr),
+        .md_wdata_o    (rg_md_wdata),
 
-  	.r_data_o          (dir_mem_r_data),
-  	.r_state_o         (dir_mem_r_state),
-  	.r_tag_o           (dir_mem_r_sharers),
-  	.r_owner_o         (dir_mem_r_owner),
-  	.r_valid_data_o    (dir_mem_r_valid_data),
-  	.ready_i           (dir_mem_resp_ready),
-
-	.core_mem_select_i (core_mem_select),
-	.boot_mem_valid_i  (boot_mem_valid),
-	.boot_mem_instr_i  (boot_mem_instr),
-	.boot_mem_addr_i   (boot_mem_addr),
-	.boot_mem_wdata_i  (boot_mem_wdata),
-	.boot_mem_wstrb_i  (boot_mem_wstrb),
-    .scan_en_i        (debug_mode_i[3]),
-    .scan_in_i        (controller_scan_out),
-    .scan_out_o       (scan_out[3])
-    `ifdef USE_POWER_PINS
-      ,.VDD            (VDD)
-      ,.VSS            (VSS)
-    `endif
+        .mm_valid_o    (rg_mm_valid),
+        .mm_instr_o    (rg_mm_instr),
+        .mm_addr_o     (rg_mm_addr),
+        .mm_wstrb_o    (rg_mm_wstrb),
+        .mm_wdata_o    (rg_mm_wdata),
+        .mm_ready_i    (mm_ready)
     );
+
+    mem2048x3 i_dir_metadata (
+        .clk_i      (clk),
+        .enable_n_i (md_enable_n),
+        .we_i       (md_we),
+        .clear_i    (md_clear),
+        .addr_i     (md_addr),
+        .wdata_i    (md_wdata),
+        .rdata_o    (md_rdata)
+        `ifdef USE_POWER_PINS
+          ,.VDD     (VDD)
+          ,.VSS     (VSS)
+        `endif
+    );
+
+    mem_ctrl_2048x32 i_main_memory (
+        .clk_i       (clk),
+        .rst_ni      (rst_n),
+        .mem_valid_i (mm_valid),
+        .mem_instr_i (mm_instr),
+        .mem_addr_i  (mm_addr),
+        .mem_wdata_i (mm_wdata),
+        .mem_wstrb_i (mm_wstrb),
+        .mem_rdata_o (mm_rdata),
+        .mem_ready_o (mm_ready)
+        `ifdef USE_POWER_PINS
+          ,.VDD      (VDD)
+          ,.VSS      (VSS)
+        `endif
+    );
+
+    // Scan/DFT re-stitch for the new directory subsystem is deferred; bypass
+    // its scan-chain slot for now so the chain stays continuous.
+    assign scan_out[3] = scan_in[3];
 
     logic _unused;
     assign _unused = &{bidir_in, c0_reset_done, c1_reset_done};

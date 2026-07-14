@@ -71,6 +71,9 @@ module whoami_wrapper #(
         .cores_en_o     (cores_en_o),
         .boot_done_o    (boot_done_o),
         .whoami_pulse_o (whoami_pulse),
+        // Reset generator modelled as already done; boot is not clear-gated here.
+        .mem_clear_start_o (),
+        .mem_clear_done_i  (1'b1),
         .scan_en_i      (1'b0),
         .scan_in_i      (1'b0),
         .scan_out_o     ()

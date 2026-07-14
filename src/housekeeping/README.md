@@ -10,7 +10,7 @@ The Bootloader subsystem is responsible for initializing the system SRAM with ex
  
 - **Flash Interface:** Uses the SPI protocol (Mode 0) to communicate with external flash memory via the SPI Engine.
 - **Word Assembly:** The controller retrieves 8-bit data packets and assembles them into 32-bit words using **Little-Endian** format.
-- **Startup Delay:** On reset release, the boot FSM is held idle for `CLEAR_CYCLES` (default: 4100 clock cycles) to allow the cache controller and directory controller to finish clearing their internal state before program data is written to SRAM.
+- **Clear handshake:** On reset release, the boot FSM/SPI engine are held in reset until the external memory reset generator reports the directory metadata and main memory are fully cleared. Housekeeping asserts `mem_clear_start_o` out of reset and releases the boot machinery (`clear_done`) only once `mem_clear_done_i` is high, so booting never begins over dirty memory. There is no fixed-cycle settle counter.
 - **WhoAmI Pulse:** At the start of boot, a handshaked pulse is sent to both `directory_interface` instances via `whoami_pulse_o`, triggering transmission of each core's CPU ID over the interposer serial link before program execution begins.
 - **System Control:**
   - `cores_en_o`: Held low during the boot process to keep the CPU cores frozen. Goes high when boot completes.
@@ -23,7 +23,7 @@ The Bootloader subsystem is responsible for initializing the system SRAM with ex
  
 After `rst_n` is de-asserted:
  
-1. **Clear window:** Boot FSM remains idle for `CLEAR_CYCLES` clock cycles while the cache controller invalidates all lines and the directory controller clears its state in main memory.
+1. **Clear handshake:** Boot FSM/SPI remain in reset while the external reset generator clears the directory metadata and main memory. Housekeeping holds `mem_clear_start_o` high and waits for `mem_clear_done_i`; only then does `clear_done` release the boot machinery.
 2. **Command phase:** Boot controller pulls `flash_csb_o` low and sends the SPI Read Command (`0x03`) followed by three address bytes (`0x000000`).
 3. **Data retrieval:** SPI engine fetches bytes from flash one at a time. Boot FSM assembles every four bytes into a 32-bit little-endian word.
 4. **WhoAmI:** On the first clock cycle after the FSM leaves IDLE, `whoami_pulse_o` is asserted and held until both directory interface tserializers confirm acceptance via `whoami_ready_i`. This triggers each `directory_interface` to transmit a WhoAmI packet containing its `cpu_id` over the interposer serial link.
@@ -74,7 +74,7 @@ Key outputs:
 
 ### `housekeeping_top.sv`
 Top-level wrapper integrating the SPI Engine and Boot FSM. Also handles:
-- **Clear window counter:** Holds `boot_fsm` and `spi_engine` in reset for `CLEAR_CYCLES` after `rst_n` goes high.
+- **Clear handshake:** Holds `boot_fsm` and `spi_engine` in reset after `rst_n` goes high until the external reset generator asserts `mem_clear_done_i`, driving `mem_clear_start_o` to request the clear.
 - **Memory controller adapter:** Translates raw `sram_wr_en_o` / `sram_addr_o` / `sram_data_o` from the FSM into the `mem_valid_o` / `mem_addr_o` / `mem_wdata_o` / `mem_wstrb_o` interface expected by `mem_ctrl_512x32`.
 - **WhoAmI handshake:** Generates `whoami_pulse_o` using a rising-edge detect on `boot_started_o`, holds it high until `whoami_ready_i` confirms both directory interface tserializers have accepted the transmission, then latches `whoami_sent` to prevent re-transmission.
 
