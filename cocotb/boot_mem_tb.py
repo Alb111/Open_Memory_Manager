@@ -175,6 +175,7 @@ def boot_mem_runner():
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
         #flash model
+        proj_path / "flash_1ps_timescale.v",   # 1ps unit for the vendor model
         CYPRESS_MODEL,
         #integration wrapper
         proj_path / "../src/housekeeping/tb_modules/boot_mem_wrapper.sv",

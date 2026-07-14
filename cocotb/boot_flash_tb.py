@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 import cocotb
 from cocotb.clock import Clock
@@ -22,7 +23,6 @@ BOOT_IMAGE = [(i & 0xFF) ^ 0xA5 for i in range(512)]
 JEDEC_MANUF = 0x01
 JEDEC_MEM_TYPE = 0x60
 JEDEC_CAPACITY = 0x18
-CLEAR_CYCLES = 4100
 CYPRESS_MODEL = Path(
     os.getenv(
         "CYPRESS_S25FL128L_MODEL",
@@ -361,52 +361,14 @@ async def test_reset_mid_transaction(dut):
     print("\n  *** PASS — FSM recovered cleanly from mid-transaction reset")
 
 
-#test 6 — SPI activity (flash_csb, sck) must not appear before CLEAR_CYCLES
-@cocotb.test()
-async def test_no_spi_before_clear(dut):
-    print(f"\n=== TEST 6: boot must not start before cycle {CLEAR_CYCLES} ===")
-    start_clock(dut)
-    dut.reset_ni.value       = 0
-    dut.pass_thru_en_i.value = 0
-    await ClockCycles(dut.clk_i, 5)
-    dut.reset_ni.value = 1
-    await Timer(1, unit="ns")
- 
-    early_csb_low = False
-    csb_went_low_cycle = None
- 
-    for cycle in range(CLEAR_CYCLES + 200):
-        await RisingEdge(dut.clk_i)
-        await Timer(1, unit="ns")
- 
-        csb = dut.flash_csb.value
-        if csb.is_resolvable and int(csb) == 0:
-            csb_went_low_cycle = cycle + 1
-            if cycle < CLEAR_CYCLES:
-                early_csb_low = True
-            break
- 
-    if csb_went_low_cycle is not None:
-        print(f"  flash_csb went low at cycle {csb_went_low_cycle}")
-        if early_csb_low:
-            print(f"  ERROR: CSB went low at cycle {csb_went_low_cycle} "
-                  f"— before CLEAR_CYCLES={CLEAR_CYCLES}")
-        else:
-            print(f"  CSB went low at cycle {csb_went_low_cycle} "
-                  f"(after CLEAR_CYCLES={CLEAR_CYCLES}) ✓")
-    else:
-        print(f"  CSB stayed high for {CLEAR_CYCLES + 200} cycles "
-              f"— FSM has not started yet (CLEAR_CYCLES window still open)")
- 
-    assert not early_csb_low, \
-        (f"flash_csb went low at cycle {csb_went_low_cycle} — "
-         f"boot FSM started before CLEAR_CYCLES={CLEAR_CYCLES}. "
-         f"Check clear_done gating in housekeeping_top.sv.")
- 
-    print(f"\n  *** PASS — no SPI activity before cycle {CLEAR_CYCLES}")
- 
- 
-#test 7 — after the clear window boot completes correctly
+# The old fixed-cycle "no SPI before CLEAR_CYCLES" test was removed: boot is no
+# longer gated by a blind counter but by the memory-clear handshake
+# (mem_clear_done_i). That gating is covered by
+# housekeeping_tb.test_boot_waits_for_memory_clear. This flash wrapper models the
+# clear as already complete, so boot starts as soon as reset deasserts.
+
+
+#test 7 — boot completes correctly after a long reset
 @cocotb.test()
 async def test_full_boot_after_clear_window(dut):
     print(f"\n=== TEST 7: full boot still completes correctly after clear window ===")
@@ -430,7 +392,7 @@ async def test_full_boot_after_clear_window(dut):
     assert dut.boot_done_o.value == 1, "boot_done must be high after boot"
     assert dut.cores_en_o.value  == 1, "cores_en must be high after boot"
  
-    print(f"\n  *** PASS — boot completes correctly after {CLEAR_CYCLES} cycle clear window")
+    print("\n  *** PASS — boot completes correctly after a long reset")
  
 
 # runner
@@ -440,11 +402,19 @@ def boot_ctrl_runner():
     #generate boot image .mem file before building
     mem_path = write_boot_image_mem()
     print(f"[runner] wrote {mem_path}")
+
+    # The Cypress model reads its security region (device/JEDEC ID) from
+    # s25fl128lSECR.mem in the sim working directory; stage it next to the image.
+    sim_build = Path(__file__).resolve().parent / "sim_build"
+    secr_src = CYPRESS_MODEL.with_name("s25fl128lSECR.mem")
+    if secr_src.exists():
+        shutil.copy(secr_src, sim_build / "s25fl128lSECR.mem")
  
     sources = [
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
+        proj_path / "flash_1ps_timescale.v",   # 1ps unit for the vendor model
         CYPRESS_MODEL,
         proj_path / "../src/housekeeping/tb_modules/boot_flash_wrapper.sv",
     ]

@@ -238,18 +238,18 @@ def chip_core_runner():
     sram512x8_macro = (Path(pdk_root) / pdk /
                        "libs.ref/gf180mcu_fd_ip_sram/verilog/"
                        "gf180mcu_fd_ip_sram__sram512x8m8wm1.v")
-    sram64x8_macro = (Path(pdk_root) / pdk /
-                      "libs.ref/gf180mcu_fd_ip_sram/verilog/"
-                      "gf180mcu_fd_ip_sram__sram64x8m8wm1.v")
+    sram256x8_macro = (Path(pdk_root) / pdk /
+                       "libs.ref/gf180mcu_fd_ip_sram/verilog/"
+                       "gf180mcu_fd_ip_sram__sram256x8m8wm1.v")
 
     sources = [
         sram512x8_macro,
-        sram64x8_macro,
+        sram256x8_macro,
         proj_path / "../src/mem_ctrl/mem512x32.sv",
         proj_path / "../src/mem_ctrl/mem2048x32.sv",
-        proj_path / "../src/mem_ctrl/mem64x8.sv",
-        proj_path / "../src/mem_ctrl/directory_mem.sv",
-        proj_path / "../src/directory_controller/directory_controller.sv",
+        proj_path / "../src/mem2048x3/mem2048x3.sv",
+        proj_path / "../src/directory_controller/directory_controller_full.sv",
+        proj_path / "../src/directory_controller/memory_reset_generator.sv",
         proj_path / "../src/arb/wrr_arbiter.sv",
         proj_path / "../src/interposer_interface/directory_interface.sv",
         proj_path / "../src/interposer_interface/tserializer.sv",
@@ -258,6 +258,7 @@ def chip_core_runner():
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
+        proj_path / "flash_1ps_timescale.v",   # 1ps unit for the vendor model
         CYPRESS_MODEL,
         proj_path / "../src/chip_core.sv",
         # Wrapper that adds the flash model as a submodule of chip_core
