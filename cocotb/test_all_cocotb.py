@@ -25,6 +25,7 @@ BOOT_FLASH_MODEL = Path(
 TESTBENCHES = [
     ("mem_tb.py", None),
     ("mem64x8_tb.py", None),
+    ("mem2048x3_tb.py", None),
     ("directory_mem_tb.py", None),
     ("wrr_arbiter_tb.py", None),
     ("tserializer_tb.py", None),
