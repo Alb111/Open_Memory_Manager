@@ -95,55 +95,77 @@ MACROS:
         - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
     instances:
       # SRAMs instantiated inside i_main_memory (mem_ctrl_2048x32).
-      # Keep them in a centered 4x4 grid with routing channels between macros.
-      # Apply a uniform +5um X nudge to avoid marginal M3.2b markers at SRAM M3 edges.
+      # Each memblock is one 512x32 controller (4x sram512x8), grouped into a
+      # tight 2x2 quadrant; the four blocks tile a 2x2 super-grid (4x4 macros).
+      #
+      # All 38 signal pins of this SRAM are on ONE edge (bottom, in N). We
+      # MIRROR the two rows of each quadrant so their pin edges face a shared
+      # central channel: lower row = FS (pins flipped to top), upper row = N
+      # (pins on bottom). Both rows escape into the same channel, which lets the
+      # pin-free outer/side edges pack tight.
+      #   Within a block: sram0=lower-left, sram1=lower-right,
+      #                   sram2=upper-left, sram3=upper-right.
+      #   Columns X = {625, 1085 | 1765, 2225}, rows Y = {720, 1355 | 2090, 2725}.
+      #   Intra-quadrant: 28um horizontal (pin-free edge, > 2x 10um PDN halo),
+      #                   150um vertical (central pin/route/PDN channel).
+      #   Inter-quadrant: ~248um horizontal, ~250um vertical.
+      # Macro bbox lower-left = location for every orientation (OpenDB origin is
+      # normalized), so FS does not shift the footprint. Power pins form a
+      # full ring; FS preserves the W/E rails the M4 straps connect to, so the
+      # macro PDN grid in pdn_5v_sram.tcl is unaffected. Footprint stays inside
+      # the previously-validated region (all coords on the 5um grid).
+      #
+      # memblock0 -> bottom-left quadrant
       i_chip_core.i_main_memory.memblock0.sram0:
         location: [625, 720]
-        orientation: N
+        orientation: FS
       i_chip_core.i_main_memory.memblock0.sram1:
-        location: [1380, 720]
-        orientation: N
+        location: [1085, 720]
+        orientation: FS
       i_chip_core.i_main_memory.memblock0.sram2:
-        location: [2135, 720]
+        location: [625, 1355]
         orientation: N
       i_chip_core.i_main_memory.memblock0.sram3:
-        location: [2890, 720]
+        location: [1085, 1355]
         orientation: N
+      # memblock1 -> bottom-right quadrant
       i_chip_core.i_main_memory.memblock1.sram0:
-        location: [625, 1805]
-        orientation: N
+        location: [1765, 720]
+        orientation: FS
       i_chip_core.i_main_memory.memblock1.sram1:
-        location: [1380, 1805]
-        orientation: N
+        location: [2225, 720]
+        orientation: FS
       i_chip_core.i_main_memory.memblock1.sram2:
-        location: [2135, 1805]
+        location: [1765, 1355]
         orientation: N
       i_chip_core.i_main_memory.memblock1.sram3:
-        location: [2890, 1805]
+        location: [2225, 1355]
         orientation: N
+      # memblock2 -> top-left quadrant
       i_chip_core.i_main_memory.memblock2.sram0:
-        location: [625, 2890]
-        orientation: N
+        location: [625, 2090]
+        orientation: FS
       i_chip_core.i_main_memory.memblock2.sram1:
-        location: [1380, 2890]
-        orientation: N
+        location: [1085, 2090]
+        orientation: FS
       i_chip_core.i_main_memory.memblock2.sram2:
-        location: [2135, 2890]
+        location: [625, 2725]
         orientation: N
       i_chip_core.i_main_memory.memblock2.sram3:
-        location: [2890, 2890]
+        location: [1085, 2725]
         orientation: N
+      # memblock3 -> top-right quadrant
       i_chip_core.i_main_memory.memblock3.sram0:
-        location: [625, 3975]
-        orientation: N
+        location: [1765, 2090]
+        orientation: FS
       i_chip_core.i_main_memory.memblock3.sram1:
-        location: [1380, 3975]
-        orientation: N
+        location: [2225, 2090]
+        orientation: FS
       i_chip_core.i_main_memory.memblock3.sram2:
-        location: [2135, 3975]
+        location: [1765, 2725]
         orientation: N
       i_chip_core.i_main_memory.memblock3.sram3:
-        location: [2890, 3975]
+        location: [2225, 2725]
         orientation: N
 
   gf180mcu_fd_ip_sram__sram256x8m8wm1:

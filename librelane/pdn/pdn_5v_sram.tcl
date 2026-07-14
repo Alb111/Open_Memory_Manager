@@ -20,7 +20,10 @@ set sram_macros_NS [list \
     i_chip_core.i_dir_metadata.plane2 \
 ]
 
-# SRAM macros. All configured SRAM instances are north-oriented.
+# SRAM macros. Each 512x32 quadrant mirrors its lower row (FS) so pins face a
+# shared central channel; upper row stays N. FS is a vertical flip only, so the
+# W/E power-ring rails these M4 straps connect to keep their X positions and the
+# macro PDN grid below is unaffected by the mixed N/FS orientation.
 define_pdn_grid \
     -macro \
     -instances $sram_macros_NS \
