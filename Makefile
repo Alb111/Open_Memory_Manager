@@ -5,7 +5,7 @@ TOP = chip_top
 
 PDK_ROOT ?= $(MAKEFILE_DIR)/gf180mcu
 PDK ?= gf180mcuD
-PDK_COMMIT ?= d658698bd8bcf4e05fc7b5991a701247ba0d744c
+PDK_COMMIT ?= f6eeac7dad085ffcc829ccfd721f7b4ce39edcf7
 
 PAD_GROUP_ENV = python3 $(MAKEFILE_DIR)/scripts/pad_group_env.py $(MAKEFILE_DIR)/librelane/config.yaml
 LIBRELANE = eval "$$($(PAD_GROUP_ENV))" && librelane
