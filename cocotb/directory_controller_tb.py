@@ -924,16 +924,16 @@ async def test_seeded_random_dirty_writeback_readback_smoke(dut):
 
 
 # Default ADDR_SPACE_WORDS for directory_controller_full: the valid space is
-# [0, 2048). Requests outside it are answered with zero data and must not reach
-# either memory.
-ADDR_SPACE_WORDS = 2048
+# [0, 8192) (the 8192x32 main memory / 8192-line directory). Requests outside it
+# are answered with zero data and must not reach either memory.
+ADDR_SPACE_WORDS = 8192
 
 
 @cocotb.test()
 async def test_out_of_range_read_requests_return_zero_without_touching_memory(dut):
     mem = await start_test(dut)
 
-    oor_addrs = [ADDR_SPACE_WORDS, ADDR_SPACE_WORDS + 1, 0x1000, 0xDEADBEEF]
+    oor_addrs = [ADDR_SPACE_WORDS, ADDR_SPACE_WORDS + 1, 0x4000, 0xDEADBEEF]
     read_cases = [
         (CACHE_CMD_BUS_RD, DIR_CMD_BUS_RD_ACK),
         (CACHE_CMD_BUS_RDX, DIR_CMD_BUS_RDX_ACK),

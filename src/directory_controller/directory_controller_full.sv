@@ -34,7 +34,7 @@ module directory_controller_full #(
   // outside it are answered with zero data and never reach the memories. The
   // default spans the full 2048-line/word backing store, so it is a no-op until
   // narrowed.
-  parameter logic [31:0] ADDR_SPACE_WORDS = 32'd2048
+  parameter logic [31:0] ADDR_SPACE_WORDS = 32'd8192
 ) (
   input  logic        clk_i,
   input  logic        rst_ni,
@@ -82,7 +82,7 @@ module directory_controller_full #(
   // Directory metadata memory port (external mem2048x3). Reset/clear external.
   output logic        md_enable_n_o,   // active-low access enable
   output logic        md_we_o,         // 1 = write, 0 = read
-  output logic [10:0] md_addr_o,       // line index
+  output logic [12:0] md_addr_o,       // line index
   output logic [2:0]  md_wdata_o,      // {dirty, sharers[1:0]}
   input  logic [2:0]  md_rdata_i,      // {dirty, sharers[1:0]}
 
@@ -189,7 +189,7 @@ module directory_controller_full #(
   logic       remote_modified;
   logic       line_shared;
 
-  logic [10:0] request_index;
+  logic [12:0] request_index;
 
   logic [31:0] selected_addr;
   logic        selected_in_range;
@@ -244,7 +244,7 @@ module directory_controller_full #(
   // ---------------------------------------------------------------------------
   // Combinational metadata views.
   // ---------------------------------------------------------------------------
-  assign request_index = request_addr_q[10:0];
+  assign request_index = request_addr_q[12:0];
 
   // Address-space bounds check. selected_* qualifies an incoming request as it
   // is accepted; request_* re-derives the same check for the captured request.

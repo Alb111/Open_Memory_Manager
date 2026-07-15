@@ -28,6 +28,9 @@ module housekeeping_top #(
    output logic cores_en_o,
    output logic boot_done_o,
 
+   // Boot-image length (words) latched from the flash header status register.
+   output logic [31:0] boot_len_o,
+
    output logic whoami_pulse_o,
 
    // Reset-time memory clear handshake with the external reset generator.
@@ -108,6 +111,7 @@ module housekeeping_top #(
       .sram_wr_en_o(boot_wr_en),
       .sram_addr_o(boot_addr),
       .sram_data_o(boot_data),
+      .boot_len_o(boot_len_o),
       .cores_en_o(cores_en_o),
       .boot_done_o(boot_done_o),
       .boot_started_o(boot_started),

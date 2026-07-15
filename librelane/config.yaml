@@ -33,14 +33,13 @@ VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
 - dir::../src/directory_controller/directory_controller_full.sv
-- dir::../src/directory_controller/memory_reset_generator.sv
 - dir::../src/arb/wrr_arbiter.sv
 - dir::../src/housekeeping/boot_fsm.sv
 - dir::../src/housekeeping/housekeeping_top.sv
 - dir::../src/housekeeping/spi_engine.sv
-- dir::../src/mem_ctrl/mem2048x32.sv
-- dir::../src/mem_ctrl/mem512x32.sv
-- dir::../src/mem2048x3/mem2048x3.sv
+- dir::../src/mem_ctrl/mem8192x32.sv
+- dir::../src/mem_ctrl/mem1024x32.sv
+- dir::../src/mem2048x3/mem8192x3.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv

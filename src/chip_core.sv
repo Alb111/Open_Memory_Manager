@@ -98,9 +98,9 @@ module chip_core #(
     logic		 c1_tser_ready;
 
 	//directory subsystem (full-directory controller + external memories)
-    // Controller metadata port (drives mem2048x3 when reset generator is idle).
+    // Controller metadata port (drives mem8192x3).
     logic        ctrl_md_enable_n, ctrl_md_we;
-    logic [10:0] ctrl_md_addr;
+    logic [12:0] ctrl_md_addr;
     logic [2:0]  ctrl_md_wdata;
 
     // Controller main-memory port.
@@ -108,21 +108,19 @@ module chip_core #(
     logic [31:0] ctrl_mm_addr, ctrl_mm_wdata;
     logic [3:0]  ctrl_mm_wstrb;
 
-    // Reset generator control + memory ports.
-    logic        rg_start, rg_busy, rg_ready;
-    logic        rg_md_enable_n, rg_md_we, rg_md_clear;
-    logic [10:0] rg_md_addr;
-    logic [2:0]  rg_md_wdata;
-    logic        rg_mm_valid, rg_mm_instr;
-    logic [31:0] rg_mm_addr, rg_mm_wdata;
-    logic [3:0]  rg_mm_wstrb;
+    // Memory contents-clear handshake. The self-clear now lives inside each
+    // memory controller; housekeeping starts it and waits on the aggregate of
+    // both controllers' done flags. Replaces the old memory_reset_generator.
+    logic        mem_clear_start;
+    logic        mm_clear_done, md_clear_done;
+    wire         mem_clear_done = mm_clear_done & md_clear_done;
 
-    // Muxed metadata memory (mem2048x3) port.
-    logic        md_enable_n, md_we, md_clear;
-    logic [10:0] md_addr;
+    // Metadata memory (mem8192x3) port.
+    logic        md_enable_n, md_we;
+    logic [12:0] md_addr;
     logic [2:0]  md_wdata, md_rdata;
 
-    // Muxed main memory (mem_ctrl_2048x32) port.
+    // Main memory (mem_ctrl_8192x32) port.
     logic        mm_valid, mm_instr, mm_ready;
     logic [31:0] mm_addr, mm_wdata, mm_rdata;
     logic [3:0]  mm_wstrb;
@@ -140,6 +138,10 @@ module chip_core #(
     logic        boot_done;
     logic        cores_en;
     logic        boot_pass_en;
+    // Boot-image length (words) from the flash header — status register. Marks
+    // the instruction/data boundary: instruction space [0, boot_len_status),
+    // data space [boot_len_status, 8192) held at zero by the memory self-clear.
+    logic [31:0] boot_len_status;
     logic        core_mem_select;
     logic        core_rst_n;
 
@@ -147,6 +149,7 @@ module chip_core #(
     logic [DFT_CHAINS-1:0] scan_out;
     // Chain 3 internal stitch: directory controller -> reset generator.
     logic dir_ctrl_scan_out;
+    logic main_mem_scan_out;   // scan chain 3: main-memory clear FSM -> metadata clear FSM
 
 	//SERDES
     logic [SER_PINS-1:0] c0_serial_tx;
@@ -250,9 +253,10 @@ module chip_core #(
         .mem_instr_o    (boot_mem_instr),
         .cores_en_o     (cores_en),
         .boot_done_o    (boot_done),
+        .boot_len_o     (boot_len_status),
         .whoami_pulse_o (whoami_pulse),
-        .mem_clear_start_o (rg_start),
-        .mem_clear_done_i  (rg_ready),
+        .mem_clear_start_o (mem_clear_start),
+        .mem_clear_done_i  (mem_clear_done),
         .scan_en_i      (debug_mode_i[0]),
         .scan_in_i      (scan_in[0]),
         .scan_out_o     (scan_out[0])
@@ -346,35 +350,19 @@ module chip_core #(
     // cannot begin until both memories are fully cleared.
 
     // ---- Memory port muxing (all outside the controller) -------------------
-    // Directory metadata: the reset generator owns the mem2048x3 port (in clear
-    // mode) while it is sweeping; otherwise the controller does.
-    // Main memory: reset generator > boot loader > controller, selected by the
-    // boot stage. rg_busy wins during the clear sweep; after it, core_mem_select
-    // (debug_mode_i[3] | boot_done) hands the bus from the boot loader to the
-    // controller. The reset generator (one word/cycle) clears each address well
-    // ahead of the SPI-paced boot loader reaching it.
+    // The contents clear now lives inside each memory controller, so there is no
+    // reset-generator port to mux. Directory metadata is driven only by the
+    // controller. Main memory is driven by the boot loader until boot_done, then
+    // by the controller (core_mem_select = debug_mode_i[3] | boot_done). Boot is
+    // held in reset until mem_clear_done, so the internal clear finishes before
+    // either functional driver is active.
     always_comb begin
-        if (rg_busy) begin
-            md_enable_n = rg_md_enable_n;
-            md_we       = rg_md_we;
-            md_clear    = rg_md_clear;
-            md_addr     = rg_md_addr;
-            md_wdata    = rg_md_wdata;
-        end else begin
-            md_enable_n = ctrl_md_enable_n;
-            md_we       = ctrl_md_we;
-            md_clear    = 1'b0;
-            md_addr     = ctrl_md_addr;
-            md_wdata    = ctrl_md_wdata;
-        end
+        md_enable_n = ctrl_md_enable_n;
+        md_we       = ctrl_md_we;
+        md_addr     = ctrl_md_addr;
+        md_wdata    = ctrl_md_wdata;
 
-        if (rg_busy) begin
-            mm_valid = rg_mm_valid;
-            mm_instr = rg_mm_instr;
-            mm_addr  = rg_mm_addr;
-            mm_wstrb = rg_mm_wstrb;
-            mm_wdata = rg_mm_wdata;
-        end else if (core_mem_select) begin
+        if (core_mem_select) begin
             mm_valid = ctrl_mm_valid;
             mm_instr = ctrl_mm_instr;
             mm_addr  = ctrl_mm_addr;
@@ -443,65 +431,57 @@ module chip_core #(
         .mm_rdata_i           (mm_rdata),
         .mm_ready_i           (mm_ready),
 
-        // DFT scan chain 3: directory controller (+ its wrr_arbiter) first.
+        // DFT scan chain 3: directory controller (+ its wrr_arbiter) first, then
+        // the two memory controllers' clear FSMs (main memory, then metadata).
         .debug_mode_i         (debug_mode_i[3]),
         .scan_in_i            (scan_in[3]),
         .scan_out_o           (dir_ctrl_scan_out)
     );
 
-    memory_reset_generator i_memory_reset_generator (
+    // The standalone memory_reset_generator is gone; each memory controller
+    // clears its own SRAMs in parallel (one broadcast counter, 1024 cycles).
+    // Both are started by mem_clear_start and their done flags are AND-ed into
+    // mem_clear_done. Their clear FSMs continue scan chain 3.
+
+    mem_ctrl_8192x32 i_main_memory (
         .clk_i         (clk),
         .rst_ni        (rst_n),
-        .start_i       (rg_start),
-        .busy_o        (rg_busy),
-        .ready_o       (rg_ready),
-
-        .md_enable_n_o (rg_md_enable_n),
-        .md_we_o       (rg_md_we),
-        .md_clear_o    (rg_md_clear),
-        .md_addr_o     (rg_md_addr),
-        .md_wdata_o    (rg_md_wdata),
-
-        .mm_valid_o    (rg_mm_valid),
-        .mm_instr_o    (rg_mm_instr),
-        .mm_addr_o     (rg_mm_addr),
-        .mm_wstrb_o    (rg_mm_wstrb),
-        .mm_wdata_o    (rg_mm_wdata),
-        .mm_ready_i    (mm_ready),
-
-        // DFT scan chain 3: reset generator chained after the directory controller.
+        .mem_valid_i   (mm_valid),
+        .mem_instr_i   (mm_instr),
+        .mem_addr_i    (mm_addr),
+        .mem_wdata_i   (mm_wdata),
+        .mem_wstrb_i   (mm_wstrb),
+        .mem_rdata_o   (mm_rdata),
+        .mem_ready_o   (mm_ready),
+        .clear_start_i (mem_clear_start),
+        .clear_done_o  (mm_clear_done),
+        // DFT scan chain 3: after the directory controller.
         .debug_mode_i  (debug_mode_i[3]),
         .scan_in_i     (dir_ctrl_scan_out),
-        .scan_out_o    (scan_out[3])
-    );
-
-    mem2048x3 i_dir_metadata (
-        .clk_i      (clk),
-        .enable_n_i (md_enable_n),
-        .we_i       (md_we),
-        .clear_i    (md_clear),
-        .addr_i     (md_addr),
-        .wdata_i    (md_wdata),
-        .rdata_o    (md_rdata)
+        .scan_out_o    (main_mem_scan_out)
         `ifdef USE_POWER_PINS
-          ,.VDD     (VDD)
-          ,.VSS     (VSS)
+          ,.VDD        (VDD)
+          ,.VSS        (VSS)
         `endif
     );
 
-    mem_ctrl_2048x32 i_main_memory (
-        .clk_i       (clk),
-        .rst_ni      (rst_n),
-        .mem_valid_i (mm_valid),
-        .mem_instr_i (mm_instr),
-        .mem_addr_i  (mm_addr),
-        .mem_wdata_i (mm_wdata),
-        .mem_wstrb_i (mm_wstrb),
-        .mem_rdata_o (mm_rdata),
-        .mem_ready_o (mm_ready)
+    mem8192x3 i_dir_metadata (
+        .clk_i         (clk),
+        .rst_ni        (rst_n),
+        .enable_n_i    (md_enable_n),
+        .we_i          (md_we),
+        .addr_i        (md_addr),
+        .wdata_i       (md_wdata),
+        .rdata_o       (md_rdata),
+        .clear_start_i (mem_clear_start),
+        .clear_done_o  (md_clear_done),
+        // DFT scan chain 3: last, driving scan_out[3].
+        .debug_mode_i  (debug_mode_i[3]),
+        .scan_in_i     (main_mem_scan_out),
+        .scan_out_o    (scan_out[3])
         `ifdef USE_POWER_PINS
-          ,.VDD      (VDD)
-          ,.VSS      (VSS)
+          ,.VDD        (VDD)
+          ,.VSS        (VSS)
         `endif
     );
 
@@ -509,7 +489,7 @@ module chip_core #(
     // wired at the two instances above (scan_in[3] -> ... -> scan_out[3]).
 
     logic _unused;
-    assign _unused = &{bidir_in, c0_reset_done, c1_reset_done};
+    assign _unused = &{bidir_in, c0_reset_done, c1_reset_done, boot_len_status};
 
 endmodule
 

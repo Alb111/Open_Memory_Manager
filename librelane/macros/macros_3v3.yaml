@@ -78,32 +78,222 @@ MACROS:
         location: [26, "expr::$DIE_AREA[3] - 169.25"]
         orientation: N
 
-  # 3.3V SRAM
-  gf180mcu_ocd_ip_sram__sram512x8m8wm1:
+  # 3.3V SRAM (dense OCD bitcell). ONE macro type serves both the 8192x32 main
+  # memory (32 macros) and the 8192-line x 3-bit directory metadata (3 macros).
+  #   Macro footprint: 301.30 (W) x 515.81 (H). All 38 signal pins sit on the
+  #   BOTTOM edge (Y=0..3), same as the 5V part, so the quadrant mirror scheme
+  #   transfers unchanged.
+  #
+  # Slot: slot_1x1  DIE_AREA [0,0,3932,5122]  CORE_AREA [442,442,3490,4680].
+  #
+  # ---- Cluster / quadrant structure (kept from the 5V floorplan) ----
+  # Each memblock (mem_ctrl_1024x32 = one 1024-deep bank, 4 x8 lanes) is a 2x2
+  # quadrant. The lower row is MIRRORED (FS: pins flipped to the top) and the
+  # upper row stays N (pins on the bottom), so both pin edges face one shared
+  # central channel; the pin-free outer edges pack tight.
+  #     sram0 = lower-left (bits 7:0)    sram1 = lower-right (bits 15:8)
+  #     sram2 = upper-left (bits 23:16)  sram3 = upper-right (bits 31:24)
+  #   Intra-quadrant: 28.70um horizontal (pin-free edge, > 2x the 10um halo),
+  #                   154.19um vertical central channel (pins/route/PDN).
+  #
+  # ---- Super-grid ----
+  # Eight quadrants tile a 4-col x 2-row super-grid (the 5V design's 2x2, scaled
+  # 2x wider). Quadrant origins:
+  #     QC x = {460, 1245, 2030, 2815}  (631.30 wide, 153.70um inter-quadrant)
+  #     QR y = {615, 2500}              (1185.81 tall)
+  #   bottom row = memblock0..3, top row = memblock4..7.
+  #   Occupied extent X 460..3446.30 (< 3490), Y 615..3685.81 (< 4680).
+  #
+  # ---- Metadata channel ----
+  # The 699.19um gap between the two quadrant rows (Y 1800.81..2500) is the
+  # directory-metadata channel. The three 8192x1 bit-plane SRAMs (each one
+  # 1024x8 = 8192 cells) sit centered at Y=1895 (top 2410.81, >89um clear of the
+  # rows above and below), spread across the width for even routing to the
+  # directory controller.
+  #
+  # NOTE (RTL contract): instance paths assume mem_ctrl_8192x32 i_main_memory
+  # with memblock0..7 (each mem_ctrl_1024x32, srams sram0..3) and mem8192x3
+  # i_dir_metadata with plane0..2. That RTL must exist for these paths to bind.
+  # All coordinates are on the 5um grid; bottom-left = location for every
+  # orientation (OpenDB normalizes the origin, so FS does not shift footprint).
+  gf180mcu_ocd_ip_sram__sram1024x8m8wm1:
     gds:
-      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/gds/gf180mcu_ocd_ip_sram__sram512x8m8wm1.gds
+      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/gds/gf180mcu_ocd_ip_sram__sram1024x8m8wm1.gds
     lef:
-      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lef/gf180mcu_ocd_ip_sram__sram512x8m8wm1.lef
+      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lef/gf180mcu_ocd_ip_sram__sram1024x8m8wm1.lef
     vh:
-      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/verilog/gf180mcu_ocd_ip_sram__sram512x8m8wm1__blackbox_pp.v
+      - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/verilog/gf180mcu_ocd_ip_sram__sram1024x8m8wm1__blackbox_pp.v
     lib:
       "*_tt_025C_3v30":
-        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram512x8m8wm1__tt_025C_3v30.lib
+        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram1024x8m8wm1__tt_025C_3v30.lib
       "*_ff_n40C_3v60":
-        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram512x8m8wm1__ff_n40C_3v60.lib
+        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram1024x8m8wm1__ff_n40C_3v60.lib
       "*_ss_125C_3v00":
-        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram512x8m8wm1__ss_125C_3v00.lib
+        - pdk_dir::libs.ref/gf180mcu_ocd_ip_sram/lib/gf180mcu_ocd_ip_sram__sram1024x8m8wm1__ss_125C_3v00.lib
     instances:
-      # Make sure to specify the SRAMs in pdn_cfg.tcl
-      i_chip_core.sram_0:
-        location: [490, 500]
+      # ===== bottom quadrant row (QR y=615) =====
+      # memblock0 -> QC0
+      i_chip_core.i_main_memory.memblock0.sram0:
+        location: [460, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock0.sram1:
+        location: [790, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock0.sram2:
+        location: [460, 1285]
         orientation: N
-      i_chip_core.sram_1:
-        location: [970, 500]
-        orientation: E
+      i_chip_core.i_main_memory.memblock0.sram3:
+        location: [790, 1285]
+        orientation: N
+      # memblock1 -> QC1
+      i_chip_core.i_main_memory.memblock1.sram0:
+        location: [1245, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock1.sram1:
+        location: [1575, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock1.sram2:
+        location: [1245, 1285]
+        orientation: N
+      i_chip_core.i_main_memory.memblock1.sram3:
+        location: [1575, 1285]
+        orientation: N
+      # memblock2 -> QC2
+      i_chip_core.i_main_memory.memblock2.sram0:
+        location: [2030, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock2.sram1:
+        location: [2360, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock2.sram2:
+        location: [2030, 1285]
+        orientation: N
+      i_chip_core.i_main_memory.memblock2.sram3:
+        location: [2360, 1285]
+        orientation: N
+      # memblock3 -> QC3
+      i_chip_core.i_main_memory.memblock3.sram0:
+        location: [2815, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock3.sram1:
+        location: [3145, 615]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock3.sram2:
+        location: [2815, 1285]
+        orientation: N
+      i_chip_core.i_main_memory.memblock3.sram3:
+        location: [3145, 1285]
+        orientation: N
 
-# This is an alternative method compared to
-# specifying the power connections in the RTL
+      # ===== top quadrant row (QR y=2500) =====
+      # memblock4 -> QC0
+      i_chip_core.i_main_memory.memblock4.sram0:
+        location: [460, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock4.sram1:
+        location: [790, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock4.sram2:
+        location: [460, 3170]
+        orientation: N
+      i_chip_core.i_main_memory.memblock4.sram3:
+        location: [790, 3170]
+        orientation: N
+      # memblock5 -> QC1
+      i_chip_core.i_main_memory.memblock5.sram0:
+        location: [1245, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock5.sram1:
+        location: [1575, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock5.sram2:
+        location: [1245, 3170]
+        orientation: N
+      i_chip_core.i_main_memory.memblock5.sram3:
+        location: [1575, 3170]
+        orientation: N
+      # memblock6 -> QC2
+      i_chip_core.i_main_memory.memblock6.sram0:
+        location: [2030, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock6.sram1:
+        location: [2360, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock6.sram2:
+        location: [2030, 3170]
+        orientation: N
+      i_chip_core.i_main_memory.memblock6.sram3:
+        location: [2360, 3170]
+        orientation: N
+      # memblock7 -> QC3
+      i_chip_core.i_main_memory.memblock7.sram0:
+        location: [2815, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock7.sram1:
+        location: [3145, 2500]
+        orientation: FS
+      i_chip_core.i_main_memory.memblock7.sram2:
+        location: [2815, 3170]
+        orientation: N
+      i_chip_core.i_main_memory.memblock7.sram3:
+        location: [3145, 3170]
+        orientation: N
+
+      # ===== directory metadata (central channel, Y 1800.81..2500) =====
+      # 8192 lines x 3 bits -> three 8192x1 bit planes; each plane is one 1024x8
+      # (1024 x 8 = 8192 cells), addressed line[12:3] -> A[9:0], line[2:0] -> byte.
+      i_chip_core.i_dir_metadata.plane0:
+        location: [610, 1895]
+        orientation: N
+      i_chip_core.i_dir_metadata.plane1:
+        location: [1650, 1895]
+        orientation: N
+      i_chip_core.i_dir_metadata.plane2:
+        location: [2690, 1895]
+        orientation: N
+
+# This is an alternative method compared to specifying the power connections in
+# the RTL. All 35 SRAM macros connect to the core VDD/VSS.
 PDN_MACRO_CONNECTIONS:
-- "i_chip_core.sram_0 VDD VSS VDD VSS"
-- "i_chip_core.sram_1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock0.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock0.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock0.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock0.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock1.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock1.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock1.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock1.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock2.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock2.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock2.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock2.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock3.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock3.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock3.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock3.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock4.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock4.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock4.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock4.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock5.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock5.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock5.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock5.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock6.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock6.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock6.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock6.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock7.sram0 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock7.sram1 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock7.sram2 VDD VSS VDD VSS"
+- "i_chip_core.i_main_memory.memblock7.sram3 VDD VSS VDD VSS"
+- "i_chip_core.i_dir_metadata.plane0 VDD VSS VDD VSS"
+- "i_chip_core.i_dir_metadata.plane1 VDD VSS VDD VSS"
+- "i_chip_core.i_dir_metadata.plane2 VDD VSS VDD VSS"
+
+# Halo size around macros while cutting rows.
+# Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
+FP_MACRO_HORIZONTAL_HALO: 5
+FP_MACRO_VERTICAL_HALO: 5
+PDN_HORIZONTAL_HALO: 3
+PDN_VERTICAL_HALO: 3
