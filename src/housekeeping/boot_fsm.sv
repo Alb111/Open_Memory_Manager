@@ -42,6 +42,11 @@ module boot_fsm #(
     // CAPTURE_LEN step onward and held stable after boot completes.
     output logic [31:0] boot_len_o,
 
+    // High once the header length has been captured (CAPTURE_LEN onward), i.e.
+    // boot_len_o is valid. Used to gate the WhoAmI send so it never ships a
+    // stale boot_len = 0. Equals the internal hdr_done flag.
+    output logic boot_len_valid_o,
+
     output logic boot_started_o,
 
     input logic scan_en_i,
@@ -76,6 +81,7 @@ module boot_fsm #(
     assign len_clamped = (word_buffer > MEM_WORDS) ? MEM_WORDS : word_buffer;
 
     assign boot_len_o = boot_len;
+    assign boot_len_valid_o = hdr_done;
 
     //state register
     always_ff @(posedge clk_i) begin

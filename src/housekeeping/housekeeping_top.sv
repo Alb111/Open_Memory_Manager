@@ -55,6 +55,7 @@ module housekeeping_top #(
    logic [31:0] boot_data;
 
    logic boot_started;
+   logic boot_len_valid;
    logic whoami_sent;
    logic spi_scan_out;
    logic boot_scan_out;
@@ -112,6 +113,7 @@ module housekeeping_top #(
       .sram_addr_o(boot_addr),
       .sram_data_o(boot_data),
       .boot_len_o(boot_len_o),
+      .boot_len_valid_o(boot_len_valid),
       .cores_en_o(cores_en_o),
       .boot_done_o(boot_done_o),
       .boot_started_o(boot_started),
@@ -131,8 +133,10 @@ module housekeeping_top #(
          whoami_sent <= 1'b1;
    end
 
-   // assert pulse once boot starts, hold until accepted, never repeat
-   assign whoami_pulse_o = boot_started && !whoami_sent;
+   // assert pulse once the header length is captured (boot_len valid), hold until
+   // accepted, never repeat. boot_started alone asserts at SEND_CMD -- before
+   // CAPTURE_LEN -- so gating on boot_len_valid stops WhoAmI shipping boot_len = 0.
+   assign whoami_pulse_o = boot_started && boot_len_valid && !whoami_sent;
    assign scan_out_o = whoami_sent;
 
 endmodule

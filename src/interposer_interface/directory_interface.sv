@@ -35,6 +35,9 @@ module directory_interface #(
     // WhoAmI
     input  logic                send_WhoAmI_i,
     input  logic [7:0]          cpu_id_i,
+    // Boot-size status register (boot_len), shipped to the CPU inside the
+    // widened WhoAmI LARGE frame. Static after boot; plain fan-out.
+    input  logic [31:0]         status_i,
 
     // Reset Done
     output logic                reset_done_o, // should pulse when reset done command is received
@@ -53,11 +56,16 @@ module directory_interface #(
     // -----------------------------------------------
 );
 
-    typedef enum logic [3:0] { 
+    typedef enum logic [3:0] {
         NULL            = 4'b0000,
         BusRD           = 4'b0001,
         BusRDX          = 4'b0010,
         BusUPGR         = 4'b0011,
+
+        // Private instruction fetch: bypasses cache + directory coherence, served
+        // straight from main memory. Request carries an address (CPU->OMM),
+        // response carries data (OMM->CPU); request and ack share the code.
+        InstrFetch      = 4'b0100,
 
         EvictClean      = 4'b0101,
         EvictDirty      = 4'b0110,
@@ -67,7 +75,7 @@ module directory_interface #(
         SnoopBusRDX     = 4'b1010,
         SnoopBusUPGR    = 4'b1011,
 
-        
+
         WhoAmI          = 4'b1110,
         ResetDone       = 4'b1111
     } metadata;
@@ -80,22 +88,27 @@ module directory_interface #(
     } msg_types;
 
     // TRANSMISSION ----------------------------------
-    logic [37:0] t_packet;
+    // Widened to 70 bits so WhoAmI can ship the boot-size status register in a
+    // LARGE frame: {msg_type[1:0], field1[31:0], field0[31:0], cmd[3:0]}.
+    logic [69:0] t_packet;
     // dir_cmd_i is already the 4-bit binary `metadata` code, so the packet's
     // metadata field is just dir_cmd_i; the case only selects msg length + payload.
     // Acks echo the request's metadata code (EvictDirty = dirty writeback persisted).
     always_comb begin : build_packet
         if (send_WhoAmI_i) begin
-            t_packet = {SHORT, 24'b0, cpu_id_i, WhoAmI};
+            // LARGE: field1 = boot_len status, field0 = {pad, cpu_id}, cmd = WhoAmI.
+            t_packet = {LARGE, status_i, 24'b0, cpu_id_i, WhoAmI};
         end else begin
             case (dir_cmd_i)
-                BusRD          : t_packet = {MEDIUM,  dir_data_i, dir_cmd_i};
-                BusRDX         : t_packet = {MEDIUM,  dir_data_i, dir_cmd_i};
-                BusUPGR        : t_packet = {CMDONLY, 32'b0,      dir_cmd_i};
-                EvictDirty     : t_packet = {CMDONLY, 32'b0,      dir_cmd_i};
-                SnoopBusRD     : t_packet = {MEDIUM,  dir_addr_i, dir_cmd_i};
-                SnoopBusRDX    : t_packet = {MEDIUM,  dir_addr_i, dir_cmd_i};
-                SnoopBusUPGR   : t_packet = {MEDIUM,  dir_addr_i, dir_cmd_i};
+                BusRD          : t_packet = {MEDIUM,  32'b0, dir_data_i, dir_cmd_i};
+                BusRDX         : t_packet = {MEDIUM,  32'b0, dir_data_i, dir_cmd_i};
+                BusUPGR        : t_packet = {CMDONLY, 32'b0, 32'b0,      dir_cmd_i};
+                EvictDirty     : t_packet = {CMDONLY, 32'b0, 32'b0,      dir_cmd_i};
+                // Private instruction-fetch response: return the fetched word.
+                InstrFetch     : t_packet = {MEDIUM,  32'b0, dir_data_i, dir_cmd_i};
+                SnoopBusRD     : t_packet = {MEDIUM,  32'b0, dir_addr_i, dir_cmd_i};
+                SnoopBusRDX    : t_packet = {MEDIUM,  32'b0, dir_addr_i, dir_cmd_i};
+                SnoopBusUPGR   : t_packet = {MEDIUM,  32'b0, dir_addr_i, dir_cmd_i};
                 default        : t_packet = '0;
             endcase
         end
@@ -109,7 +122,7 @@ module directory_interface #(
 
     tserializer #(
         .NUM_PINS    (NUM_TPINS),
-        .MAX_MSG_LEN (36),
+        .MAX_MSG_LEN (68),
         .MSG_LEN_0   (4),
         .MSG_LEN_1   (12),
         .MSG_LEN_2   (36),
@@ -125,8 +138,9 @@ module directory_interface #(
         .serial_o (serial_o),
 
         .valid_i  (tserial_valid),
-        .data_in  (t_packet[35:0]),
-        .msg_type (t_packet[37:36]),
+        // data_in is ceil(68/9)*9 = 72 bits wide; pad the 68-bit payload.
+        .data_in  ({4'b0, t_packet[67:0]}),
+        .msg_type (t_packet[69:68]),
         .ready_o  (dir_ready_o)
 
     );
@@ -169,6 +183,7 @@ module directory_interface #(
 
         case (rmetadata)
             BusRD, BusRDX, BusUPGR,
+            InstrFetch,
             EvictClean, EvictDirty                : bus_valid_d   = rvalid_o;
             SnoopBusRD, SnoopBusRDX, SnoopBusUPGR : snoop_valid_d = rvalid_o;
             ResetDone                             : reset_done_o  = rvalid_o;

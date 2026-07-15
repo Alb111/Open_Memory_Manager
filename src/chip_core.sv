@@ -292,6 +292,7 @@ module chip_core #(
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
   	.cpu_id_i           (8'h00),
+  	.status_i           (boot_len_status),
   	.reset_done_o       (c0_reset_done),
 
 	.req_i_branches     (c0_req_i_branches),
@@ -333,6 +334,7 @@ module chip_core #(
   	.rbusy_o            (),
     .send_WhoAmI_i      (whoami_pulse),
   	.cpu_id_i           (8'h01),
+  	.status_i           (boot_len_status),
   	.reset_done_o       (c1_reset_done),
 
 	.req_i_branches     (c1_req_i_branches),
@@ -431,6 +433,9 @@ module chip_core #(
         .mm_rdata_i           (mm_rdata),
         .mm_ready_i           (mm_ready),
 
+        // Boot-size status: instruction/data split + normalization offset.
+        .boot_len_i           (boot_len_status),
+
         // DFT scan chain 3: directory controller (+ its wrr_arbiter) first, then
         // the two memory controllers' clear FSMs (main memory, then metadata).
         .debug_mode_i         (debug_mode_i[3]),
@@ -489,7 +494,7 @@ module chip_core #(
     // wired at the two instances above (scan_in[3] -> ... -> scan_out[3]).
 
     logic _unused;
-    assign _unused = &{bidir_in, c0_reset_done, c1_reset_done, boot_len_status};
+    assign _unused = &{bidir_in, c0_reset_done, c1_reset_done};
 
 endmodule
 

@@ -95,6 +95,12 @@ module directory_controller_full #(
   input  logic [31:0] mm_rdata_i,
   input  logic        mm_ready_i,
 
+  // Boot-size status register (words). Marks the instruction/data split:
+  // instruction space [0, boot_len_i) served raw by InstrFetch, data space
+  // normalized 0-based and re-offset by boot_len_i into physical memory. Static
+  // after boot -- a plain config strap, not on any coherence timing path.
+  input  logic [31:0] boot_len_i,
+
   // DFT scan chain (debug_mode_i is the scan/functional select).
   input  logic        debug_mode_i,
   input  logic        scan_in_i,
@@ -110,12 +116,14 @@ module directory_controller_full #(
   localparam logic [3:0] CACHE_CMD_BUS_RD      = 4'd1;
   localparam logic [3:0] CACHE_CMD_BUS_RDX     = 4'd2;
   localparam logic [3:0] CACHE_CMD_BUS_UPGR    = 4'd3;
+  localparam logic [3:0] CACHE_CMD_INSTR_FETCH = 4'd4;   // private instruction fetch
   localparam logic [3:0] CACHE_CMD_EVICT_CLEAN = 4'd5;
   localparam logic [3:0] CACHE_CMD_EVICT_DIRTY = 4'd6;
 
   localparam logic [3:0] SNOOP_ACK_NONE = 4'd0;
 
   localparam logic [3:0] DIR_CMD_NONE            = 4'd0;
+  localparam logic [3:0] DIR_CMD_INSTR_FETCH_ACK = 4'd4;   // echoes InstrFetch (returns the word)
   localparam logic [3:0] DIR_CMD_BUS_RD_ACK      = 4'd1;   // echoes BusRD
   localparam logic [3:0] DIR_CMD_BUS_RDX_ACK     = 4'd2;   // echoes BusRDX
   localparam logic [3:0] DIR_CMD_BUS_UPGR_ACK    = 4'd3;   // echoes BusUPGR
@@ -192,6 +200,7 @@ module directory_controller_full #(
   logic [12:0] request_index;
 
   logic [31:0] selected_addr;
+  logic [3:0]  selected_cmd;
   logic        selected_in_range;
   logic        request_in_range;
 
@@ -246,11 +255,19 @@ module directory_controller_full #(
   // ---------------------------------------------------------------------------
   assign request_index = request_addr_q[12:0];
 
-  // Address-space bounds check. selected_* qualifies an incoming request as it
-  // is accepted; request_* re-derives the same check for the captured request.
+  // Address-space bounds check, dynamic in boot_len. selected_* qualifies an
+  // incoming request as it is accepted; request_* re-derives it for the captured
+  // request. Instruction fetches live in [0, boot_len_i); normalized data lives
+  // in [0, ADDR_SPACE_WORDS - boot_len_i) (it is re-offset by boot_len_i into the
+  // physical store, so physical stays < ADDR_SPACE_WORDS).
   assign selected_addr     = selected_cache ? c1_bus_addr_i : c0_bus_addr_i;
-  assign selected_in_range = (selected_addr  < ADDR_SPACE_WORDS);
-  assign request_in_range  = (request_addr_q < ADDR_SPACE_WORDS);
+  assign selected_cmd      = selected_cache ? c1_bus_cache_cmd_i : c0_bus_cache_cmd_i;
+  assign selected_in_range = (selected_cmd == CACHE_CMD_INSTR_FETCH)
+                           ? (selected_addr < boot_len_i)
+                           : (selected_addr < (ADDR_SPACE_WORDS - boot_len_i));
+  assign request_in_range  = (request_cmd_q == CACHE_CMD_INSTR_FETCH)
+                           ? (request_addr_q < boot_len_i)
+                           : (request_addr_q < (ADDR_SPACE_WORDS - boot_len_i));
 
   assign req_onehot   = request_cache_q ? 2'b10 : 2'b01;
   assign snoop_onehot = pending_snoop_cache_q ? 2'b10 : 2'b01;
@@ -310,8 +327,13 @@ module directory_controller_full #(
   // ---------------------------------------------------------------------------
   always_comb begin
     mm_valid_o = 1'b0;
-    mm_instr_o = 1'b0;
-    mm_addr_o  = request_addr_q;
+    // Instruction fetches address main memory raw ([0, boot_len_i)); normalized
+    // data is re-offset by boot_len_i into the physical store [boot_len_i, MEM).
+    // boot_len_i is static, so this adder is off the coherence timing path.
+    mm_instr_o = (request_cmd_q == CACHE_CMD_INSTR_FETCH);
+    mm_addr_o  = (request_cmd_q == CACHE_CMD_INSTR_FETCH)
+               ? request_addr_q
+               : (request_addr_q + boot_len_i);
     mm_wstrb_o = 4'b0000;
     mm_wdata_o = 32'b0;
 
@@ -454,10 +476,13 @@ module directory_controller_full #(
           request_addr_d  = selected_addr;
           request_data_d  = selected_cache ? c1_bus_wdata_i     : c0_bus_wdata_i;
           request_cmd_d   = selected_cache ? c1_bus_cache_cmd_i : c0_bus_cache_cmd_i;
-          // Out-of-range requests skip the metadata read; StLookup emits a
-          // zero-data response for them instead.
-          if (selected_in_range) state_d = StReadMetaReq;
-          else                   state_d = StLookup;
+          // Instruction fetches bypass coherence: never read metadata, go straight
+          // to StLookup (which routes them to a raw main-memory read). Out-of-range
+          // requests also skip the metadata read; StLookup emits a zero-data
+          // response for them instead.
+          if (selected_cmd == CACHE_CMD_INSTR_FETCH) state_d = StLookup;
+          else if (selected_in_range)                state_d = StReadMetaReq;
+          else                                       state_d = StLookup;
         end
       end
 
@@ -510,12 +535,26 @@ module directory_controller_full #(
               pending_ack_cmd_d = DIR_CMD_BUS_UPGR_ACK;
               state_d = StSendAck;
             end
+            CACHE_CMD_INSTR_FETCH: begin
+              // Fetch past the instruction image: return zero (an illegal insn
+              // that the core will trap on) without touching memory.
+              pending_ack_cmd_d = DIR_CMD_INSTR_FETCH_ACK;
+              state_d = StSendAck;
+            end
             default: begin
               state_d = StIdle;
             end
           endcase
         end else begin
           unique case (request_cmd_q)
+            CACHE_CMD_INSTR_FETCH: begin
+              // Private instruction fetch: no metadata, no snoop, no writes.
+              // Read main memory at the raw address (mm_addr_o handles the
+              // no-offset case) and return the word.
+              pending_ack_cmd_d = DIR_CMD_INSTR_FETCH_ACK;
+              state_d = StReadDataReq;
+            end
+
             CACHE_CMD_BUS_RD: begin
               if (remote_modified) begin
                 pending_snoop_cache_d = owner_cache;
