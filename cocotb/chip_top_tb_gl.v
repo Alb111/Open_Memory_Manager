@@ -8,13 +8,13 @@ module chip_top_tb_gl;
     localparam DEBUG_MODE_ID = 0;
     localparam BOOT_PASS_EN_ID = 1;
     localparam SPI_MISO_ID = 3;
-    localparam C0_REQ_I_ID = 16;
-    localparam C0_SERIAL_I_START_ID = 17;
+    localparam C0_REQ_I_ID = 6;
+    localparam C0_SERIAL_I_START_ID = 7;
     localparam C0_TRAP_I_ID = 65;
     localparam DFT_START_ID = 32;
     localparam DFT_PINS = 8;
-    localparam C1_REQ_I_ID = 50;
-    localparam C1_SERIAL_I_START_ID = 51;
+    localparam C1_REQ_I_ID = 40;
+    localparam C1_SERIAL_I_START_ID = 41;
     localparam C1_TRAP_I_ID = 31;
 
     wire clk_PAD;

@@ -35,12 +35,16 @@ def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def apply_reset(dut, cycles=5):
-    dut.reset_ni.value = 0 
+    dut.reset_ni.value = 0
     dut.pass_thru_en_i.value = 0
     dut.spi_miso_i.value = 0
     dut.whoami_ready_i.value = 1
+    # Model the external reset generator as having already cleared the memories,
+    # so the boot machinery is released as soon as reset deasserts. The gating
+    # itself is exercised by test_boot_waits_for_memory_clear.
+    dut.mem_clear_done_i.value = 1
     await ClockCycles(dut.clk_i, cycles)
-    dut.reset_ni.value = 1  
+    dut.reset_ni.value = 1
     await Timer(1, unit="ns")
 
 
@@ -93,9 +97,10 @@ async def test_reset(dut):
     start_clock(dut)
     
     dut.reset_ni.value = 0
-    dut.pass_thru_en_i.value = 0 
+    dut.pass_thru_en_i.value = 0
     dut.spi_miso_i.value = 0
     dut.whoami_ready_i.value = 1
+    dut.mem_clear_done_i.value = 1
 
     await ClockCycles(dut.clk_i, 3)
     await Timer(1, unit="ns")
@@ -246,6 +251,7 @@ async def test_boot_after_passthrough(dut):
     dut.reset_ni.value = 1
     dut.pass_thru_en_i.value = 1
     dut.spi_miso_i.value = 0
+    dut.mem_clear_done_i.value = 1
     await ClockCycles(dut.clk_i, 20)
 
     print(f"    boot_done_o = {int(dut.boot_done_o.value)}  (expected 0)")
@@ -266,6 +272,44 @@ async def test_boot_after_passthrough(dut):
 
     print("PASS")
 
+
+
+@cocotb.test()
+async def test_boot_waits_for_memory_clear(dut):
+    print("\n=== test 7: boot waits for memory clear handshake ===")
+    start_clock(dut)
+
+    # Reset with the clear NOT yet complete.
+    dut.reset_ni.value = 0
+    dut.pass_thru_en_i.value = 0
+    dut.spi_miso_i.value = 0
+    dut.whoami_ready_i.value = 1
+    dut.mem_clear_done_i.value = 0
+    await ClockCycles(dut.clk_i, 5)
+    dut.reset_ni.value = 1
+    await Timer(1, unit="ns")
+
+    # Out of reset the clear is requested and boot is held off.
+    assert dut.mem_clear_start_o.value == 1, "clear should be requested out of reset"
+
+    cocotb.start_soon(flash_model(dut, 32))
+    print("  holding mem_clear_done_i low: boot must not write or complete...")
+    for _ in range(300):
+        await RisingEdge(dut.clk_i)
+        assert dut.mem_valid_o.value == 0, "boot wrote SRAM before memories were cleared"
+        assert dut.boot_done_o.value == 0, "boot completed before memories were cleared"
+    assert dut.mem_clear_start_o.value == 1, "clear request dropped before completion"
+
+    # Signal clear complete; boot must now proceed and finish.
+    print("  asserting mem_clear_done_i: boot should proceed...")
+    dut.mem_clear_done_i.value = 1
+    await Timer(1, unit="ns")
+    assert dut.mem_clear_start_o.value == 0, "clear request should drop once done"
+
+    done = await wait_for_boot_done(dut)
+    assert done, "boot did not complete after the clear handshake finished"
+    assert dut.cores_en_o.value == 1, "cores_en must assert after boot completes"
+    print("PASS - boot gated on memory clear")
 
 
 def boot_ctrl_runner():

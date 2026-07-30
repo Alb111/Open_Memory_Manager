@@ -308,6 +308,7 @@ def whoami_runner():
         proj_path / "../src/housekeeping/spi_engine.sv",
         proj_path / "../src/housekeeping/boot_fsm.sv",
         proj_path / "../src/housekeeping/housekeeping_top.sv",
+        proj_path / "flash_1ps_timescale.v",   # 1ps unit for the vendor model
         CYPRESS_MODEL,
         proj_path / "../src/interposer_interface/tserializer.sv",
         proj_path / "../src/interposer_interface/rserializer.sv",

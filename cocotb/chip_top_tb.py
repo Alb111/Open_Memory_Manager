@@ -6,7 +6,7 @@ from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import Timer, ClockCycles, RisingEdge
+from cocotb.triggers import Timer, ClockCycles, RisingEdge, FallingEdge
 from cocotb_tools.runner import get_runner
 
 
@@ -34,8 +34,9 @@ sdf = env_flag("SDF")
 sdf_file = os.getenv("SDF_FILE", "")
 sdf_corner = os.getenv("SDF_CORNER", "max_tt_025C_5v00")
 
-# The actual chip target is 20 MHz = 50 ns period.
-CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "20"))
+# The actual chip target is 35 MHz = 28.571 ns period.
+CLOCK_FREQ_MHZ = float(os.getenv("CLOCK_FREQ_MHZ", "35"))
+BOOT_PASS_WAIT_NS = 25
 RESET_TIME_NS = int(os.getenv("RESET_TIME_NS", "1000"))
 
 # Pin configurations mapping back to the chip top pad frame.
@@ -48,10 +49,10 @@ PIN_BOOT_MISO = int(os.getenv("SPI_MISO_ID", "3"))
 PIN_BOOT_MOSI = int(os.getenv("SPI_MOSI_ID", "4"))
 PIN_BOOT_SCLK = int(os.getenv("SPI_SCLK_ID", "5"))
 
-PIN_C0_REQ_O = int(os.getenv("C0_REQ_O_ID", "6"))
-PIN_C0_SERIAL_O_START = int(os.getenv("C0_SERIAL_O_START_ID", "7"))
-PIN_C0_REQ_I = int(os.getenv("C0_REQ_I_ID", "16"))
-PIN_C0_SERIAL_I_START = int(os.getenv("C0_SERIAL_I_START_ID", "17"))
+PIN_C0_REQ_I = int(os.getenv("C0_REQ_I_ID", "6"))
+PIN_C0_SERIAL_I_START = int(os.getenv("C0_SERIAL_I_START_ID", "7"))
+PIN_C0_REQ_O = int(os.getenv("C0_REQ_O_ID", "16"))
+PIN_C0_SERIAL_O_START = int(os.getenv("C0_SERIAL_O_START_ID", "17"))
 PIN_C0_BOOT_DONE = int(os.getenv("C0_BOOT_DONE", "26"))
 PIN_C0_DEBUG_MODE = int(os.getenv("C0_DEBUG_MODE_ID", "27"))
 PIN_C0_RST_N = int(os.getenv("C0_RST_N_ID", "28"))
@@ -62,10 +63,10 @@ PIN_C0_TRAP_O = int(os.getenv("C0_TRAP_O_ID", "64"))
 PIN_DFT_START = int(os.getenv("DFT_START_ID", "32"))
 DFT_PINS = int(os.getenv("DFT_PINS", "8"))
 
-PIN_C1_REQ_O = int(os.getenv("C1_REQ_O_ID", "40"))
-PIN_C1_SERIAL_O_START = int(os.getenv("C1_SERIAL_O_START_ID", "41"))
-PIN_C1_REQ_I = int(os.getenv("C1_REQ_I_ID", "50"))
-PIN_C1_SERIAL_I_START = int(os.getenv("C1_SERIAL_I_START_ID", "51"))
+PIN_C1_REQ_I = int(os.getenv("C1_REQ_I_ID", "40"))
+PIN_C1_SERIAL_I_START = int(os.getenv("C1_SERIAL_I_START_ID", "41"))
+PIN_C1_REQ_O = int(os.getenv("C1_REQ_O_ID", "50"))
+PIN_C1_SERIAL_O_START = int(os.getenv("C1_SERIAL_O_START_ID", "51"))
 PIN_C1_BOOT_DONE = int(os.getenv("C1_BOOT_DONE", "60"))
 PIN_C1_DEBUG_MODE = int(os.getenv("C1_DEBUG_MODE_ID", "61"))
 PIN_C1_RST_N = int(os.getenv("C1_RST_N_ID", "62"))
@@ -483,13 +484,19 @@ async def enable_power_if_present(dut):
 
 
 async def start_clock(clock):
-    period_ns = 1000.0 / CLOCK_FREQ_MHZ
+    # Cocotb requires a period that is exactly representable at the simulator's
+    # 1 ps precision. Round to the nearest picosecond so frequencies such as
+    # 35 MHz do not produce an unrepresentable fractional-nanosecond period.
+    # Use an even number of picoseconds so Cocotb can generate a 50% duty
+    # cycle without introducing a sub-picosecond half-period.
+    period_ps = 2 * round(500_000 / CLOCK_FREQ_MHZ)
+    period_ns = period_ps / 1000
     cocotb.log.info(
         f"Starting chip clock at {CLOCK_FREQ_MHZ} MHz "
         f"({period_ns} ns period)"
     )
 
-    c = Clock(clock, period_ns, "ns")
+    c = Clock(clock, period_ps, unit="ps")
     cocotb.start_soon(c.start())
 
 
@@ -595,6 +602,38 @@ async def test_00_pin_map_and_basic_reset_smoke(dut):
 
 
 @cocotb.test()
+async def test_reset_deassertion_is_synchronized(dut):
+    """Raw reset asserts immediately and releases after two clock edges."""
+    await enable_power_if_present(dut)
+    drive_bidir_inputs(dut, debug_mode=1, boot_pass_en=0)
+    dut.clk_PAD.value = 0
+    dut.rst_n_PAD.value = 0
+    await start_clock(dut.clk_PAD)
+
+    await ClockCycles(dut.clk_PAD, 2)
+    assert int(dut.rst_n_sync.value) == 0
+
+    # Move deassertion away from the active edge. The first edge fills the
+    # synchronizer; the second releases every downstream reset consumer.
+    await Timer(2, "ns")
+    dut.rst_n_PAD.value = 1
+
+    for _ in range(4):
+        await RisingEdge(dut.clk_PAD)
+        await Timer(1, "ps")
+        if int(dut.reset_sync_ff.value) & 1:
+            break
+    else:
+        raise AssertionError("reset synchronizer first stage never released")
+
+    assert int(dut.rst_n_sync.value) == 0
+
+    await RisingEdge(dut.clk_PAD)
+    await Timer(1, "ps")
+    assert int(dut.rst_n_sync.value) == 1
+
+
+@cocotb.test()
 async def test_debug_mode_propagates_to_top_chip_pads(dut):
     """
     The bottom debug mode pad should be forwarded to both top-chip debug pads.
@@ -607,6 +646,24 @@ async def test_debug_mode_propagates_to_top_chip_pads(dut):
 
         assert_pad_value(dut, PIN_C0_DEBUG_MODE, debug_mode, "PIN_C0_DEBUG_MODE")
         assert_pad_value(dut, PIN_C1_DEBUG_MODE, debug_mode, "PIN_C1_DEBUG_MODE")
+
+
+@cocotb.test()
+async def test_req_i_buffer_trees_are_independent(dut):
+    """Each request pad must drive all five branches of only its own tree."""
+    await start_up(dut, debug_mode=0, boot_pass_en=0)
+
+    if gl:
+        # Post-layout optimization may rename or flatten the internal branch
+        # buses; gate-level pad behavior is covered by the link tests.
+        return
+
+    for c0_req, c1_req in ((0, 0), (1, 0), (0, 1), (1, 1), (0, 0)):
+        drive_control_inputs(dut, c0_req_i=c0_req, c1_req_i=c1_req)
+        await Timer(2, unit="ns")
+
+        assert int(dut.c0_req_i_branches.value) == (0x1F if c0_req else 0)
+        assert int(dut.c1_req_i_branches.value) == (0x1F if c1_req else 0)
 
 
 @cocotb.test()
@@ -632,6 +689,34 @@ async def test_top_chip_reset_and_clock_outputs(dut):
 
     await assert_pad_toggles(dut, PIN_C0_CLK, "PIN_C0_CLK")
     await assert_pad_toggles(dut, PIN_C1_CLK, "PIN_C1_CLK")
+
+
+@cocotb.test()
+async def test_forwarded_clocks_bypass_core_output_bus(dut):
+    """Dedicated top-level buffers, rather than chip_core, drive clock pads."""
+    if gl:
+        return
+
+    await start_up(dut, debug_mode=1, boot_pass_en=0)
+    core = dut.i_chip_core
+
+    assert str(core.bidir_out.value[PIN_C0_CLK]) == "0"
+    assert str(core.bidir_out.value[PIN_C1_CLK]) == "0"
+    assert str(core.bidir_oe.value[PIN_C0_CLK]) == "0"
+    assert str(core.bidir_oe.value[PIN_C1_CLK]) == "0"
+    assert str(dut.bidir_PAD_OE.value[PIN_C0_CLK]) == "1"
+    assert str(dut.bidir_PAD_OE.value[PIN_C1_CLK]) == "1"
+    assert str(dut.bidir_PAD_IE.value[PIN_C0_CLK]) == "0"
+    assert str(dut.bidir_PAD_IE.value[PIN_C1_CLK]) == "0"
+
+    for edge, expected in ((RisingEdge, 1), (FallingEdge, 0)):
+        await edge(dut.clk_PAD)
+        # Allow the foundry input/output pad functional models to settle.
+        await Timer(10, unit="ns")
+        assert int(dut.c0_clk_to_pad.value) == expected
+        assert int(dut.c1_clk_to_pad.value) == expected
+        assert read_bidir_pin(dut, PIN_C0_CLK) == str(expected)
+        assert read_bidir_pin(dut, PIN_C1_CLK) == str(expected)
 
 
 @cocotb.test()
@@ -839,7 +924,7 @@ async def test_boot_spi_outputs_disable_when_boot_pass_en_is_asserted_late(dut):
     await ClockCycles(dut.clk_PAD, 20)
 
     drive_control_inputs(dut, boot_pass_en=1)
-    await ClockCycles(dut.clk_PAD, 10)
+    await Timer(BOOT_PASS_WAIT_NS, unit="ns")
 
     for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
@@ -857,7 +942,7 @@ async def test_boot_spi_outputs_reenable_after_boot_pass_en_is_cleared(dut):
     await ClockCycles(dut.clk_PAD, 20)
 
     drive_control_inputs(dut, boot_pass_en=0)
-    await ClockCycles(dut.clk_PAD, 20)
+    await Timer(BOOT_PASS_WAIT_NS, unit="ns")
 
     for pin, name in SPI_OUTPUT_PINS:
         val = read_bidir_pin(dut, pin)
@@ -988,10 +1073,13 @@ def chip_top_runner():
     else:
         # RTL simulation.
         sources += [
+            scl_dir / "primitives.v",
+            scl_dir / f"{scl}.v",
             proj_path / "../src/chip_top.sv",
             proj_path / "../src/chip_core.sv",
 
-            proj_path / "../src/directory_controller/directory_controller.sv",
+            proj_path / "../src/directory_controller/directory_controller_full.sv",
+            proj_path / "../src/directory_controller/memory_reset_generator.sv",
 
             proj_path / "../src/arb/wrr_arbiter.sv",
 
@@ -1002,8 +1090,7 @@ def chip_top_runner():
 
             proj_path / "../src/mem_ctrl/mem2048x32.sv",
             proj_path / "../src/mem_ctrl/mem512x32.sv",
-            proj_path / "../src/mem_ctrl/directory_mem.sv",
-            proj_path / "../src/mem_ctrl/mem64x8.sv",
+            proj_path / "../src/mem2048x3/mem2048x3.sv",
 
             proj_path / "../src/housekeeping/boot_fsm.sv",
             proj_path / "../src/housekeeping/housekeeping_top.sv",
@@ -1013,16 +1100,23 @@ def chip_top_runner():
     sources += [
         # IO pad models.
         io_dir / "gf180mcu_fd_io.v",
-        io_dir / "gf180mcu_ws_io.v",
 
         # SRAM macro models.
         sram_dir / "gf180mcu_fd_ip_sram__sram512x8m8wm1.v",
-        sram_dir / "gf180mcu_fd_ip_sram__sram64x8m8wm1.v",
+        sram_dir / "gf180mcu_fd_ip_sram__sram256x8m8wm1.v",
 
         # Custom IP required by chip_top.
         proj_path / "../ip/gf180mcu_ws_ip__id/vh/gf180mcu_ws_ip__id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__qrcode_id/vh/gf180mcu_ws_ip__qrcode_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__shuttle_id/vh/gf180mcu_ws_ip__shuttle_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__project_id/vh/gf180mcu_ws_ip__project_id.v",
+        proj_path / "../ip/gf180mcu_ws_ip__marker/vh/gf180mcu_ws_ip__marker.v",
         proj_path / "../ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v",
     ]
+
+    ws_io_model = io_dir / "gf180mcu_ws_io.v"
+    if ws_io_model.exists():
+        sources.append(ws_io_model)
 
     if sim == "icarus":
         build_args = ["-g2012"]

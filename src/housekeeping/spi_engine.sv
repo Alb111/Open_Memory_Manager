@@ -12,7 +12,11 @@ module spi_engine (
     //spi pins
     output logic spi_sck_o,
     output logic spi_mosi_o,
-    input logic spi_miso_i
+    input logic spi_miso_i,
+
+    input logic scan_en_i,
+    input logic scan_in_i,
+    output logic scan_out_o
     //output logic spi_csb_o
 );
     typedef enum logic [1:0] {IDLE, SHIFT_LOW, SHIFT_HIGH} spi_state_t;
@@ -32,6 +36,14 @@ module spi_engine (
             data_out_o <= 8'h00;
             spi_mosi_o <= 1'b0;
             sck_div <= 4'd0;
+        end else if (scan_en_i) begin
+            curr_state <= spi_state_t'((curr_state << 1) | scan_in_i);
+            bit_cnt <= (bit_cnt << 1) | curr_state[$bits(curr_state)-1];
+            shift_out <= (shift_out << 1) | bit_cnt[2];
+            shift_in <= (shift_in << 1) | shift_out[7];
+            data_out_o <= (data_out_o << 1) | shift_in[7];
+            spi_mosi_o <= data_out_o[7];
+            sck_div <= (sck_div << 1) | spi_mosi_o;
         end else begin
             case(curr_state)
                 IDLE: begin
@@ -83,7 +95,7 @@ module spi_engine (
     assign spi_sck_o = (curr_state == SHIFT_HIGH);
     assign done_o = (curr_state == SHIFT_HIGH && sck_div == 4'd7 && bit_cnt == 3'd7);
     assign busy_o = (curr_state != IDLE);
+    assign scan_out_o = sck_div[3];
 
 endmodule
-
 

@@ -3,40 +3,44 @@ meta:
   flow: Chip
   substituting_steps:
 
-    #Disable KLayout DRC
-    #KLayout.DRC: null
-    #Checker.KLayoutDRC: null
+    # Render the layout after sealring insertion
+    KLayout.Render: null
+    +KLayout.SealRing: KLayout.Render
+
+    # Disable KLayout DRC
+    KLayout.DRC: null
+    Checker.KLayoutDRC: null
 
     # Disable KLayout antenna check
-    #KLayout.Antenna: null
-    #Checker.KLayoutAntenna: null
+    # KLayout.Antenna: null
+    # Checker.KLayoutAntenna: null
 
     # Disable KLayout density check
-    #KLayout.Density: null
-    #Checker.KLayoutDensity: null
+    # KLayout.Density: null
+    # Checker.KLayoutDensity: null
 
     # Save time during development
     # Enable for sign-off
-    #OpenROAD.IRDropReport: null
-    #Magic.DRC: null
-    #Checker.MagicDRC: null
-    #KLayout.XOR: null
-    #Netgen.LVS: null
-    #Checker.LVS: null
+    OpenROAD.IRDropReport: null
+    Magic.DRC: null
+    Checker.MagicDRC: null
+    KLayout.XOR: null
+    Netgen.LVS: null
+    Checker.LVS: null
 
 DESIGN_NAME: chip_top
 VERILOG_FILES:
 - dir::../src/chip_top.sv
 - dir::../src/chip_core.sv
-- dir::../src/directory_controller/directory_controller.sv
+- dir::../src/directory_controller/directory_controller_full.sv
+- dir::../src/directory_controller/memory_reset_generator.sv
 - dir::../src/arb/wrr_arbiter.sv
 - dir::../src/housekeeping/boot_fsm.sv
 - dir::../src/housekeeping/housekeeping_top.sv
 - dir::../src/housekeeping/spi_engine.sv
 - dir::../src/mem_ctrl/mem2048x32.sv
 - dir::../src/mem_ctrl/mem512x32.sv
-- dir::../src/mem_ctrl/directory_mem.sv
-- dir::../src/mem_ctrl/mem64x8.sv
+- dir::../src/mem2048x3/mem2048x3.sv
 - dir::../src/interposer_interface/directory_interface.sv
 - dir::../src/interposer_interface/lossy_pipe_stage.sv
 - dir::../src/interposer_interface/rserializer.sv
@@ -48,23 +52,39 @@ SLANG_ARGUMENTS: ['--keep-hierarchy']
 
 # Tuned design repair for slew/cap cleanup without exploding post-GPL buffering.
 SYNTH_STRATEGY: "DELAY 4"
-MAX_FANOUT_CONSTRAINT: 12
+# The explicit debug-mode distribution tree handles the largest control net.
+# A limit of 32 avoids excessive buffering of non-critical scan/control paths
+# while remaining conservative for functional logic at 35 MHz.
+MAX_FANOUT_CONSTRAINT: 32
+MAX_CAPACITANCE_CONSTRAINT: null
 
 DESIGN_REPAIR_MAX_WIRE_LENGTH: 0
-DESIGN_REPAIR_MAX_SLEW_PCT: 35
-DESIGN_REPAIR_MAX_CAP_PCT: 50
+DESIGN_REPAIR_MAX_SLEW_PCT: 30
+DESIGN_REPAIR_MAX_CAP_PCT: 30
 DESIGN_REPAIR_REMOVE_BUFFERS: False
 
 GRT_DESIGN_REPAIR_RUN_GRT: True
-GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH: 200
-GRT_DESIGN_REPAIR_MAX_SLEW_PCT: 20
-GRT_DESIGN_REPAIR_MAX_CAP_PCT: 30
+GRT_DESIGN_REPAIR_MAX_WIRE_LENGTH: 0
+GRT_DESIGN_REPAIR_MAX_SLEW_PCT: 35
+GRT_DESIGN_REPAIR_MAX_CAP_PCT: 20
+GRT_RESIZER_SETUP_SLACK_MARGIN: 1.0
 
-CTS_CLK_MAX_WIRE_LENGTH: 400
+RUN_POST_GRT_DESIGN_REPAIR: true
+RUN_POST_GRT_RESIZER_TIMING: true
+
+CTS_CLK_MAX_WIRE_LENGTH: 800
 CTS_SINK_CLUSTERING_MAX_DIAMETER: 25
 CTS_MAX_CAP: 0.15
 CTS_SINK_CLUSTERING_SIZE: 12
 CTS_SINK_BUFFER_MAX_CAP_DERATE_PCT: 25
+CTS_MACRO_CLUSTERING_SIZE: 2
+CTS_MACRO_CLUSTERING_MAX_DIAMETER: 50
+
+CTS_CLK_BUFFERS:
+- gf180mcu_fd_sc_mcu7t5v0__clkbuf_2
+- gf180mcu_fd_sc_mcu7t5v0__clkbuf_4
+- gf180mcu_fd_sc_mcu7t5v0__clkbuf_8
+- gf180mcu_fd_sc_mcu7t5v0__clkbuf_16
 
 # Fix antenna violations after DRT
 DRT_ANTENNA_REPAIR_ITERS: 10
@@ -84,32 +104,56 @@ VDD_NETS:
 GND_NETS:
 - VSS
 
+# IR-drop voltage sources (OpenROAD.IRDropReport / PSM).
+# Only the true supply-INPUT dvdd/dvss pads are listed as sources. The pads that
+# deliver power up to the stacked top chips (dvdd_pads[]/dvss_pads[] indices
+# 2,3,6,9,10,13) are deliberately excluded so PSM does not treat them as ideal
+# supplies. Regenerate after any padring change:
+#   python3 scripts/gen_vsrc_loc.py --outdir librelane/pdn --vdd-voltage 5.0 \
+#       --exclude 2,3,6,9,10,13
+# TODO(Part 2): once the top-chip flows exist, model the current those excluded
+# pads draw for the top chips as loads (PSM sees only on-die instance power).
+VSRC_LOC_FILES:
+  VDD: dir::pdn/vsrc_dvdd.loc
+  VSS: dir::pdn/vsrc_dvss.loc
+
 # We need to add gf180mcu_fd_io__bi_24t
 # due to the unused Y output for output only pads
 IGNORE_DISCONNECTED_MODULES:
 - gf180mcu_fd_io__bi_24t
-- gf180mcu_ws_ip__id
+- gf180mcu_ws_ip__qrcode_id
+- gf180mcu_ws_ip__shuttle_id
+- gf180mcu_ws_ip__project_id
 - gf180mcu_ws_ip__logo
+- gf180mcu_ws_ip__marker
 
 # Clock
 CLOCK_PORT: clk_PAD
 CLOCK_NET: clk_pad/Y
-CLOCK_PERIOD: 50 # 20 MHz
-
+CLOCK_PERIOD: 28.571 # 35 MHz
+  
 # Fix hold violations
 PL_RESIZER_HOLD_SLACK_MARGIN: 0.35
 GRT_RESIZER_HOLD_SLACK_MARGIN: 0.3
 
 # Increase for more logic
 # on your die
-PL_TARGET_DENSITY_PCT: 40
+PL_TARGET_DENSITY_PCT: 30
 GRT_ALLOW_CONGESTION: true
+
+# Allow a larger Y displacement
+# PL_MAX_DISPLACEMENT_Y: 500
+# PL_MAX_DISPLACEMENT_X: 500
 
 # Fix antenna violations after DRT
 GRT_ANTENNA_REPAIR_ITERS: 10
 GRT_ANTENNA_REPAIR_MARGIN: 25 # %
 DRT_ANTENNA_REPAIR_ITERS: 10
 DRT_ANTENNA_REPAIR_MARGIN: 10 # %
+
+# PDN
+PDN_CFG: dir::pdn/pdn_cfg.tcl
+PDN_ENABLE_PINS: False
 
 # PDN - Straps
 PDN_VWIDTH: 5
@@ -125,9 +169,9 @@ PDN_CORE_RING: True
 PDN_CORE_RING_VWIDTH: 25
 PDN_CORE_RING_HWIDTH: 25
 PDN_CORE_RING_CONNECT_TO_PADS: True
-PDN_ENABLE_PINS: False
-PDN_CORE_VERTICAL_LAYER: Metal2
+PDN_CORE_VERTICAL_LAYER: Metal4
 PDN_CORE_HORIZONTAL_LAYER: Metal3
+PDN_CORE_RING_CONNECT_TO_PAD_LAYERS: [Metal2]
 
 # Improve GP stability for this macro-heavy design
 #PL_TIME_DRIVEN: False
@@ -178,167 +222,37 @@ MAGIC_GDS_FLATGLOB:
 KLAYOUT_FILLER_OPTIONS:
   Metal2_ignore_active: true
 
-# Preserve extracted port identity for LVS pin matching.
-MAGIC_EXT_UNIQUE: notopports
-
-MACROS:
-  gf180mcu_ws_ip__id:
-    gds:
-      - dir::../ip/gf180mcu_ws_ip__id/gds/gf180mcu_ws_ip__id.gds
-    lef:
-      - dir::../ip/gf180mcu_ws_ip__id/lef/gf180mcu_ws_ip__id.lef
-    vh:
-      - dir::../ip/gf180mcu_ws_ip__id/vh/gf180mcu_ws_ip__id.v
-    lib:
-      "*":
-        - dir::../ip/gf180mcu_ws_ip__id/lib/gf180mcu_ws_ip__id.lib
-    instances:
-      chip_id:
-        location: [26, 26]
-        orientation: N
-
-
-  gf180mcu_ws_ip__logo:
-    gds:
-      - dir::../ip/gf180mcu_ws_ip__logo/gds/gf180mcu_ws_ip__logo.gds
-    lef:
-      - dir::../ip/gf180mcu_ws_ip__logo/lef/gf180mcu_ws_ip__logo.lef
-    vh:
-      - dir::../ip/gf180mcu_ws_ip__logo/vh/gf180mcu_ws_ip__logo.v
-    lib:
-      "*":
-        - dir::../ip/gf180mcu_ws_ip__logo/lib/gf180mcu_ws_ip__logo.lib
-    instances:
-      wafer_space_logo:
-        location: ["expr::$DIE_AREA[2] + -169.25", "expr::$DIE_AREA[3] + -169.25"]
-        orientation: N
-
-  gf180mcu_fd_ip_sram__sram512x8m8wm1:
-    gds:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/gds/gf180mcu_fd_ip_sram__sram512x8m8wm1.gds
-    lef:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lef/gf180mcu_fd_ip_sram__sram512x8m8wm1.lef
-    vh:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram512x8m8wm1__blackbox.v
-    lib:
-      "*_tt_025C_5v00":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__tt_025C_5v00.lib
-      "*_ff_n40C_5v50":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ff_n40C_5v50.lib
-      "*_ss_125C_4v50":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram512x8m8wm1__ss_125C_4v50.lib
-    instances:
-      # SRAMs instantiated inside directory_mem's mem_ctrl_2048x32
-      # Keep them in a centered 4x4 grid with routing channels between macros.
-      # Apply a uniform +5um X nudge to avoid marginal M3.2b markers at SRAM M3 edges.
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0:
-        location: [625, 720]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1:
-        location: [1380, 720]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2:
-        location: [2135, 720]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3:
-        location: [2890, 720]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0:
-        location: [625, 1805]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1:
-        location: [1380, 1805]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2:
-        location: [2135, 1805]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3:
-        location: [2890, 1805]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0:
-        location: [625, 2890]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1:
-        location: [1380, 2890]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2:
-        location: [2135, 2890]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3:
-        location: [2890, 2890]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0:
-        location: [625, 3975]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1:
-        location: [1380, 3975]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2:
-        location: [2135, 3975]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3:
-        location: [2890, 3975]
-        orientation: N
-
-  gf180mcu_fd_ip_sram__sram64x8m8wm1:
-    gds:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/gds/gf180mcu_fd_ip_sram__sram64x8m8wm1.gds
-    lef:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lef/gf180mcu_fd_ip_sram__sram64x8m8wm1.lef
-    vh:
-      - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/verilog/gf180mcu_fd_ip_sram__sram64x8m8wm1__blackbox.v
-    lib:
-      "*_tt_025C_5v00":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__tt_025C_5v00.lib
-      "*_ff_n40C_5v50":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__ff_n40C_5v50.lib
-      "*_ss_125C_4v50":
-        - pdk_dir::libs.ref/gf180mcu_fd_ip_sram/lib/gf180mcu_fd_ip_sram__sram64x8m8wm1__ss_125C_4v50.lib
-    instances:
-      # Directory metadata 64x8 SRAMs. Keep them in the routing channel
-      # between the first and second 512x8 SRAM rows.
-      i_chip_core.i_directory_mem.i_mem64x8.sram0:
-        location: [625, 1385]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem64x8.sram1:
-        location: [1755, 1385]
-        orientation: N
-      i_chip_core.i_directory_mem.i_mem64x8.sram2:
-        location: [2890, 1385]
-        orientation: N
-
-# Power connections for SRAMs
-# Format: <instance-regex> <vdd-net> <gnd-net> <macro-vdd-pin> <macro-gnd-pin>
-PDN_MACRO_CONNECTIONS:
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram0 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram1 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram2 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock0.sram3 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram0 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram1 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram2 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock1.sram3 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram0 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram1 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram2 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock2.sram3 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram0 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram1 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram2 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem_ctrl_2048x32.memblock3.sram3 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem64x8.sram0 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem64x8.sram1 VDD VSS VDD VSS"
-- "i_chip_core.i_directory_mem.i_mem64x8.sram2 VDD VSS VDD VSS"
-
-# Halo size around macros while cutting rows.
-# Workaround for: https://github.com/The-OpenROAD-Project/OpenROAD/issues/8868
-FP_MACRO_HORIZONTAL_HALO: 5
-FP_MACRO_VERTICAL_HALO: 5
-PDN_HORIZONTAL_HALO: 3
-PDN_VERTICAL_HALO: 3
-
-PDN_CFG: dir::pdn_cfg.tcl
-
 # Custom padring placement is configured in pad_groups.yaml. Keep these
 # settings out of this LibreLane config so KLayout/config validation accepts it.
-PAD_CFG: dir::pad_cfg.tcl
+PAD_CFG: dir::pad/pad_cfg.tcl
+# Because we have multiple power pads for one power domain
+MAGIC_EXT_UNIQUE: notopports
+
+# Image render settings
+KLAYOUT_RENDER_RESOLUTION: 2048
+KLAYOUT_RENDER_OVERSAMPLING: 3
+KLAYOUT_PROPERTIES: dir::gf180mcu_render.lyp
+
+# DRC settings
+# A high number of workers increases RAM usage,
+# but can significantly improve the performance.
+# workers * threads should equal the available
+# hardware threads for a best possible utilization.
+
+KLAYOUT_DRC_THREADS: 1
+
+# "max" equals max hardware threads
+KLAYOUT_DRC_OPTIONS:
+  decks: "all,-antenna,-density,-cup" # disable CUP for now
+  variant: ref::$PDK
+  workers: max
+
+KLAYOUT_DENSITY_OPTIONS:
+  decks: "density"
+  variant: ref::$PDK
+  workers: max
+
+KLAYOUT_ANTENNA_OPTIONS:
+  decks: "antenna"
+  variant: ref::$PDK
+  workers: max

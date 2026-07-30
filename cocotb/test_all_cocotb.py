@@ -22,18 +22,23 @@ BOOT_FLASH_MODEL = Path(
     )
 )
 
+# mem64x8_tb / directory_mem_tb were dropped: their modules (mem64x8,
+# directory_mem) are superseded by the mem2048x3 + directory_controller_full
+# rewrite and are no longer instantiated in chip_core.
 TESTBENCHES = [
     ("mem_tb.py", None),
-    ("mem64x8_tb.py", None),
-    ("directory_mem_tb.py", None),
+    ("mem2048x3_tb.py", None),
     ("wrr_arbiter_tb.py", None),
     ("tserializer_tb.py", None),
     ("rserializer_tb.py", None),
     ("directory_interface_tb.py", None),
     ("directory_controller_tb.py", None),
+    ("memory_reset_generator_tb.py", None),
     ("housekeeping_tb.py", None),
     ("boot_flash_tb.py", BOOT_FLASH_MODEL),
     ("boot_mem_tb.py", BOOT_FLASH_MODEL),
+    ("whoami_boot_tb.py", BOOT_FLASH_MODEL),
+    ("chip_core_boot_tb.py", BOOT_FLASH_MODEL),
     ("chip_top_tb.py", None),
 ]
 

@@ -27,9 +27,11 @@ async def start_clock(dut):
 
 async def reset_dut(dut):
     dut.rst_ni.value = 0
+    dut.debug_mode_i.value = 0
+    dut.scan_in_i.value = 0
     dut.ready_i.value = 0
     dut.serial_i.value = 0
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
     await Timer(50, unit="ns")
     await FallingEdge(dut.clk_i)
     dut.rst_ni.value = 1
@@ -76,7 +78,7 @@ async def test_single(dut):
         await FallingEdge(dut.clk_i)
         test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
         
-        dut.req_i.value = 1
+        dut.req_i_branches.value = 0x1F
 
         serial_list = bstr_to_grouped_list(
             bstr=test_data,
@@ -90,7 +92,7 @@ async def test_single(dut):
             dut.serial_i.value = serial_list[i]
             await FallingEdge(dut.clk_i)
         
-        dut.req_i.value = 0
+        dut.req_i_branches.value = 0
 
         await RisingEdge(dut.clk_i)
         await FallingEdge(dut.clk_i)
@@ -122,7 +124,7 @@ async def test_const_send(dut):
         # Prepare signals
         test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
         
-        dut.req_i.value = 1
+        dut.req_i_branches.value = 0x1F
 
         serial_list = bstr_to_grouped_list(
             bstr=test_data,
@@ -136,7 +138,7 @@ async def test_const_send(dut):
             dut.serial_i.value = serial_list[i]
             await FallingEdge(dut.clk_i)
         
-        dut.req_i.value = 0
+        dut.req_i_branches.value = 0
 
         await RisingEdge(dut.clk_i)
         await FallingEdge(dut.clk_i)
@@ -169,7 +171,7 @@ async def test_delayed_send(dut):
         # Prepare signals
         test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
         
-        dut.req_i.value = 1
+        dut.req_i_branches.value = 0x1F
 
         serial_list = bstr_to_grouped_list(
             bstr=test_data,
@@ -183,7 +185,7 @@ async def test_delayed_send(dut):
             dut.serial_i.value = serial_list[i]
             await FallingEdge(dut.clk_i)
         
-        dut.req_i.value = 0
+        dut.req_i_branches.value = 0
 
         await RisingEdge(dut.clk_i)
         await FallingEdge(dut.clk_i)
@@ -212,7 +214,7 @@ async def test_valid_o_single(dut):
     msg_len = 12
     test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
     
-    dut.req_i.value = 1
+    dut.req_i_branches.value = 0x1F
 
     serial_list = bstr_to_grouped_list(
         bstr=test_data,
@@ -228,7 +230,7 @@ async def test_valid_o_single(dut):
         assert dut.valid_o.value == 0, "valid_o, should be low while message being received"
 
     
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
 
     await RisingEdge(dut.clk_i)
     await FallingEdge(dut.clk_i)
@@ -267,7 +269,7 @@ async def test_valid_o_new_msg(dut):
     for msg_len in msg_lens:
         test_data = 0x123ABCDEFDEADBEEF # 0001_0010_0011_1010_1011_1100_1101_1110_1111_1101_1110_1010_1101_1011_1110_1110_1111
         
-        dut.req_i.value = 1
+        dut.req_i_branches.value = 0x1F
 
         serial_list = bstr_to_grouped_list(
             bstr=test_data,
@@ -283,7 +285,7 @@ async def test_valid_o_new_msg(dut):
             assert dut.valid_o.value == 0, "valid_o, should be low while message being received"
 
         
-        dut.req_i.value = 0
+        dut.req_i_branches.value = 0
 
         await RisingEdge(dut.clk_i)
         await FallingEdge(dut.clk_i)

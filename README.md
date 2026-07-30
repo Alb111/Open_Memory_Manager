@@ -6,13 +6,16 @@ Project for wafer.space MPW runs using the gf180mcu PDK.
 To access the documentation locally run the following
 `git submodule add git@github.com:YOUR_GITHUB_USERNAME/Open_Memory_Manager.git wiki`
 
+## Dependencies
+
+Too manage all dependencies, the project template includes a Nix shell with all the required tools.
+Install Nix and LibreLane by following the Nix-based installation instructions: https://librelane.readthedocs.io/en/latest/installation/nix_installation/index.html
+To activate the shell, simply run `nix-shell` in the root directory of this repository. The subsequent steps assume that you are in the Nix shell of the project template.
+
 ## Prerequisites
 
-We use a custom fork of the [gf180mcuD PDK variant](https://github.com/wafer-space/gf180mcu) until all changes have been upstreamed.
-
-To clone the latest PDK version, simply run `make clone-pdk`.
-
-In the next step, install LibreLane by following the Nix-based installation instructions: https://librelane.readthedocs.io/en/latest/installation/nix_installation/index.html
+The project template uses the open_pdks gf180mcuD variant of the PDK.
+To clone the latest PDK version via [Ciel](https://github.com/fossi-foundation/ciel), run `make clone-pdk`.
 
 ## Implement the Design
 
@@ -28,6 +31,8 @@ With this shell enabled, run the implementation:
 ```
 make librelane
 ```
+
+You can find all output artifacts in the `librelane/runs/<timestamp>/` directory.
 
 ## View the Design
 
@@ -71,7 +76,7 @@ make sim-gl
 ```
 
 > [!NOTE]
-> You need to have the latest implementation of your design in the `final/` folder. `make librelane` updates it automatically; after older runs, execute `make copy-final` to copy all necessary files.
+> You need to have the latest implementation of your design in the `final/` folder. After a run has completed without errors, the final views will be copied to `final/`.
 
 In both cases, a waveform file will be generated under `cocotb/sim_build/chip_top.fst`.
 You can view it using a waveform viewer, for example, [GTKWave](https://gtkwave.github.io/gtkwave/).
@@ -112,6 +117,27 @@ export SLOT=0p5x0p5
 ```
 
 You can change the slot that is selected by default in the Makefile by editing the value of `DEFAULT_SLOT`.
+
+## Select Different IP Libraries
+
+The project template has support for selecting libraries with the below environment variables:
+
+| Env  | Available Values                                                          | Description                |
+|------|---------------------------------------------------------------------------|----------------------------|
+| SCL  | gf180mcu_fd_sc_mcu7t5v0, gf180mcu_fd_sc_mcu9t5v0, gf180mcu_as_sc_mcu7t3v3 | The standard cell library. |
+| PAD  | gf180mcu_fd_io, gf180mcu_ocd_io                                           | The I/O pad library.       |
+| SRAM | gf180mcu_fd_ip_sram, gf180mcu_ocd_ip_sram                                 | The SRAM library.          |
+
+For example, to build the 0p5x0p5 chip with 3v3 libraries:
+
+```
+SLOT=0p5x0p5 SCL=gf180mcu_as_sc_mcu7t3v3 PAD=gf180mcu_ocd_io SRAM=gf180mcu_ocd_ip_sram make librelane
+```
+
+The default values can be changed in the Makefile.
+
+> [!NOTE]
+> Not all of the community-created IPs have been tested yet, so support for them is experimental!
 
 ## Building a Standalone Padring for Analog Design
 

@@ -82,7 +82,11 @@ module directory_controller (
   output logic        dir_mem_resp_ready_o,
 
   // Asserted after reset-time metadata invalidation has completed.
-  output logic        dir_state_invalidated_o
+  output logic        dir_state_invalidated_o,
+
+  input  logic        scan_en_i,
+  input  logic        scan_in_i,
+  output logic        scan_out_o
 );
 
   localparam logic [4:0] CACHE_CMD_NONE        = 5'b00000;
@@ -197,6 +201,7 @@ module directory_controller (
   logic [1:0] arb_req;
   logic [1:0] arb_grant;
   logic [1:0] arb_req_passthrough;
+  logic       arb_scan_out;
 
   logic selected_valid;
   logic selected_cache;
@@ -232,7 +237,10 @@ module directory_controller (
     .rst_ni (rst_ni),
     .req_i  (arb_req),
     .grant_o(arb_grant),
-    .req_o  (arb_req_passthrough)
+    .req_o  (arb_req_passthrough),
+    .scan_en_i(scan_en_i),
+    .scan_in_i(scan_in_i),
+    .scan_out_o(arb_scan_out)
   );
 
   assign selected_valid = (arb_grant != 2'b00);
@@ -817,6 +825,41 @@ module directory_controller (
 
       flush_seen_q <= 1'b0;
       flush_data_q <= 32'b0;
+    end else if (scan_en_i) begin
+      state_q <= dir_state_e'((state_q << 1) | arb_scan_out);
+      init_index_q <= (init_index_q << 1) | state_q[$bits(state_q)-1];
+      dir_state_invalidated_q <= init_index_q[6];
+
+      request_cache_q <= dir_state_invalidated_q;
+      request_addr_q <= (request_addr_q << 1) | request_cache_q;
+      request_data_q <= (request_data_q << 1) | request_addr_q[31];
+      request_cmd_q <= (request_cmd_q << 1) | request_data_q[31];
+
+      line_state_q <= (line_state_q << 1) | request_cmd_q[4];
+      line_sharers_q <= (line_sharers_q << 1) | line_state_q[1];
+      line_owner_q <= line_sharers_q[1];
+      line_valid_q <= line_owner_q;
+
+      pending_ack_cache_q <= line_valid_q;
+      pending_ack_cmd_q <= (pending_ack_cmd_q << 1) | pending_ack_cache_q;
+      pending_ack_data_q <= (pending_ack_data_q << 1) | pending_ack_cmd_q[5];
+
+      pending_snoop_cache_q <= pending_ack_data_q[31];
+      pending_snoop_cmd_q <= (pending_snoop_cmd_q << 1) | pending_snoop_cache_q;
+
+      pending_write_q <= pending_snoop_cmd_q[5];
+      pending_write_state_q <= (pending_write_state_q << 1) | pending_write_q;
+      pending_write_sharers_q <= (pending_write_sharers_q << 1) | pending_write_state_q[1];
+      pending_write_owner_q <= pending_write_sharers_q[1];
+      pending_write_valid_q <= pending_write_owner_q;
+
+      pending_backup_write_q <= pending_write_valid_q;
+      pending_backup_data_q <= (pending_backup_data_q << 1) | pending_backup_write_q;
+
+      backup_read_then_snoop_q <= pending_backup_data_q[31];
+
+      flush_seen_q <= backup_read_then_snoop_q;
+      flush_data_q <= (flush_data_q << 1) | flush_seen_q;
     end else begin
       state_q <= state_d;
       init_index_q <= init_index_d;
@@ -854,6 +897,8 @@ module directory_controller (
       flush_data_q <= flush_data_d;
     end
   end
+
+  assign scan_out_o = flush_data_q[31];
 
 endmodule : directory_controller
 

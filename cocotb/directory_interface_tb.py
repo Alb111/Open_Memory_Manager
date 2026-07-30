@@ -39,31 +39,35 @@ class Metadata(IntEnum):
     WhoAmI          = 0b1110
     ResetDone       = 0b1111
 
+# bus_cache_cmd_o / dir_cmd_i now carry the 4-bit binary metadata code directly
+# (no one-hot). These map to the same values as the Metadata enum above.
 class CCMD1H(IntEnum):
-    BusRD              = 0b000000001
-    BusRDX             = 0b000000010
-    BusUPGR            = 0b000000100
-    EvictClean         = 0b000001000
-    EvictDirty         = 0b000010000
-    SnoopBusRD_Ack     = 0b000100000
-    SnoopBusRDX_Ack    = 0b001000000
-    SnoopBusUPGR_Ack   = 0b010000000
-    ResetDone          = 0b100000000
+    BusRD              = 1
+    BusRDX             = 2
+    BusUPGR            = 3
+    EvictClean         = 5
+    EvictDirty         = 6
+    SnoopBusRD_Ack     = 9
+    SnoopBusRDX_Ack    = 10
+    SnoopBusUPGR_Ack   = 11
+    ResetDone          = 15
 
 class DCMD1H(IntEnum):
-    BusRD_Ack        = 0b0000001
-    BusRDX_Ack       = 0b0000010
-    BusUPGR_Ack      = 0b0000100
-    SnoopBusRD       = 0b0001000
-    SnoopBusRDX      = 0b0010000
-    SnoopBusUPGR     = 0b0100000
-    WhoAmI           = 0b1000000
+    BusRD_Ack        = 1
+    BusRDX_Ack       = 2
+    BusUPGR_Ack      = 3
+    SnoopBusRD       = 9
+    SnoopBusRDX      = 10
+    SnoopBusUPGR     = 11
+    WhoAmI           = 14
 
 async def start_clock(dut):
     cocotb.start_soon(Clock(dut.clk_i, 10, unit="ns").start())
 
 async def reset_dut(dut):
     dut.rst_ni.value = 0
+    dut.scan_en_i.value = 0
+    dut.scan_in_i.value = 0
 
     # zero all inputs
     dut.dir_valid_i.value = 0
@@ -75,7 +79,7 @@ async def reset_dut(dut):
 
     dut.snoop_ready_i.value = 0
 
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
     dut.serial_i.value = 0
 
     dut.cpu_id_i.value = 0
@@ -117,7 +121,7 @@ async def send_message(dut, data, msg_len):
     else:
         NUM_PINS = 9
 
-    dut.req_i.value = 1
+    dut.req_i_branches.value = 0x1F
 
     t_len = ceil(msg_len / NUM_PINS)
     mask = (1 << NUM_PINS) - 1
@@ -129,7 +133,7 @@ async def send_message(dut, data, msg_len):
         dut.serial_i.value = curr_data
         await FallingEdge(dut.clk_i)
     
-    dut.req_i.value = 0
+    dut.req_i_branches.value = 0
     dut.serial_i.value = 0
 
 def set_packet(dut, dcmd : DCMD1H, mem_addr, mem_wdata):
@@ -154,6 +158,45 @@ class CycleCounter:
 
 
 # ─── Tests ────────────────────────────────────────────────────────────────────
+@cocotb.test
+async def test_scan_chain_continuity(dut):
+    """A marker must traverse the complete directory-interface scan chain."""
+    if gl:
+        return
+
+    num_pins = len(dut.serial_i)
+    tx_depth = ceil(36 / num_pins)
+    tx_chain_len = 1 + 2 * tx_depth.bit_length() + tx_depth * num_pins
+    rx_chain_len = 2 + ceil(68 / num_pins) * num_pins
+    pipe_chain_len = (1 + 69) + (1 + 35)
+    chain_len = tx_chain_len + rx_chain_len + pipe_chain_len
+
+    await start_clock(dut)
+    await reset_dut(dut)
+
+    await FallingEdge(dut.clk_i)
+    dut.scan_en_i.value = 1
+    dut.scan_in_i.value = 0
+    for _ in range(chain_len):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+
+    assert int(dut.scan_out_o.value) == 0
+    dut.scan_in_i.value = 1
+    for cycle in range(chain_len):
+        await RisingEdge(dut.clk_i)
+        await Timer(1, unit="ps")
+        expected = int(cycle == chain_len - 1)
+        assert int(dut.scan_out_o.value) == expected, (
+            f"scan marker observed at cycle {cycle + 1}, expected {chain_len}"
+        )
+        dut.scan_in_i.value = 0
+
+    await RisingEdge(dut.clk_i)
+    await Timer(1, unit="ps")
+    assert int(dut.scan_out_o.value) == 0
+
+
 @cocotb.test
 async def test_send_SnoopBusRD(dut):
     if not gl:
@@ -337,7 +380,7 @@ async def test_receive_EvictClean(dut):
     bus_addr = int(dut.bus_addr_o.value)
     bus_cache_cmd = int(dut.bus_cache_cmd_o.value)
     
-    expected_ccmd = CCMD1H.EvictClean & 0b11111
+    expected_ccmd = CCMD1H.EvictClean
 
     assert bus_addr == expected_bus_addr, f"Expected bus_addr {expected_bus_addr}, got {bus_addr}"
     assert bus_cache_cmd == expected_ccmd, f"Expected cache_cmd {expected_ccmd}, got {bus_cache_cmd}"
@@ -379,7 +422,7 @@ async def test_receive_EvictDirty(dut):
     bus_data = int(dut.bus_wdata_o.value)
     bus_addr = int(dut.bus_addr_o.value)
     
-    expected_ccmd = CCMD1H.EvictDirty & 0b11111
+    expected_ccmd = CCMD1H.EvictDirty
     assert bus_data == mem_wdata, f"Expected bus_data {mem_wdata}, got {bus_data}"
     assert bus_addr == mem_addr, f"Expected bus_addr {mem_addr}, got {bus_addr}"
     assert bus_cache_cmd == expected_ccmd, f"Expected cache_cmd {expected_ccmd}, got {bus_cache_cmd}"
@@ -419,7 +462,7 @@ async def test_receive_SnoopBusRD_Ack(dut):
     snoop_data = int(dut.snoop_data_o.value)
     snoop_cache_cmd = int(dut.snoop_cache_cmd_o.value)
     
-    expected_ccmd = (CCMD1H.SnoopBusRD_Ack >> 5) & 0b111
+    expected_ccmd = CCMD1H.SnoopBusRD_Ack
 
     assert snoop_data == expected_snoop_data, f"Expected snoop_data {expected_snoop_data}, got {snoop_data}"
     assert snoop_cache_cmd == expected_ccmd, f"Expected directory_cmd {expected_ccmd}, got {snoop_cache_cmd}"

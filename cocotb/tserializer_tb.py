@@ -27,6 +27,8 @@ async def start_clock(dut):
 
 async def reset_dut(dut):
     dut.rst_ni.value = 0
+    dut.debug_mode_i.value = 0
+    dut.scan_in_i.value = 0
     dut.valid_i.value = 0
     dut.data_in.value = 0
     dut.msg_type.value = 0

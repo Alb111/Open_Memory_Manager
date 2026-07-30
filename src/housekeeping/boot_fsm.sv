@@ -19,7 +19,11 @@ module boot_fsm #(
     output logic [31:0] sram_addr_o,
     output logic [31:0] sram_data_o,
 
-    output logic boot_started_o
+    output logic boot_started_o,
+
+    input logic scan_en_i,
+    input logic scan_in_i,
+    output logic scan_out_o
 );
 
     typedef enum logic [3:0] {
@@ -45,6 +49,8 @@ module boot_fsm #(
     always_ff @(posedge clk_i) begin
         if (!reset_ni) begin
             curr_state <= IDLE;
+        end else if (scan_en_i) begin
+            curr_state <= boot_state_t'((curr_state << 1) | scan_in_i);
         end else begin
             curr_state <= next_state;
         end
@@ -58,6 +64,12 @@ module boot_fsm #(
             byte_cntr <= 32'h0;
             sram_addr <= SRAM_BASE_ADDR;
             addr_byte_cnt <= 2'd0;
+        end else if (scan_en_i) begin
+            word_buffer <= (word_buffer << 1) | curr_state[$bits(curr_state)-1];
+            byte_in_word <= (byte_in_word << 1) | word_buffer[31];
+            byte_cntr <= (byte_cntr << 1) | byte_in_word[1];
+            sram_addr <= (sram_addr << 1) | byte_cntr[31];
+            addr_byte_cnt <= (addr_byte_cnt << 1) | sram_addr[31];
         end else begin
             // idle to reset counters before a new boot starts
             if (curr_state == IDLE) begin
@@ -84,7 +96,12 @@ module boot_fsm #(
 
             if (curr_state == WRITE_SRAM) begin
                 byte_in_word <= 2'd0;
-                sram_addr <= sram_addr + 4;
+                // Shared memory is word-indexed: write image word i at word
+                // index i (stride 1), matching the CPU side after sp_addr_handler
+                // translates its byte address to a word index. (Was +4, the old
+                // byte-address stride that only worked because the CPU path also
+                // omitted the byte->word shift.)
+                sram_addr <= sram_addr + 1;
             end
 
         end
@@ -187,5 +204,6 @@ module boot_fsm #(
             default: next_state = IDLE;
         endcase
     end
-endmodule
 
+    assign scan_out_o = addr_byte_cnt[1];
+endmodule
